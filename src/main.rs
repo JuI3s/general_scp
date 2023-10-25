@@ -3,11 +3,12 @@ use rust_example::{
     overlay::peer::Peer,
 };
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cfg = Config::new_config();
     let mut app = Application::new(&cfg);
 
-    app.start();
+    app.start().await
 
     // let mut work_queue = WorkQueue::new();
     // let mut peer = Peer::new();

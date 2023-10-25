@@ -14,8 +14,8 @@ use super::{
     work_queue::{WorkQueue},
 };
 
-type PendingRequestQueue = UnboundedReceiver<RpcArg>;
-type RpcRequestWriteQueue = Arc<Mutex<UnboundedSender<RpcArg>>>;
+pub type PendingRequestQueue = UnboundedReceiver<RpcArg>;
+pub type RpcRequestWriteQueue = Arc<Mutex<UnboundedSender<RpcArg>>>;
 
 pub struct Application {
     main_thread_work_queue: Arc<Mutex<WorkQueue>>,

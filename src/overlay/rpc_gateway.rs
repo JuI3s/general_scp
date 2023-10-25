@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::StderrLock};
+
+use crate::application::application::RpcRequestWriteQueue;
 
 use super::peer::PeerID;
 
@@ -20,7 +22,7 @@ impl TestRpcGateway {
 
 impl RpcGateway for TestRpcGateway {
     fn register(&mut self, peer_id: PeerID, write_queue: RpcRequestWriteQueue) {
-        self.write_queues[peer_id] = write_queue;
+        self.write_queues.insert(peer_id, write_queue);
     }
 
     fn remove(&mut self, peer_id: PeerID) {
