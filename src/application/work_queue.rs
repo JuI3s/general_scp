@@ -1,19 +1,21 @@
-use std::{collections::VecDeque, time::SystemTime, sync::Arc};
+use std::{collections::VecDeque, sync::Arc, time::SystemTime};
+
+use super::clock::{HVirtualClock, VirtualClock};
 
 pub struct ClockEvent {
     pub timestamp: SystemTime,
     pub callback: Arc<dyn FnMut()>,
 }
 
-
-
 pub struct WorkQueue {
+    clock: HVirtualClock,
     tasks: VecDeque<ClockEvent>, // TODO: add clock, etc
 }
 
 impl WorkQueue {
-    pub fn new() -> Self {
+    pub fn new(clock: HVirtualClock) -> Self {
         WorkQueue {
+            clock: clock,
             tasks: VecDeque::<ClockEvent>::new(),
         }
     }
@@ -29,9 +31,8 @@ impl WorkQueue {
                     if clock_event.timestamp <= SystemTime::now() {
                         Arc::get_mut(&mut clock_event.callback).unwrap()();
                     } else {
-                        break; 
+                        break;
                     }
-
                 }
                 None => break,
             }

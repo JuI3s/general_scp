@@ -1,4 +1,7 @@
-use std::{sync::{Mutex, Arc}, time::SystemTime};
+use std::{
+    sync::{Arc, Mutex},
+    time::SystemTime,
+};
 
 use crate::application::work_queue::{ClockEvent, WorkQueue};
 
