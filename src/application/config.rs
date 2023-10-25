@@ -5,8 +5,10 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new(clock: HVirtualClock) -> Self {  
-        Config{clock: clock.clone()}
+    pub fn new(clock: HVirtualClock) -> Self {
+        Config {
+            clock: clock.clone(),
+        }
     }
 
     pub fn new_config() -> Self {

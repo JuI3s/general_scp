@@ -5,11 +5,14 @@ use std::{
 
 use crate::application::work_queue::{ClockEvent, WorkQueue};
 
+type ArcState = Arc<Mutex<State>>;
+pub type PeerID = &'static str;
+pub type HPeer = Arc<Mutex<Peer>>;
+
 struct State {
     value: usize,
 }
 
-type ArcState = Arc<Mutex<State>>;
 pub struct Peer {
     state: ArcState,
 }

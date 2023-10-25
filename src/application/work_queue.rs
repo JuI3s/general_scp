@@ -2,14 +2,16 @@ use std::{collections::VecDeque, sync::Arc, time::SystemTime};
 
 use super::clock::{HVirtualClock, VirtualClock};
 
+pub type Callback = Arc<dyn FnMut()>;
+
 pub struct ClockEvent {
     pub timestamp: SystemTime,
-    pub callback: Arc<dyn FnMut()>,
+    pub callback: Callback,
 }
 
 pub struct WorkQueue {
     clock: HVirtualClock,
-    tasks: VecDeque<ClockEvent>, // TODO: add clock, etc
+    tasks: VecDeque<ClockEvent>,
 }
 
 impl WorkQueue {

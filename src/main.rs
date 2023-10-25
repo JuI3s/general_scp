@@ -1,8 +1,13 @@
-use rust_example::{application::{work_queue::WorkQueue, config::Config, application::Application}, overlay::peer::Peer};
+use rust_example::{
+    application::{application::Application, config::Config, work_queue::WorkQueue},
+    overlay::peer::Peer,
+};
 
 fn main() {
     let cfg = Config::new_config();
-    let app = Application::new(&cfg);
+    let mut app = Application::new(&cfg);
+
+    app.start();
 
     // let mut work_queue = WorkQueue::new();
     // let mut peer = Peer::new();

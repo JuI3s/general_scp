@@ -16,7 +16,9 @@ impl VirtualClock {
     }
 
     pub fn new_clock() -> HVirtualClock {
-       Arc::new(Mutex::new(VirtualClock { time_now: SystemTime::now() }))
+        Arc::new(Mutex::new(VirtualClock {
+            time_now: SystemTime::now(),
+        }))
     }
 
     pub fn set_current_virtual_time(&mut self, time_now: SystemTime) {
