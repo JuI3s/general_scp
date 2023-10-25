@@ -130,31 +130,5 @@ fn main() {
     let mut peer = Peer::new();
     peer.incr_one();
     peer.add_to_queue(&mut work_queue);
-
-    // {
-    //     let  state1 = Arc::new(Mutex::new(State::new()));
-
-    //     work_queue.execute_task();
-
-    //     state1.lock().unwrap().incr_one();
-    //     state1.lock().unwrap().incr_one();
-    //     State::add_to_queue(&state1, &mut work_queue);
-    //     // let pt2 = pt.clone();
-    //     // state1.add_to_queue_with_self(&mut work_queue);
-    //     // State::add_to_queue(&state1, &mut work_queue);
-    // }
     work_queue.execute_task();
-
-    // state1.add_to_queue(&mut work_queue)
-
-    // let state = Arc::new(State{value: 0});
-    // let weak = Arc::downgrade(&state);
-    //
-    // let strong = weak.upgrade();
-    // assert!(strong.is_some());
-    //
-    // drop(strong);
-    // drop(state);
-    //
-    // assert!(weak.upgrade().is_none());
 }
