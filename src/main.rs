@@ -5,9 +5,13 @@ use std::{
     ops::{Deref, DerefMut},
     rc::{Rc, Weak},
     sync::{Arc, Mutex},
+    time::SystemTime,
 };
 
-type Callback = Arc<dyn FnMut()>;
+pub struct ClockEvent {
+    pub timestamp: SystemTime,
+    pub callback: Arc<dyn FnMut()>,
+}
 
 struct State {
     value: usize,
@@ -49,7 +53,11 @@ impl Peer {
                 }
             };
         });
-        work_queue.add_task(callback);
+        let clock_event = ClockEvent {
+            timestamp: SystemTime::now(),
+            callback: callback,
+        };
+        work_queue.add_task(clock_event);
     }
 }
 
@@ -79,7 +87,11 @@ impl State {
                 }
             };
         });
-        work_queue.add_task(callback);
+        let clock_event = ClockEvent {
+            timestamp: SystemTime::now(),
+            callback: callback,
+        };
+        work_queue.add_task(clock_event);
     }
 
     pub fn to_callback<'a>(&'a mut self) -> impl FnMut() + 'a {
@@ -99,25 +111,31 @@ impl State {
 }
 
 struct WorkQueue {
-    tasks: VecDeque<Callback>, // TODO: add clock, etc
+    tasks: VecDeque<ClockEvent>, // TODO: add clock, etc
 }
 
 impl WorkQueue {
     pub fn new() -> Self {
         WorkQueue {
-            tasks: VecDeque::<Callback>::new(),
+            tasks: VecDeque::<ClockEvent>::new(),
         }
     }
 
-    pub fn add_task(&mut self, callback: Callback) -> () {
+    pub fn add_task(&mut self, callback: ClockEvent) -> () {
         self.tasks.push_back(callback);
     }
+
 
     pub fn execute_task(&mut self) {
         loop {
             match self.tasks.pop_front() {
-                Some(mut callback) => {
-                    Arc::get_mut(&mut callback).unwrap()();
+                Some(mut clock_event) => {
+                    if clock_event.timestamp >= SystemTime::now() {
+                        Arc::get_mut(&mut clock_event.callback).unwrap()();
+                    } else {
+                        break; 
+                    }
+
                 }
                 None => break,
             }
