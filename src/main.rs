@@ -1,6 +1,7 @@
 use std::{
     borrow::BorrowMut,
     collections::VecDeque,
+    fs::Permissions,
     ops::{Deref, DerefMut},
     rc::{Rc, Weak},
     sync::{Arc, Mutex},
@@ -12,6 +13,46 @@ struct State {
     value: usize,
 }
 
+type ArcState = Arc<Mutex<State>>;
+struct Peer {
+    state: ArcState,
+}
+
+impl Peer {
+    pub fn new() -> Self {
+        Peer {
+            state: Arc::new(Mutex::new(State::new())),
+        }
+    }
+
+    fn get_state(&mut self) -> std::sync::MutexGuard<'_, State> {
+        self.state.lock().unwrap()
+    }
+
+    pub fn incr_one(&mut self) {
+        self.get_state().incr_one();
+    }
+
+    pub fn add_to_queue(&mut self, work_queue: &mut WorkQueue) {
+        let clone = self.state.clone();
+        let weak = Arc::downgrade(&clone);
+
+        let callback = Arc::new(move || {
+            match weak.upgrade() {
+                None => {
+                    println!("State does not exist.")
+                }
+                Some(_state) => {
+                    let mut state: std::sync::MutexGuard<'_, State> = _state.lock().unwrap();
+                    state.incr_one();
+                    println!("State with value {}", state.value);
+                }
+            };
+        });
+        work_queue.add_task(callback);
+    }
+}
+
 impl State {
     pub fn new() -> Self {
         State { value: 0 }
@@ -21,7 +62,7 @@ impl State {
         self.value += 1;
     }
 
-    pub fn add_to_queue(this: &Arc<Mutex<Self>>, work_queue: &mut WorkQueue) -> () {
+    pub fn add_to_queue(this: Arc<Mutex<Self>>, work_queue: &mut WorkQueue) -> () {
         let strong = this.clone();
         // let mut strong = self.clone();
         let weak = Arc::downgrade(&strong);
@@ -86,18 +127,22 @@ impl WorkQueue {
 
 fn main() {
     let mut work_queue = WorkQueue::new();
+    let mut peer = Peer::new();
+    peer.incr_one();
+    peer.add_to_queue(&mut work_queue);
 
-    {
-        let  state1 = Arc::new(Mutex::new(State::new()));
+    // {
+    //     let  state1 = Arc::new(Mutex::new(State::new()));
 
-        work_queue.execute_task();
+    //     work_queue.execute_task();
 
-        state1.lock().unwrap().incr_one();
-        state1.lock().unwrap().incr_one();
-        // let pt2 = pt.clone();
-
-        State::add_to_queue(&state1, &mut work_queue);
-    }
+    //     state1.lock().unwrap().incr_one();
+    //     state1.lock().unwrap().incr_one();
+    //     State::add_to_queue(&state1, &mut work_queue);
+    //     // let pt2 = pt.clone();
+    //     // state1.add_to_queue_with_self(&mut work_queue);
+    //     // State::add_to_queue(&state1, &mut work_queue);
+    // }
     work_queue.execute_task();
 
     // state1.add_to_queue(&mut work_queue)
