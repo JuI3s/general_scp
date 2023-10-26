@@ -7,8 +7,8 @@ use std::{
 
 use crate::{application::application::RpcRequestWriteQueue, rpc::args::RpcArg};
 
-use super::peer::{PeerID, Peer};
-    
+use super::peer::{Peer, PeerID};
+
 pub type HRpcGateway = Arc<Mutex<dyn RpcGateway>>;
 // When an application is constructed, it needs to register with an RpcGateway struct to receive rpc calls.
 pub trait RpcGateway {
@@ -28,10 +28,10 @@ impl TestRpcGateway {
             write_queues: HashMap::new(),
         };
         ret.listen();
-        ret 
+        ret
     }
 
-    pub fn new_test_rpc_gateway() -> HRpcGateway {
+    pub fn new_test_rpc_gateway() -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(TestRpcGateway {
             write_queues: HashMap::new(),
         }))
@@ -39,14 +39,14 @@ impl TestRpcGateway {
 
     pub fn send_hello_message(&mut self, peer_id: PeerID) {
         // Used for testing
-        print!("Rpc gateway sending a hello message for testing");
-        
+        print!("Rpc gateway sending a hello message for testing\n");
+
         match self.write_queues.get(peer_id) {
             Some(peer_work_queue) => {
                 let hello_msg = RpcArg::example_arg();
                 let _ = peer_work_queue.lock().unwrap().send(hello_msg);
-            }, 
-            None => {},
+            }
+            None => {}
         }
     }
 }
@@ -60,7 +60,5 @@ impl RpcGateway for TestRpcGateway {
         self.write_queues.remove(peer_id);
     }
 
-    fn listen(&mut self) {
-
-    }
+    fn listen(&mut self) {}
 }
