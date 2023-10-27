@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{mpsc, Arc, Condvar, Mutex},
-    time::Duration,
+    sync::{Arc, Mutex},
 };
 
 use tokio::{
@@ -15,7 +14,7 @@ use crate::{
     rpc::args::RpcArg,
 };
 
-use super::{clock, config::Config, work_queue::WorkQueue};
+use super::{app_config::AppConfig, work_queue::WorkQueue};
 
 pub type PendingRequestQueue = UnboundedReceiver<RpcArg>;
 pub type RpcRequestWriteQueue = Arc<Mutex<UnboundedSender<RpcArg>>>;
@@ -25,11 +24,11 @@ pub struct Application {
     main_thread_work_queue: Arc<Mutex<WorkQueue>>,
     peers: HashMap<PeerID, HPeer>,
     pending_requests: PendingRequestQueue,
-    config: Config,
+    config: AppConfig,
 }
 
 impl Application {
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: AppConfig) -> Self {
         let work_queue = Arc::new(Mutex::new(WorkQueue::new(config.clock.clone())));
 
         let (tx, rx) = unbounded_channel::<RpcArg>();
@@ -57,7 +56,6 @@ impl Application {
         let mut execute_main_work_interval = interval(self.config.clear_work_queue_duration);
 
         loop {
-            // print!("Inside loop\n");
             select! {
                 rpc_call = self.pending_requests.recv() => {
                     match rpc_call {
