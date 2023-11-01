@@ -9,8 +9,11 @@ use std::{
 use clap::Parser;
 use rust_example::{
     application::{
-        app_config::AppConfig, application::Application, command_line::Cli, config::Config,
-        quorum::QuorumSet,
+        app_config::AppConfig,
+        application::Application,
+        command_line::Cli,
+        config::Config,
+        quorum::{Quorum, QuorumSlice},
     },
     overlay::rpc_gateway::TestRpcGateway,
 };
@@ -24,33 +27,19 @@ async fn main() {
     let sock = SocketAddrV4::new(ip_addr, 17);
     let sock2 = SocketAddrV4::new(ip_addr, 18);
 
-    println!("{}", sock.to_string());
-    let mut quorum_set1 = HashSet::new();
-    quorum_set1.insert(sock.to_string());
-    let mut quorum_set2 = HashSet::new();
-    quorum_set2.insert(sock.to_string());
-    quorum_set2.insert(sock2.to_string());
-    // let mut quorum = HashSet::new();
-    // quorum.insert(Box::new(quorum_set1));
-    // quorum.insert(Box::new(quorum_set2));
-    let data_str = "{\"127.0.0.1:17\"}";
-    println!("{:?}", quorum_set1);
+    let mut qset1 = QuorumSlice::new();
+    let mut qset2 = QuorumSlice::new();
+    let mut q = Quorum::new();
+    qset1.insert(sock.clone());
+    qset1.insert(sock2.clone());
 
-    let rpc_gateway: std::sync::Arc<std::sync::Mutex<TestRpcGateway>> =
-        TestRpcGateway::new_test_rpc_gateway();
+    qset2.insert(sock.clone());
+    q.insert(qset1.clone());
+    q.insert(qset2.clone());
 
-    // let cfg = AppConfig::make_test_config(Some(rpc_gateway.clone()));
-
-    // let cfg = Config::new();
-
-    // let toml = toml::to_string(&cfg).unwrap();
-    // println!("{}", toml);
-    //
-    // fs::write("config.toml", toml).expect("Could not write to file!");
-    //
-    let filename = format!("config.toml");
-    let cfg = Config::from_toml_file(&filename);
-    println!("{:?}", cfg);
+    println!("{:?}", qset1);
+    println!("{:?}", qset2);
+    println!("{:?}", q);
 
     // let mut app = Application::new(cfg.clone());
 
