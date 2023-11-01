@@ -13,7 +13,7 @@ use rust_example::{
         application::Application,
         command_line::Cli,
         config::Config,
-        quorum::{Quorum, QuorumSlice},
+        quorum::{QuorumSet, QuorumSlice},
     },
     overlay::rpc_gateway::TestRpcGateway,
 };
@@ -23,23 +23,8 @@ async fn main() {
     // let arg = Cli::parse();
     // println!("{0}", arg.pattern);
 
-    let ip_addr = Ipv4Addr::new(127, 0, 0, 1);
-    let sock = SocketAddrV4::new(ip_addr, 17);
-    let sock2 = SocketAddrV4::new(ip_addr, 18);
-
-    let mut qset1 = QuorumSlice::new();
-    let mut qset2 = QuorumSlice::new();
-    let mut q = Quorum::new();
-    qset1.insert(sock.clone());
-    qset1.insert(sock2.clone());
-
-    qset2.insert(sock.clone());
-    q.insert(qset1.clone());
-    q.insert(qset2.clone());
-
-    println!("{:?}", qset1);
-    println!("{:?}", qset2);
-    println!("{:?}", q);
+    let cfg = Config::new_test_config();
+    println!("{:?}", cfg.quorum_set);
 
     // let mut app = Application::new(cfg.clone());
 

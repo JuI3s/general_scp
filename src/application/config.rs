@@ -1,57 +1,52 @@
-use std::{fs, process::exit};
+use std::{
+    fs,
+    net::{Ipv4Addr, SocketAddrV4},
+    process::exit,
+};
 
 use serde::{Deserialize, Serialize};
+
+use super::quorum::{QuorumSet, QuorumSlice};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     pub path: String,
-    pub quorum: Vec<Vec<String>>,
+    pub quorum_set: QuorumSet,
 }
 
 impl Config {
-    pub fn new() -> Self {
-        // TODO: remove below for testing.
-        let mut quorum = Vec::new();
-        let mut quorum_set1 = Vec::new();
-        let mut quorum_set2 = Vec::new();
-        quorum_set1.push(format!("127.0.0.1:13"));
-        quorum_set1.push(format!("127.0.0.1:1"));
-        quorum_set2.push(format!("124.123.1.51:5"));
-        quorum.push(quorum_set1);
-        quorum.push(quorum_set2);
+    pub fn new_test_config() -> Self {
+        let ip_addr = Ipv4Addr::new(127, 0, 0, 1);
+        let sock1 = SocketAddrV4::new(ip_addr, 17);
+        let sock2 = SocketAddrV4::new(ip_addr, 18);
+
+        let quorum_set1 = QuorumSlice::from([sock1.clone(), sock2.clone()]);
+        let quorum_set2 = QuorumSlice::from([sock1.clone()]);
+        let quorum_set = QuorumSet::from([quorum_set1, quorum_set2]);
 
         Config {
             path: format!("new"),
-            quorum: quorum,
+            quorum_set: quorum_set,
         }
+    }
+
+    pub fn to_toml_string(&self) -> String {
+        toml::to_string(self).unwrap()
     }
 
     pub fn from_toml_file(filename: &String) -> Self {
         let contents = match fs::read_to_string(filename) {
-            // If successful return the files text as `contents`.
-            // `c` is a local variable.
             Ok(c) => c,
-            // Handle the `error` case.
             Err(_) => {
-                // Write `msg` to `stderr`.
                 eprintln!("Could not read config file `{}`", filename);
-                // Exit the program with exit code `1`.
                 exit(1);
             }
         };
 
-        // Use a `match` block to return the
-        // file `contents` as a `Data struct: Ok(d)`
-        // or handle any `errors: Err(_)`.
         let config: Config = match toml::from_str(&contents) {
-            // If successful, return data as `Data` struct.
-            // `d` is a local variable.
             Ok(d) => d,
-            // Handle the `error` case.
             Err(_) => {
-                // Write `msg` to `stderr`.
                 eprintln!("Unable to load config data from `{}`", filename);
-                // Exit the program with exit code `1`.
                 exit(1);
             }
         };

@@ -1,26 +1,29 @@
 use std::{
-    collections::BTreeSet,
+    collections::{btree_set, BTreeSet},
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
 };
+
+use serde::{Deserialize, Serialize};
 
 // pub type QuorumSet = HashSet<SocketAddr>;
 // pub type Quorum = HashSet<QuorumSet>;
 
 pub type QuorumNode = SocketAddrV4;
 
-#[derive(Debug)]
-pub struct Quorum {
+// Set of quorum slices for local node.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct QuorumSet {
     slices: BTreeSet<QuorumSlice>,
 }
 
-#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone)]
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize)]
 pub struct QuorumSlice {
     data: BTreeSet<QuorumNode>,
 }
 
-impl Quorum {
+impl QuorumSet {
     pub fn new() -> Self {
-        Quorum {
+        QuorumSet {
             slices: BTreeSet::new(),
         }
     }
@@ -39,5 +42,21 @@ impl QuorumSlice {
 
     pub fn insert(&mut self, sock: QuorumNode) {
         self.data.insert(sock);
+    }
+}
+
+impl<const N: usize> From<[QuorumSlice; N]> for QuorumSet {
+    fn from(slices: [QuorumSlice; N]) -> Self {
+        QuorumSet {
+            slices: BTreeSet::from(slices),
+        }
+    }
+}
+
+impl<const N: usize> From<[QuorumNode; N]> for QuorumSlice {
+    fn from(arr: [QuorumNode; N]) -> Self {
+        QuorumSlice {
+            data: BTreeSet::from(arr),
+        }
     }
 }
