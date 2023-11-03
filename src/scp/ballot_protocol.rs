@@ -3,10 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::{
-    scp::NodeID,
-    slot::{HSCPEnvelope}, nomination_protocol::HNominationValue,
-};
+use super::{nomination_protocol::HNominationValue, scp::NodeID, slot::HSCPEnvelope, scp_driver::SlotDriver};
 
 pub trait BallotProtocol {
     fn externalize(&mut self);
@@ -47,7 +44,7 @@ pub struct BallotProtocolState {
 
 impl Default for Ballot {
     fn default() -> Self {
-        Self {  }
+        Self {}
     }
 }
 
@@ -71,6 +68,16 @@ impl Default for BallotProtocolState {
 }
 
 impl BallotProtocol for BallotProtocolState {
+    fn externalize(&mut self) {
+        todo!()
+    }
+
+    fn recv_ballot_envelope(&mut self) {
+        todo!()
+    }
+}
+
+impl BallotProtocol for SlotDriver {
     fn externalize(&mut self) {
         todo!()
     }

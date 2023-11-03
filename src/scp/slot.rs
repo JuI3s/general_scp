@@ -1,26 +1,31 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
-use crate::overlay::peer::PeerID;
+use log::debug;
 
-use super::{
-    ballot_protocol::{BallotProtocol, BallotProtocolState},
-    nomination_protocol::{NominationProtocol, NominationProtocolState},
-    scp::SCPEnvelope,
-};
+use crate::{overlay::peer::PeerID, herder::herder::Herder};
 
-pub struct Slot {
-    index: usize,
-    nomination_state: NominationProtocolState,
-    ballot_state: BallotProtocolState,
+use super::{nomination_protocol::{NominationProtocolState}, ballot_protocol::{BallotProtocolState}, scp::{SCPEnvelope}, scp_driver::SlotDriver};
+
+pub type SlotIndex = u64;
+
+pub struct Slot
+{
+    pub index: u64,
+    pub nomination_state: NominationProtocolState,
+    pub ballot_state: BallotProtocolState,
 }
+pub type HSlot = Arc<Mutex<Slot>>;
 
 pub type HSCPEnvelope = Arc<Mutex<SCPEnvelope>>;
 
-impl Slot {
-    pub fn new(index: usize) -> Self {
+impl Slot
+
+ {
+    pub fn new(index: u64) -> Self {
         Slot {
             index: index,
             nomination_state: NominationProtocolState::default(),
@@ -29,22 +34,15 @@ impl Slot {
     }
 }
 
-impl NominationProtocol for Slot {
-    fn nominate(&mut self) {
-        print!("Nominating a value");
+impl Slot {
+    pub fn compute_timeout(round_number: u64) -> Duration {
+        if round_number > Slot::MAX_TIMEOUT_SECONDS {
+            Duration::from_secs(Slot::MAX_TIMEOUT_SECONDS)
+        } else {
+            Duration::from_secs(round_number)
+        }
     }
 
-    fn recv_nomination_msg(&mut self) {
-        todo!()
-    }
+    const MAX_TIMEOUT_SECONDS: u64 = (30 * 60);
 }
 
-impl BallotProtocol for Slot {
-    fn externalize(&mut self) {
-        todo!()
-    }
-
-    fn recv_ballot_envelope(&mut self) {
-        todo!()
-    }
-}
