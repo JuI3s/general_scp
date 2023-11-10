@@ -29,7 +29,6 @@ pub trait NominationProtocol {
         value: HNominationValue,
         previous_value: &NominationValue,
     ) -> bool;
-    fn recv_nomination_msg(&mut self);
     fn stop_nomination(&mut self, state: &mut NominationProtocolState);
 
     fn update_round_learders(&mut self);
@@ -184,20 +183,7 @@ impl NominationProtocol for SlotDriver {
 
         let clock_event = ClockEvent::new(SystemTime::now() + timeout, Box::new(callback));
         self.timer.add_task(clock_event);
-        
-    
-
-        // let event = ClockEvent::new(SystemTime::now() + timeout, Default::default());
-
-        // self.timer.add_task(event);
-
-        // Need to implement nominating again after timeout.
-        // mSlot.getSCPDriver().setupTimer(
-        //     mSlot.getSlotIndex(), Slot::NOMINATION_TIMER, timeout,
-        //     [slot, value, previousValue]() {
-        //         slot->nominate(value, previousValue, true);
-        //     });
-
+            
         if updated {
             todo!();
             // Emit nomination
@@ -208,15 +194,14 @@ impl NominationProtocol for SlotDriver {
         updated
     }
 
-    fn recv_nomination_msg(&mut self) {
-        todo!()
-    }
 
     fn stop_nomination(&mut self, state: &mut NominationProtocolState) {
         state.nomination_started = false;
     }
 
     fn update_round_learders(&mut self) {
+        let local_id = self.local_node.node_id;
+        
         todo!()
     }
 
