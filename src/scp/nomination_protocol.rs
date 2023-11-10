@@ -1,4 +1,5 @@
 use weak_self_derive::WeakSelf;
+use std::sync::Weak;
 
 use std::{
     borrow::BorrowMut,
@@ -55,6 +56,7 @@ pub type HNominationValue = Arc<NominationValue>;
 pub type NominationValueSet = BTreeSet<HNominationValue>;
 
 // TODO: double check these fields are correct
+#[derive(WeakSelf)]
 pub struct NominationProtocolState {
     pub round_number: u64,
     pub votes: NominationValueSet,
@@ -162,13 +164,28 @@ impl NominationProtocol for SlotDriver {
         }
 
         let weak_self = self.get_weak_self();
-        let some: Option<Arc<Mutex<&mut SlotDriver>>> = weak_self.upgrade();
-        match some {
-            Some(driver) => {
-                driver.lock().unwrap();
+        let weak_state = state.get_weak_self(); 
+        let value_copy =value.clone(); 
+        let prev_value_copy = previous_value.clone();
+
+        let callback  =  move ||  {
+            match weak_self.upgrade() {
+                Some(slot_driver) => {
+                    match weak_state.upgrade() {
+                        Some(state) => {
+                            slot_driver.lock().unwrap().nominate(&mut state.lock().unwrap(), value_copy, &prev_value_copy);
+                        },
+                        None => todo!(),
+                    }
+                },
+                None => todo!(),
             }
-            None => todo!(),
-        }
+        };
+
+        let clock_event = ClockEvent::new(SystemTime::now() + timeout, Box::new(callback));
+        self.timer.add_task(clock_event);
+        
+    
 
         // let event = ClockEvent::new(SystemTime::now() + timeout, Default::default());
 

@@ -36,7 +36,7 @@ impl Peer {
         let clone = self.state.clone();
         let weak = Arc::downgrade(&clone);
 
-        let callback = Arc::new(move || {
+        let callback = Box::new(move || {
             match weak.upgrade() {
                 None => {
                     println!("State does not exist.")
@@ -70,7 +70,7 @@ impl State {
         // let mut strong = self.clone();
         let weak = Arc::downgrade(&strong);
 
-        let callback = Arc::new(move || {
+        let callback = Box::new(move || {
             match weak.upgrade() {
                 None => {
                     println!("State does not exist.")
