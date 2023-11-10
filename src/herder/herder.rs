@@ -1,24 +1,30 @@
-use std::{collections::BTreeMap, sync::{Mutex, Arc}};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+};
 
-use crate::scp::{slot::{SlotIndex, Slot, HSlot}, scp_driver::SlotDriver};
+use crate::scp::{
+    scp_driver::SlotDriver,
+    slot::{HSlot, Slot, SlotIndex},
+};
 
-pub struct Herder{
-    latest_slots: BTreeMap<SlotIndex, HSlot>
+pub struct Herder {
+    latest_slots: BTreeMap<SlotIndex, HSlot>,
 }
 
 impl Default for Herder {
     fn default() -> Self {
-        Self { latest_slots: Default::default() }
+        Self {
+            latest_slots: Default::default(),
+        }
     }
 }
 
 // impl<'a> Herder<'a> {
 
-    
-
 //     pub fn get_slot(&'a mut self, index: SlotIndex, create_if_not_exists: bool) -> Option<HSlot<'a>> {
 //         match self.latest_slots.get(&index) {
-//             Some(slot) => {                 
+//             Some(slot) => {
 //                 Some(slot.clone())
 //             },
 //             None => {
@@ -27,7 +33,7 @@ impl Default for Herder {
 //                     let ret = self.latest_slots.insert(index, Arc::new(Mutex::new(slot)));
 //                     ret
 //                 } else {
-//                     None 
+//                     None
 //                 }
 //             },
 //         }

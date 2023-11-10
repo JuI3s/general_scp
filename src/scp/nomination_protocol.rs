@@ -1,22 +1,35 @@
+use weak_self_derive::WeakSelf;
+
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::{Arc, Mutex}, borrow::BorrowMut,
+    borrow::BorrowMut,
+    collections::{BTreeMap, BTreeSet, HashSet},
+    rc::Rc,
+    sync::{Arc, Mutex},
+    time::SystemTime,
 };
 
 use log::debug;
 use tokio::time::timeout;
 
-use crate::overlay::peer::PeerID;
+use crate::{
+    application::work_queue::ClockEvent, overlay::peer::PeerID, utils::weak_self::WeakSelf,
+};
 
 use super::{
     scp::SCPEnvelope,
-    slot::{HSCPEnvelope, Slot, self}, scp_driver::{SCPDriver, SlotDriver},
+    scp_driver::{SCPDriver, SlotDriver},
+    slot::{self, HSCPEnvelope, Slot},
 };
 
 pub trait NominationProtocol {
-    fn nominate(&mut self, state: &mut NominationProtocolState, value: HNominationValue, previous_value: &NominationValue) -> bool;
+    fn nominate(
+        &mut self,
+        state: &mut NominationProtocolState,
+        value: HNominationValue,
+        previous_value: &NominationValue,
+    ) -> bool;
     fn recv_nomination_msg(&mut self);
-    fn stop_nomination(&mut self);
+    fn stop_nomination(&mut self, state: &mut NominationProtocolState);
 
     fn update_round_learders(&mut self);
 
@@ -26,13 +39,10 @@ pub trait NominationProtocol {
     fn get_json_info(&self);
 }
 
-pub type NominationValueSet = BTreeSet<NominationValue>;
-pub type HNominationValue = Arc<Mutex<NominationValue>>;
-
 type HNominationEnvelope = Arc<Mutex<NominationEnvelope>>;
 struct NominationEnvelope {}
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct NominationValue {}
 
 impl Default for NominationValue {
@@ -40,6 +50,10 @@ impl Default for NominationValue {
         Self {}
     }
 }
+
+pub type HNominationValue = Arc<NominationValue>;
+pub type NominationValueSet = BTreeSet<HNominationValue>;
+
 // TODO: double check these fields are correct
 pub struct NominationProtocolState {
     pub round_number: u64,
@@ -79,13 +93,21 @@ impl Default for NominationProtocolState {
 }
 
 impl NominationProtocolState {
-    fn get_new_value_form_nomination(&self, nomination: &SCPEnvelope) -> Option<NominationValue> {
+    fn get_new_value_form_nomination(
+        votes: &mut NominationValueSet,
+        nomination: &SCPEnvelope,
+    ) -> Option<NominationValue> {
         todo!()
     }
 }
 
 impl NominationProtocol for SlotDriver {
-    fn nominate(&mut self, state: &mut NominationProtocolState, value: HNominationValue, previous_value: &NominationValue) -> bool {
+    fn nominate(
+        &mut self,
+        state: &mut NominationProtocolState,
+        value: HNominationValue,
+        previous_value: &NominationValue,
+    ) -> bool {
         if !state.candidates.is_empty() {
             debug!(
                 "Skip nomination round {}, already have a candidate",
@@ -111,32 +133,70 @@ impl NominationProtocol for SlotDriver {
 
         let timeout = Slot::compute_timeout(state.round_number);
 
-        // for (auto const& leader : mRoundLeaders)
-        
         for leader in &state.round_leaders {
             match state.latest_nominations.get(leader).to_owned() {
                 Some(nomination) => {
-                    match state.get_new_value_form_nomination(nomination) {
+                    match NominationProtocolState::get_new_value_form_nomination(
+                        &mut state.votes,
+                        nomination,
+                    ) {
                         Some(new_value) => {
-                            state.votes.insert(new_value.clone());
+                            todo!();
+                            // state.votes.insert(new_value.clone());
                             updated = true;
                             self.nominating_value(&new_value);
                         }
-                        None => {},
+                        None => {}
                     }
                 }
                 _ => (),
             }
         }
-        true
+
+        // if we're leader, add our value if we haven't added any votes yet
+        if state.round_leaders.contains(&self.local_node.node_id) && state.votes.is_empty() {
+            if state.votes.insert(value.clone()) {
+                updated = true;
+                self.nominating_value(value.as_ref());
+            }
+        }
+
+        let weak_self = self.get_weak_self();
+        let some: Option<Arc<Mutex<&mut SlotDriver>>> = weak_self.upgrade();
+        match some {
+            Some(driver) => {
+                driver.lock().unwrap();
+            }
+            None => todo!(),
+        }
+
+        // let event = ClockEvent::new(SystemTime::now() + timeout, Default::default());
+
+        // self.timer.add_task(event);
+
+        // Need to implement nominating again after timeout.
+        // mSlot.getSCPDriver().setupTimer(
+        //     mSlot.getSlotIndex(), Slot::NOMINATION_TIMER, timeout,
+        //     [slot, value, previousValue]() {
+        //         slot->nominate(value, previousValue, true);
+        //     });
+
+        if updated {
+            todo!();
+            // Emit nomination
+        } else {
+            debug!("NominationProtocol::nominate (SKIPPED");
+        }
+
+        updated
     }
 
     fn recv_nomination_msg(&mut self) {
         todo!()
     }
 
-    fn stop_nomination(&mut self) {
-        todo!()
+    fn stop_nomination(&mut self, state: &mut NominationProtocolState) {
+        state.nomination_started = false;
     }
 
     fn update_round_learders(&mut self) {

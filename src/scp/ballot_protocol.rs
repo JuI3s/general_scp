@@ -3,7 +3,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::{nomination_protocol::HNominationValue, scp::NodeID, slot::HSCPEnvelope, scp_driver::SlotDriver};
+use super::{
+    nomination_protocol::HNominationValue, scp::NodeID, scp_driver::SlotDriver, slot::HSCPEnvelope,
+};
 
 pub trait BallotProtocol {
     fn externalize(&mut self);

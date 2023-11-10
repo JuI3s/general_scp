@@ -4,8 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace]
+exclude = [ "./weak_self_derive" ]
 
 [dependencies]
+syn = "2.0.39"
+quote = "1.0"
+weak_self_derive = { path = "weak_self_derive" }
+
 clap = { version = "4.4.7", features = ["derive"] }
 log = "0.4.20"
 serde = {version = "1.0.190", features = ["derive"]}

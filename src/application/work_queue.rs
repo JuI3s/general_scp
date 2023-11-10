@@ -1,4 +1,9 @@
-use std::{alloc::System, collections::VecDeque, sync::Arc, time::SystemTime};
+use std::{
+    alloc::System,
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+    time::SystemTime,
+};
 
 use super::clock::{HVirtualClock, VirtualClock};
 
@@ -9,6 +14,16 @@ pub struct ClockEvent {
     pub callback: Callback,
 }
 
+impl ClockEvent {
+    pub fn new(timestamp: SystemTime, callback: Callback) -> Self {
+        ClockEvent {
+            timestamp: timestamp,
+            callback: callback,
+        }
+    }
+}
+
+pub type HWorkQueue = Arc<Mutex<WorkQueue>>;
 pub struct WorkQueue {
     clock: HVirtualClock,
     tasks: VecDeque<ClockEvent>,

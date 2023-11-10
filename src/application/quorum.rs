@@ -1,5 +1,6 @@
 use std::{
     collections::{btree_set, BTreeSet},
+    f32::consts::E,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
 };
 
@@ -30,6 +31,14 @@ impl QuorumSet {
 
     pub fn insert(&mut self, slice: QuorumSlice) {
         self.slices.insert(slice);
+    }
+}
+
+impl Default for QuorumSet {
+    fn default() -> Self {
+        Self {
+            slices: Default::default(),
+        }
     }
 }
 

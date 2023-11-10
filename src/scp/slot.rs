@@ -6,14 +6,16 @@ use std::{
 
 use log::debug;
 
-use crate::{overlay::peer::PeerID, herder::herder::Herder};
+use crate::{herder::herder::Herder, overlay::peer::PeerID};
 
-use super::{nomination_protocol::{NominationProtocolState}, ballot_protocol::{BallotProtocolState}, scp::{SCPEnvelope}, scp_driver::SlotDriver};
+use super::{
+    ballot_protocol::BallotProtocolState, nomination_protocol::NominationProtocolState,
+    scp::SCPEnvelope, scp_driver::SlotDriver,
+};
 
 pub type SlotIndex = u64;
 
-pub struct Slot
-{
+pub struct Slot {
     pub index: u64,
     pub nomination_state: NominationProtocolState,
     pub ballot_state: BallotProtocolState,
@@ -22,9 +24,7 @@ pub type HSlot = Arc<Mutex<Slot>>;
 
 pub type HSCPEnvelope = Arc<Mutex<SCPEnvelope>>;
 
-impl Slot
-
- {
+impl Slot {
     pub fn new(index: u64) -> Self {
         Slot {
             index: index,
@@ -45,4 +45,3 @@ impl Slot {
 
     const MAX_TIMEOUT_SECONDS: u64 = (30 * 60);
 }
-
