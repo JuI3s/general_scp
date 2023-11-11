@@ -1,8 +1,13 @@
+use std::sync::{Mutex, Arc};
+
+use syn::token::Mut;
+
 use crate::application::quorum::QuorumSet;
 
 use super::scp::NodeID;
 
-pub struct LocalNode {
+pub type HLocalNode = Arc<Mutex<LocalNode>>;
+pub struct  LocalNode {
     pub is_validator: bool,
     pub quorum_set: QuorumSet,
     pub node_id: NodeID,

@@ -1,5 +1,5 @@
-use std::{sync::Mutex, sync::Weak};
+use std::{sync::Mutex, sync::{Weak, Arc}};
 
 pub trait WeakSelf {
-    fn get_weak_self(&mut self) -> Weak<Mutex<&mut Self>>;
+    fn get_weak_self(self: Arc<Self>) -> Weak<Mutex<Self>>;
 }

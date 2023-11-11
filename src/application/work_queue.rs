@@ -7,8 +7,7 @@ use std::{
 
 use super::clock::{HVirtualClock, VirtualClock};
 
-pub type Callback = Box<dyn FnMut()>;
-
+pub type Callback = Box<dyn FnOnce()>;
 
 pub struct ClockEvent {
     pub timestamp: SystemTime,
@@ -16,7 +15,7 @@ pub struct ClockEvent {
 }
 
 impl ClockEvent {
-    pub fn new(timestamp: SystemTime, callback: Callback + 'static) -> Self {
+    pub fn new(timestamp: SystemTime, callback: Callback) -> Self {
         ClockEvent {
             timestamp: timestamp,
             callback: callback,
@@ -51,9 +50,9 @@ impl WorkQueue {
             match self.tasks.pop_front() {
                 Some(clock_event) => {
                     if self.event_expired(&clock_event.timestamp) {
-                       (clock_event.callback)();
+                        (clock_event.callback)();
                         // let val = clock_event.callback.to_owned();
-                        // let result = Arc::as_ref(&clock_event.callback);                     
+                        // let result = Arc::as_ref(&clock_event.callback);
                         // Arc::(&mut clock_event.callback).unwrap()();
                     } else {
                         break;
