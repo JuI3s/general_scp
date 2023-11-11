@@ -4,7 +4,10 @@ use std::{
 };
 
 use super::{
-    nomination_protocol::{HNominationValue, NominationValue}, scp::{NodeID, SCP}, scp_driver::SlotDriver, slot::HSCPEnvelope,
+    nomination_protocol::{HNominationValue, NominationValue},
+    scp::{NodeID, SCP},
+    scp_driver::SlotDriver,
+    slot::HSCPEnvelope,
 };
 
 pub struct SCPStatement {}
@@ -12,7 +15,30 @@ pub struct SCPStatement {}
 #[derive(Eq, PartialEq, PartialOrd, Ord)]
 pub struct SCPBallot {
     counter: u32,
-    value: NominationValue,     
+    value: NominationValue,
+}
+
+impl SCPBallot {
+    pub fn compatible(&self, other: &SCPBallot) -> bool {
+        self.value == other.value
+    }
+
+    pub fn less_and_incompatible(&self, other: &SCPBallot) -> bool {
+        self <= other && !self.compatible(other)
+    }
+
+    pub fn less_and_compatible(&self, other: &SCPBallot) -> bool {
+        self <= other && self.compatible(other)
+    }
+}
+
+impl Default for SCPBallot {
+    fn default() -> Self {
+        Self {
+            counter: Default::default(),
+            value: Default::default(),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq)]
@@ -42,8 +68,8 @@ pub trait BallotProtocol {
 
     // step 1 and 5 from the SCP paper
     fn attempt_accept_prepared(
-        &mut self,
-        state: &mut BallotProtocolState,
+        self: &Arc<Self>,
+        state: HBallotProtocolState,
         hint: &SCPStatement,
     ) -> bool;
     // prepared: ballot that should be prepared
@@ -76,9 +102,9 @@ pub trait BallotProtocol {
     fn attemptBump() -> bool;
 }
 
-pub struct Ballot {}
-pub type HBallot = Arc<Mutex<Ballot>>;
+pub type HBallot = Arc<Mutex<Option<SCPBallot>>>;
 
+pub type HBallotProtocolState = Arc<Mutex<BallotProtocolState>>;
 pub struct BallotProtocolState {
     pub heard_from_quorum: bool,
 
@@ -99,12 +125,6 @@ pub struct BallotProtocolState {
 
     // last envelope emitted by this node
     pub last_envelope_emitted: HSCPEnvelope,
-}
-
-impl Default for Ballot {
-    fn default() -> Self {
-        Self {}
-    }
 }
 
 impl Default for BallotProtocolState {

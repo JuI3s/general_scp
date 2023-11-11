@@ -6,26 +6,34 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use crate::scp::scp::NodeID;
+
 // pub type QuorumSet = HashSet<SocketAddr>;
 // pub type Quorum = HashSet<QuorumSet>;
 
-pub type QuorumNode = SocketAddrV4;
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize)]
+pub struct QuorumNode {
+    pub node_id: NodeID,
+    pub addr: SocketAddrV4,
+}
 
 // Set of quorum slices for local node.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct QuorumSet {
-    slices: BTreeSet<QuorumSlice>,
+    pub slices: BTreeSet<QuorumSlice>,
+    pub threshold: usize,
 }
 
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize)]
 pub struct QuorumSlice {
-    data: BTreeSet<QuorumNode>,
+    pub data: BTreeSet<QuorumNode>,
 }
 
 impl QuorumSet {
-    pub fn new() -> Self {
+    pub fn new(threshold: usize) -> Self {
         QuorumSet {
             slices: BTreeSet::new(),
+            threshold: threshold,
         }
     }
 
@@ -38,6 +46,7 @@ impl Default for QuorumSet {
     fn default() -> Self {
         Self {
             slices: Default::default(),
+            threshold: Default::default(),
         }
     }
 }
@@ -54,10 +63,12 @@ impl QuorumSlice {
     }
 }
 
+// TODO:
 impl<const N: usize> From<[QuorumSlice; N]> for QuorumSet {
     fn from(slices: [QuorumSlice; N]) -> Self {
         QuorumSet {
             slices: BTreeSet::from(slices),
+            threshold: 0,
         }
     }
 }

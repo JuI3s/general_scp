@@ -12,9 +12,11 @@ use super::{
     slot::{HSCPEnvelope, HSlot, Slot, SlotIndex},
 };
 
-pub type NodeID = PeerID;
+pub type NodeID = String;
 
-pub struct SCPEnvelope {}
+pub struct SCPEnvelope {
+    pub node_id: NodeID,
+}
 
 impl SCPEnvelope {
     pub fn name(&'_ self) {}
@@ -22,7 +24,9 @@ impl SCPEnvelope {
 
 impl Default for SCPEnvelope {
     fn default() -> Self {
-        Self {}
+        Self {
+            node_id: Default::default(),
+        }
     }
 }
 
@@ -76,4 +80,3 @@ impl SCPimpl<SlotDriver> {
         }
     }
 }
-

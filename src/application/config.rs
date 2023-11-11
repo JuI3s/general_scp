@@ -16,18 +16,19 @@ pub struct Config {
 
 impl Config {
     pub fn new_test_config() -> Self {
-        let ip_addr = Ipv4Addr::new(127, 0, 0, 1);
-        let sock1 = SocketAddrV4::new(ip_addr, 17);
-        let sock2 = SocketAddrV4::new(ip_addr, 18);
+        todo!();
+        // let ip_addr = Ipv4Addr::new(127, 0, 0, 1);
+        // let sock1 = SocketAddrV4::new(ip_addr, 17);
+        // let sock2 = SocketAddrV4::new(ip_addr, 18);
 
-        let quorum_set1 = QuorumSlice::from([sock1.clone(), sock2.clone()]);
-        let quorum_set2 = QuorumSlice::from([sock1.clone()]);
-        let quorum_set = QuorumSet::from([quorum_set1, quorum_set2]);
+        // let quorum_set1 = QuorumSlice::from([sock1.clone(), sock2.clone()]);
+        // let quorum_set2 = QuorumSlice::from([sock1.clone()]);
+        // let quorum_set = QuorumSet::from([quorum_set1, quorum_set2]);
 
-        Config {
-            path: format!("new"),
-            quorum_set: quorum_set,
-        }
+        // Config {
+        //     path: format!("new"),
+        //     quorum_set: quorum_set,
+        // }
     }
 
     pub fn to_toml_string(&self) -> String {

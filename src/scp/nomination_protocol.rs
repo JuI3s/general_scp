@@ -1,5 +1,5 @@
-use weak_self_derive::WeakSelf;
 use std::sync::Weak;
+use weak_self_derive::WeakSelf;
 
 use std::{
     borrow::BorrowMut,
@@ -29,7 +29,7 @@ pub trait NominationProtocol {
         value: HNominationValue,
         previous_value: &NominationValue,
     ) -> bool;
-    fn stop_nomination(&mut self, state: &mut NominationProtocolState);
+    fn stop_nomination(self: &Arc<Self>, state: &mut NominationProtocolState);
 
     fn update_round_learders(&mut self);
 
@@ -95,36 +95,28 @@ impl Default for NominationProtocolState {
 }
 
 impl NominationProtocolState {
-    fn get_new_value_form_nomination(
-        &self,
-        nomination: &SCPEnvelope,
-    ) -> Option<NominationValue> {
+    fn get_new_value_form_nomination(&self, nomination: &SCPEnvelope) -> Option<NominationValue> {
         todo!()
     }
 
     pub fn add_value_from_leaders(&mut self, driver: &Arc<impl SCPDriver>) -> bool {
         let mut updated = false;
-        for leader in  &self.round_leaders {
+        for leader in &self.round_leaders {
             match self.latest_nominations.get(leader).to_owned() {
-                Some(nomination) => {
-                    match self.get_new_value_form_nomination(
-                        nomination,
-                    ) {
-                        Some(new_value) => {
-                            driver.nominating_value(&new_value);
-                            let new_value_handle = Arc::new(new_value);
-                            self.votes.insert(new_value_handle);
-                            updated = true;
-                        }
-                        None => {}
+                Some(nomination) => match self.get_new_value_form_nomination(nomination) {
+                    Some(new_value) => {
+                        driver.nominating_value(&new_value);
+                        let new_value_handle = Arc::new(new_value);
+                        self.votes.insert(new_value_handle);
+                        updated = true;
                     }
-                }
+                    None => {}
+                },
                 _ => (),
             }
         }
         updated
     }
-
 }
 
 impl NominationProtocol for SlotDriver {
@@ -163,7 +155,11 @@ impl NominationProtocol for SlotDriver {
         state.add_value_from_leaders(self);
 
         // if we're leader, add our value if we haven't added any votes yet
-        if state.round_leaders.contains(&self.local_node.lock().unwrap().node_id) && state.votes.is_empty() {
+        if state
+            .round_leaders
+            .contains(&self.local_node.lock().unwrap().node_id.as_ref())
+            && state.votes.is_empty()
+        {
             if state.votes.insert(value.clone()) {
                 updated = true;
                 self.nominating_value(value.as_ref());
@@ -172,28 +168,22 @@ impl NominationProtocol for SlotDriver {
 
         let weak_self = Arc::downgrade(self);
         let weak_state = Arc::downgrade(&state_handle.clone());
-        let value_copy =value.clone(); 
+        let value_copy = value.clone();
         let prev_value_copy = previous_value.clone();
 
-        let  callback  =  move || {
-            // strong_self.lock().unwrap().nominate(&mut strong_state.lock().unwrap(), value, previous_value);
-
-            match weak_self.upgrade() {
-                Some(slot_driver) => {
-                    match weak_state.upgrade() {
-                        Some(state) => {
-                            slot_driver.nominate(state, value_copy, &prev_value_copy);
-                        },
-                        None => todo!(),
-                    }
-                },
+        let callback = move || match weak_self.upgrade() {
+            Some(slot_driver) => match weak_state.upgrade() {
+                Some(state) => {
+                    slot_driver.nominate(state, value_copy, &prev_value_copy);
+                }
                 None => todo!(),
-            }
+            },
+            None => todo!(),
         };
 
-        let clock_event = ClockEvent::new(SystemTime::now() + timeout, Box::new(callback) );
+        let clock_event = ClockEvent::new(SystemTime::now() + timeout, Box::new(callback));
         self.timer.lock().unwrap().add_task(clock_event);
-            
+
         if updated {
             todo!();
             // Emit nomination
@@ -204,14 +194,13 @@ impl NominationProtocol for SlotDriver {
         updated
     }
 
-
-    fn stop_nomination(&mut self, state: &mut NominationProtocolState) {
+    fn stop_nomination(self: &Arc<Self>, state: &mut NominationProtocolState) {
         state.nomination_started = false;
     }
 
     fn update_round_learders(&mut self) {
-        let local_id = self.local_node.lock().unwrap().node_id;
-        
+        let local_id = &self.local_node.lock().unwrap().node_id;
+
         let max_leader_count = &self.local_node.lock().unwrap().quorum_set;
 
         todo!()
