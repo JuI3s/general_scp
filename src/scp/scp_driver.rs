@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::{Arc, Mutex, Weak}, os::fd::RawFd,
+    os::fd::RawFd,
+    sync::{Arc, Mutex, Weak},
 };
 
 use weak_self_derive::WeakSelf;
@@ -47,6 +48,12 @@ impl SCPEnvelope {
     }
 }
 
+impl Default for SCPEnvelope {
+    fn default() -> Self {
+        Self {}
+    }
+}
+
 pub trait SCPDriver {
     fn validate_value(
         slot_index: u64,
@@ -80,10 +87,6 @@ impl SlotTimer {
 }
 
 impl SlotDriver {
-    fn get_prepare_candidates(hint: &SCPStatement) -> BTreeSet<SCPBallot> {
-        todo!()
-    }
-
     fn get_local_node(&self) -> &LocalNode {
         todo!();
     }
@@ -101,21 +104,21 @@ impl SlotDriver {
         ) {
             true
         } else {
-            let ratify_filter =  move |st: &SCPStatement| {
-                accepted_predicate(st) && voted_predicate(st)
-            };
-            if LocalNode::is_quorum(self.get_local_node().get_quorum_set(), envelopes, ratify_filter) {
+            let ratify_filter =
+                move |st: &SCPStatement| accepted_predicate(st) && voted_predicate(st);
+            if LocalNode::is_quorum(
+                self.get_local_node().get_quorum_set(),
+                envelopes,
+                ratify_filter,
+            ) {
                 return true;
-            } {
+            }
+            {
                 false
             }
         }
     }
 }
-
-// pub trait WeakSelf {
-//     fn get_weak_self(&mut self) -> Weak<Mutex<&mut Self>>;
-// }
 
 impl SCPDriver for SlotDriver {
     fn nominating_value(self: &Arc<Self>, value: &NominationValue) {}
@@ -135,113 +138,6 @@ impl SCPDriver for SlotDriver {
     }
 
     fn sign_envelope(envelope: &SCPEnvelope) {
-        todo!()
-    }
-}
-
-impl BallotProtocol for SlotDriver {
-    fn externalize(&mut self) {
-        todo!()
-    }
-
-    fn recv_ballot_envelope(&mut self) {
-        todo!()
-    }
-
-    fn attempt_accept_prepared(
-        self: &Arc<Self>,
-        state_handle: HBallotProtocolState,
-        hint: &SCPStatement,
-    ) -> bool {
-        let state = state_handle.lock().unwrap();
-        if state.phase != SCPPhase::PhasePrepare && state.phase != SCPPhase::PhaseConfirm {
-            return false;
-        }
-
-        let candidates = SlotDriver::get_prepare_candidates(hint);
-
-        // see if we can accept any of the candidates, starting with the highest
-        for candidate in &candidates {
-            if state.phase == SCPPhase::PhaseConfirm {
-                match state.prepared.lock().unwrap().as_ref() {
-                    Some(prepared_ballot) => {
-                        if prepared_ballot.less_and_compatible(&candidate) {
-                            continue;
-                        }
-                    }
-                    None => {
-                        panic!("In PhaseConfirm (attempt_accept_prepared) but prepared ballot is None.\n");
-                    }
-                }
-            }
-
-            // if we already prepared this ballot, don't bother checking again
-
-            // if ballot <= p' ballot is neither a candidate for p nor p'
-            if state
-                .prepared_prime
-                .lock()
-                .unwrap()
-                .as_ref()
-                .is_some_and(|prepared_prime_ballot| {
-                    candidate.less_and_compatible(prepared_prime_ballot)
-                })
-            {
-                continue;
-            }
-
-            if state
-                .prepared
-                .lock()
-                .unwrap()
-                .as_ref()
-                .is_some_and(|prepared_ballot| candidate.less_and_compatible(prepared_ballot))
-            {
-                continue;
-            }
-
-            // There is a chance it increases p'
-        }
-        todo!()
-    }
-
-    fn set_accept_prepared(state: &mut BallotProtocolState, prepared: &SCPBallot) -> bool {
-        todo!()
-    }
-
-    fn attempt_confirm_prepared(state: &mut BallotProtocolState, hint: &SCPStatement) {
-        todo!()
-    }
-
-    fn set_confirm_prepared(
-        state: &mut BallotProtocolState,
-        newC: &SCPBallot,
-        newH: &SCPBallot,
-    ) -> bool {
-        todo!()
-    }
-
-    fn attempt_accept_commit(state: &mut BallotProtocolState, hint: &SCPStatement) -> bool {
-        todo!()
-    }
-
-    fn set_accept_commit(state: &mut BallotProtocolState, c: &SCPBallot, h: &SCPBallot) -> bool {
-        todo!()
-    }
-
-    fn attempt_confirm_commit(state: &mut BallotProtocolState, hint: &SCPStatement) -> bool {
-        todo!()
-    }
-
-    fn set_confirm_commit(
-        state: &mut BallotProtocolState,
-        acceptCommitLow: &SCPBallot,
-        acceptCommitHigh: &SCPBallot,
-    ) -> bool {
-        todo!()
-    }
-
-    fn attemptBump() -> bool {
         todo!()
     }
 }

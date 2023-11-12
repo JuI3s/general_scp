@@ -22,8 +22,6 @@ pub struct Slot {
 }
 pub type HSlot = Arc<Mutex<Slot>>;
 
-pub type HSCPEnvelope = Arc<Mutex<SCPEnvelope>>;
-
 impl Slot {
     pub fn new(index: u64) -> Self {
         Slot {

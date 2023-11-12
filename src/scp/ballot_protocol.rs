@@ -1,18 +1,28 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
 };
 
 use super::{
     nomination_protocol::{HNominationValue, NominationValue},
     scp::{NodeID, SCP},
-    scp_driver::SlotDriver,
-    slot::HSCPEnvelope,
+    scp_driver::{HSCPEnvelope, SlotDriver},
 };
 
+pub enum StatementType<'a> {
+    Prepare(&'a SCPBallot),
+    Confirm(&'a SCPBallot),
+    Externalize(&'a SCPBallot),
+}
 pub struct SCPStatement {}
 
-#[derive(Eq, PartialEq, PartialOrd, Ord)]
+impl SCPStatement {
+    pub fn get_pledge_type<'a>(&'a self) -> StatementType<'a> {
+        todo!()
+    }
+}
+
+#[derive(Eq, PartialEq, PartialOrd, Ord, Clone)]
 pub struct SCPBallot {
     counter: u32,
     value: NominationValue,
@@ -69,11 +79,11 @@ pub trait BallotProtocol {
     // step 1 and 5 from the SCP paper
     fn attempt_accept_prepared(
         self: &Arc<Self>,
-        state: HBallotProtocolState,
+        state: &HBallotProtocolState,
         hint: &SCPStatement,
     ) -> bool;
     // prepared: ballot that should be prepared
-    fn set_accept_prepared(state: &mut BallotProtocolState, prepared: &SCPBallot) -> bool;
+    fn set_accept_prepared(self: &Arc<Self>, state: &HBallotProtocolState) -> bool;
 
     // step 2+3+8 from the SCP paper
     // ballot is the candidate to record as 'confirmed prepared'
@@ -127,6 +137,51 @@ pub struct BallotProtocolState {
     pub last_envelope_emitted: HSCPEnvelope,
 }
 
+impl BallotProtocolState {
+    fn set_prepared(&mut self, ballot: &SCPBallot) -> bool {
+        let mut did_work = false;
+
+        match self.prepared.lock().unwrap().as_ref() {
+            Some(ref mut prepared_ballot) => {
+                if *prepared_ballot < ballot {
+                    // as we're replacing p, we see if we should also replace p'
+                    if !prepared_ballot.compatible(ballot) {
+                        self.prepared_prime = Arc::new(Mutex::new(Some(prepared_ballot.clone())));
+                    }
+                    *prepared_ballot = ballot;
+                    did_work = true;
+                } else if *prepared_ballot > ballot {
+                    // check if we should update only p', this happens
+                    // either p' was None
+                    // or p' gets replaced by ballot
+                    //      (p' < ballot and ballot is incompatible with p)
+                    // note, the later check is here out of paranoia as this function is
+                    // not called with a value that would not allow us to make progress
+
+                    if self.prepared_prime.lock().unwrap().is_none()
+                        || (self.prepared_prime.lock().unwrap().as_ref().expect("") < ballot
+                            && !self
+                                .prepared
+                                .lock()
+                                .unwrap()
+                                .as_ref()
+                                .expect("")
+                                .compatible(ballot))
+                    {
+                       *self.prepared_prime.lock().unwrap().as_ref().as_mut().expect("") = ballot;
+                       did_work = true;
+                    }
+                }
+            }
+            None => {
+                self.prepared_prime = Arc::new(Mutex::new(None));
+                did_work = true;
+            }
+        };
+        did_work
+    }
+}
+
 impl Default for BallotProtocolState {
     fn default() -> Self {
         Self {
@@ -143,5 +198,143 @@ impl Default for BallotProtocolState {
             last_envelope: Default::default(),
             last_envelope_emitted: Default::default(),
         }
+    }
+}
+
+impl SlotDriver {
+    fn get_prepare_candidates(hint: &SCPStatement) -> BTreeSet<SCPBallot> {
+        todo!()
+    }
+}
+
+impl BallotProtocol for SlotDriver {
+    fn externalize(&mut self) {
+        todo!()
+    }
+
+    fn recv_ballot_envelope(&mut self) {
+        todo!()
+    }
+
+    fn attempt_accept_prepared(
+        self: &Arc<Self>,
+        state_handle: &HBallotProtocolState,
+        hint: &SCPStatement,
+    ) -> bool {
+        let state = state_handle.lock().unwrap();
+        if state.phase != SCPPhase::PhasePrepare && state.phase != SCPPhase::PhaseConfirm {
+            return false;
+        }
+
+        let candidates = SlotDriver::get_prepare_candidates(hint);
+
+        // see if we can accept any of the candidates, starting with the highest
+        for candidate in &candidates {
+            if state.phase == SCPPhase::PhaseConfirm {
+                match state.prepared.lock().unwrap().as_ref() {
+                    Some(prepared_ballot) => {
+                        if prepared_ballot.less_and_compatible(&candidate) {
+                            continue;
+                        }
+                    }
+                    None => {
+                        panic!("In PhaseConfirm (attempt_accept_prepared) but prepared ballot is None.\n");
+                    }
+                }
+            }
+
+            // if we already prepared this ballot, don't bother checking again
+
+            // if ballot <= p' ballot is neither a candidate for p nor p'
+            if state
+                .prepared_prime
+                .lock()
+                .unwrap()
+                .as_ref()
+                .is_some_and(|prepared_prime_ballot| {
+                    candidate.less_and_compatible(prepared_prime_ballot)
+                })
+            {
+                continue;
+            }
+
+            if state
+                .prepared
+                .lock()
+                .unwrap()
+                .as_ref()
+                .is_some_and(|prepared_ballot| candidate.less_and_compatible(prepared_ballot))
+            {
+                continue;
+            }
+
+            // There is a chance it increases p'
+            if self.federated_accept(
+                |st| {
+                    let ballot = &candidate;
+                    match st.get_pledge_type() {
+                        crate::scp::ballot_protocol::StatementType::Prepare(prepare) => {
+                            ballot.less_and_compatible(prepare)
+                        }
+                        crate::scp::ballot_protocol::StatementType::Confirm(confirm) => {
+                            ballot.less_and_compatible(confirm)
+                        }
+                        crate::scp::ballot_protocol::StatementType::Externalize(externalize) => {
+                            ballot.compatible(externalize)
+                        }
+                    }
+                },
+                |st| {
+                    let ballot = &candidate;
+                    todo!()
+                },
+                &state.latest_envelopes,
+            ) {
+                return self.set_accept_prepared(state_handle);
+            }
+        }
+        false
+    }
+
+    fn set_accept_prepared(self: &Arc<Self>, state: &HBallotProtocolState) -> bool {
+        let mut did_work = false;
+
+        did_work
+    }
+
+    fn attempt_confirm_prepared(state: &mut BallotProtocolState, hint: &SCPStatement) {
+        todo!()
+    }
+
+    fn set_confirm_prepared(
+        state: &mut BallotProtocolState,
+        newC: &SCPBallot,
+        newH: &SCPBallot,
+    ) -> bool {
+        todo!()
+    }
+
+    fn attempt_accept_commit(state: &mut BallotProtocolState, hint: &SCPStatement) -> bool {
+        todo!()
+    }
+
+    fn set_accept_commit(state: &mut BallotProtocolState, c: &SCPBallot, h: &SCPBallot) -> bool {
+        todo!()
+    }
+
+    fn attempt_confirm_commit(state: &mut BallotProtocolState, hint: &SCPStatement) -> bool {
+        todo!()
+    }
+
+    fn set_confirm_commit(
+        state: &mut BallotProtocolState,
+        acceptCommitLow: &SCPBallot,
+        acceptCommitHigh: &SCPBallot,
+    ) -> bool {
+        todo!()
+    }
+
+    fn attemptBump() -> bool {
+        todo!()
     }
 }

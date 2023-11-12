@@ -8,8 +8,8 @@ use crate::overlay::peer::PeerID;
 use super::{
     ballot_protocol::BallotProtocol,
     nomination_protocol::{HNominationValue, NominationProtocol, NominationValue},
-    scp_driver::{SCPDriver, SlotDriver},
-    slot::{HSCPEnvelope, HSlot, Slot, SlotIndex},
+    scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver},
+    slot::{HSlot, Slot, SlotIndex},
 };
 
 pub type NodeID = String;

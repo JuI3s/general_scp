@@ -18,8 +18,8 @@ use crate::{
 
 use super::{
     scp::SCPEnvelope,
-    scp_driver::{SCPDriver, SlotDriver},
-    slot::{self, HSCPEnvelope, Slot},
+    scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver},
+    slot::Slot,
 };
 
 pub trait NominationProtocol {

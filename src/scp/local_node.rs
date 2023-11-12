@@ -55,7 +55,11 @@ impl LocalNode {
         LocalNode::is_v_blocking_internal(quorum_set, &nodes)
     }
 
-    pub fn is_quorum(quorum_set: &QuorumSet, envelopes: &BTreeMap<NodeID, HSCPEnvelope>, ratify_predicate: impl Fn(&SCPStatement) -> bool) -> bool {
+    pub fn is_quorum(
+        quorum_set: &QuorumSet,
+        envelopes: &BTreeMap<NodeID, HSCPEnvelope>,
+        ratify_predicate: impl Fn(&SCPStatement) -> bool,
+    ) -> bool {
         todo!()
     }
 }
