@@ -3,6 +3,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use crate::scp::scp_driver::SCPDriver;
+
 use super::{
     nomination_protocol::{HNominationValue, NominationValue},
     scp::{NodeID, SCP},
@@ -83,7 +85,11 @@ pub trait BallotProtocol {
         hint: &SCPStatement,
     ) -> bool;
     // prepared: ballot that should be prepared
-    fn set_accept_prepared(self: &Arc<Self>, state: &HBallotProtocolState) -> bool;
+    fn set_accept_prepared(
+        self: &Arc<Self>,
+        state: &HBallotProtocolState,
+        ballot: &SCPBallot,
+    ) -> bool;
 
     // step 2+3+8 from the SCP paper
     // ballot is the candidate to record as 'confirmed prepared'
@@ -168,8 +174,14 @@ impl BallotProtocolState {
                                 .expect("")
                                 .compatible(ballot))
                     {
-                       *self.prepared_prime.lock().unwrap().as_ref().as_mut().expect("") = ballot;
-                       did_work = true;
+                        *self
+                            .prepared_prime
+                            .lock()
+                            .unwrap()
+                            .as_ref()
+                            .as_mut()
+                            .expect("") = ballot;
+                        did_work = true;
                     }
                 }
             }
@@ -203,6 +215,12 @@ impl Default for BallotProtocolState {
 
 impl SlotDriver {
     fn get_prepare_candidates(hint: &SCPStatement) -> BTreeSet<SCPBallot> {
+        todo!()
+    }
+}
+
+impl SlotDriver {
+    fn emit_current_state_statement(self: &Arc<Self>, state: &mut BallotProtocolState) {
         todo!()
     }
 }
@@ -290,15 +308,36 @@ impl BallotProtocol for SlotDriver {
                 },
                 &state.latest_envelopes,
             ) {
-                return self.set_accept_prepared(state_handle);
+                return self.set_accept_prepared(state_handle, candidate);
             }
         }
         false
     }
 
-    fn set_accept_prepared(self: &Arc<Self>, state: &HBallotProtocolState) -> bool {
-        let mut did_work = false;
+    fn set_accept_prepared(
+        self: &Arc<Self>,
+        state_handle: &HBallotProtocolState,
+        ballot: &SCPBallot,
+    ) -> bool {
+        let mut state = state_handle.lock().unwrap();
+        let mut did_work = state.set_prepared(ballot);
 
+        if state.commit.lock().unwrap().is_some() && state.high_ballot.lock().unwrap().is_some() {
+            if state.prepared.lock().unwrap().as_ref().is_some_and(|prepared_ballot| {
+                    state.high_ballot.lock().unwrap().as_ref().expect("").less_and_incompatible(prepared_ballot)
+                }
+                || state.prepared_prime.lock().unwrap().as_ref().is_some_and(|prepared_prime_ballot|{
+                    state.high_ballot.lock().unwrap().as_ref().expect("").less_and_incompatible(prepared_prime_ballot)
+                })
+                ) {
+                    state.commit = Arc::new(Mutex::new(None));
+                    did_work = true
+                }
+        }
+        if did_work {
+            self.accepted_ballot_prepared(&self.slot_index, ballot);
+            self.emit_current_state_statement(&mut state);
+        }
         did_work
     }
 

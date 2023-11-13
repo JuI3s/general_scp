@@ -66,7 +66,9 @@ pub trait SCPDriver {
     // ``nominating_value`` is called every time the local instance nominates a new value.
     fn nominating_value(self: &Arc<Self>, value: &NominationValue);
     // `value_externalized` is called at most once per slot when the slot externalize its value.
-    fn value_externalized(slot_index: u64, value: &NominationValue);
+    fn value_externalized(self: &Arc<Self>, slot_index: u64, value: &NominationValue);
+    // `accepted_bsallot_prepared` every time a ballot is accepted as prepared
+    fn accepted_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot);
 
     // the following methods are used for monitoring of the SCP subsystem most implementation don't really need to do anything with these.
 
@@ -133,11 +135,13 @@ impl SCPDriver for SlotDriver {
 
     fn emit_envelope(envelope: &SCPEnvelope) {}
 
-    fn value_externalized(slot_index: u64, value: &NominationValue) {
+    fn value_externalized(self: &Arc<Self>, slot_index: u64, value: &NominationValue) {
         todo!()
     }
 
     fn sign_envelope(envelope: &SCPEnvelope) {
         todo!()
     }
+
+    fn accepted_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot) {}
 }
