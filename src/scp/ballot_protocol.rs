@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
 };
@@ -8,21 +9,51 @@ use crate::scp::scp_driver::SCPDriver;
 use super::{
     nomination_protocol::{HNominationValue, NominationValue},
     scp::{NodeID, SCP},
-    scp_driver::{HSCPEnvelope, SlotDriver},
+    scp_driver::{HSCPEnvelope, Hash, SlotDriver},
 };
 
-pub enum StatementType<'a> {
-    Prepare(&'a SCPBallot),
-    Confirm(&'a SCPBallot),
-    Externalize(&'a SCPBallot),
-}
-pub struct SCPStatement {}
+// pub enum StatementType {
+//     Prepare(SCPBallot),
+//     Confirm(SCPBallot),
+//     Externalize(SCPBallot),
+// }
 
-impl SCPStatement {
-    pub fn get_pledge_type<'a>(&'a self) -> StatementType<'a> {
-        todo!()
-    }
+// impl SCPStatement {
+//     pub fn get_pledge_type<'a>(&'a self) -> StatementType<'a> {
+//         todo!()
+//     }
+// }
+
+pub enum SCPStatement {
+    Prepare(SCPStatementPrepare),
+    Confirm(SCPStatementConfirm),
+    Externalize(SCPStatementExternalize),
 }
+
+pub struct SCPStatementPrepare {
+    quorum_set_hash: Hash,
+    ballot: SCPBallot,
+    prepared: Option<SCPBallot>,
+    prepared_prime: Option<SCPBallot>,
+    num_commit: u32,
+    num_high: u32,
+}
+
+pub struct SCPStatementConfirm {
+    quorum_set_hash: Hash,
+    ballot: SCPBallot,
+    num_prepared: u32,
+    num_commit: u32,
+    num_high: u32,
+}
+
+pub struct SCPStatementExternalize {
+    commit_quorum_set_hash: Hash,
+    commit: SCPBallot,
+    num_high: u32,
+}
+
+pub struct SPCStatementCommit {}
 
 #[derive(Eq, PartialEq, PartialOrd, Ord, Clone)]
 pub struct SCPBallot {
@@ -31,6 +62,11 @@ pub struct SCPBallot {
 }
 
 impl SCPBallot {
+
+    pub fn make_ballot(other: &SCPBallot) -> Self {
+        SCPBallot{counter: other.counter, value: other.value.clone()}
+    }
+    
     pub fn compatible(&self, other: &SCPBallot) -> bool {
         self.value == other.value
     }
@@ -93,10 +129,15 @@ pub trait BallotProtocol {
 
     // step 2+3+8 from the SCP paper
     // ballot is the candidate to record as 'confirmed prepared'
-    fn attempt_confirm_prepared(state: &mut BallotProtocolState, hint: &SCPStatement);
+    fn attempt_confirm_prepared(
+        self: &Arc<Self>,
+        state: &HBallotProtocolState,
+        hint: &SCPStatement,
+    ) -> bool;
     // newC, newH : low/high bounds prepared confirmed
     fn set_confirm_prepared(
-        state: &mut BallotProtocolState,
+        self: &Arc<Self>,
+        state: &HBallotProtocolState,
         newC: &SCPBallot,
         newH: &SCPBallot,
     ) -> bool;
@@ -132,7 +173,7 @@ pub struct BallotProtocolState {
 
     pub latest_envelopes: BTreeMap<NodeID, HSCPEnvelope>,
     pub phase: SCPPhase,
-    pub value_override: HNominationValue,
+    pub value_override: Arc<Mutex<Option<NominationValue>>>,
 
     pub current_message_level: usize,
 
@@ -213,15 +254,41 @@ impl Default for BallotProtocolState {
     }
 }
 
-impl SlotDriver {
+struct BallotProtocolUtils {}
+
+impl BallotProtocolUtils {
     fn get_prepare_candidates(hint: &SCPStatement) -> BTreeSet<SCPBallot> {
         todo!()
+    }
+
+    fn has_prepared_ballot(ballot: &SCPBallot, statement: &SCPStatement) -> bool {
+        match statement {
+            SCPStatement::Prepare(st) => {
+                st.prepared
+                    .as_ref()
+                    .is_some_and(|prepared| ballot.less_and_compatible(&prepared))
+                    || st
+                        .prepared_prime
+                        .as_ref()
+                        .is_some_and(|prepared_prime| ballot.less_and_compatible(&prepared_prime))
+            }
+            SCPStatement::Confirm(st) => ballot.less_and_compatible(&SCPBallot {
+                counter: st.num_prepared,
+                value: st.ballot.value.clone(),
+            }),
+            SCPStatement::Externalize(st) => ballot.compatible(&st.commit),
+        }
     }
 }
 
 impl SlotDriver {
     fn emit_current_state_statement(self: &Arc<Self>, state: &mut BallotProtocolState) {
         todo!()
+    }
+
+    // helper to perform step (8) from the paper
+    fn update_current_if_needed(self: &Arc<Self>, state: &mut BallotProtocolState, h: &SCPBallot) -> bool {
+        todo!();
     }
 }
 
@@ -244,7 +311,7 @@ impl BallotProtocol for SlotDriver {
             return false;
         }
 
-        let candidates = SlotDriver::get_prepare_candidates(hint);
+        let candidates = BallotProtocolUtils::get_prepare_candidates(hint);
 
         // see if we can accept any of the candidates, starting with the highest
         for candidate in &candidates {
@@ -290,16 +357,10 @@ impl BallotProtocol for SlotDriver {
             if self.federated_accept(
                 |st| {
                     let ballot = &candidate;
-                    match st.get_pledge_type() {
-                        crate::scp::ballot_protocol::StatementType::Prepare(prepare) => {
-                            ballot.less_and_compatible(prepare)
-                        }
-                        crate::scp::ballot_protocol::StatementType::Confirm(confirm) => {
-                            ballot.less_and_compatible(confirm)
-                        }
-                        crate::scp::ballot_protocol::StatementType::Externalize(externalize) => {
-                            ballot.compatible(externalize)
-                        }
+                    match st {
+                        SCPStatement::Prepare(st) => ballot.less_and_compatible(&st.ballot),
+                        SCPStatement::Confirm(st) => ballot.less_and_compatible(&st.ballot),
+                        SCPStatement::Externalize(st) => ballot.compatible(&st.commit),
                     }
                 },
                 |st| {
@@ -341,16 +402,125 @@ impl BallotProtocol for SlotDriver {
         did_work
     }
 
-    fn attempt_confirm_prepared(state: &mut BallotProtocolState, hint: &SCPStatement) {
-        todo!()
+    fn attempt_confirm_prepared(
+        self: &Arc<Self>,
+        state_handle: &HBallotProtocolState,
+        hint: &SCPStatement,
+    ) -> bool {
+        let state = state_handle.lock().unwrap();
+        if state.phase != SCPPhase::PhasePrepare {
+            return false;
+        }
+
+        let prepared_ballot_opt = state.prepared.lock().unwrap();
+
+        if let Some(prepared_ballot) = prepared_ballot_opt.as_ref() {
+            let mut candidates = BallotProtocolUtils::get_prepare_candidates(hint);
+
+            if let Some(new_high) = candidates.iter().find(|&candidate| {
+                if state
+                    .high_ballot
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .is_some_and(|hb| hb >= candidate)
+                {
+                    false
+                } else {
+                    let ratified =
+                        |st: &SCPStatement| BallotProtocolUtils::has_prepared_ballot(candidate, st);
+                    self.federated_ratify(ratified, &state.latest_envelopes)
+                }
+            }) {
+                let b = match state.current_ballot.lock().unwrap().as_ref() {
+                    Some(ballot) => ballot.clone(),
+                    None => SCPBallot::default(),
+                };
+
+                // now, look for newC (left as 0 if no update) step (3) from the paper.
+                let mut new_commit = SCPBallot::default();
+
+                if state.commit.lock().unwrap().is_none()
+                    && !state
+                        .prepared
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .is_some_and(|prepared| new_high.less_and_incompatible(prepared))
+                    && !state.prepared_prime.lock().unwrap().as_ref().is_some_and(
+                        |prepared_prime| new_high.less_and_incompatible(prepared_prime),
+                    )
+                {
+                    // TODO: maybe rewrite this logic in a more functional programming way...
+                    for candidate in &candidates {
+                        if candidate < &b {
+                            break;
+                        }
+
+                        if !candidate.less_and_compatible(new_high) {
+                            continue;
+                        }
+
+                        let voted_predicate = |st: &SCPStatement| {
+                            BallotProtocolUtils::has_prepared_ballot(candidate, st)
+                        };
+
+                        if self.federated_ratify(voted_predicate, &state.latest_envelopes) {
+                            new_commit = candidate.clone();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                return self.set_confirm_prepared(&state_handle, &new_commit, new_high);
+            }
+            false
+        } else {
+            false
+        }
     }
 
     fn set_confirm_prepared(
-        state: &mut BallotProtocolState,
-        newC: &SCPBallot,
-        newH: &SCPBallot,
+        self: &Arc<Self>,
+        state_handle: &HBallotProtocolState,
+        new_commit: &SCPBallot,
+        new_high: &SCPBallot,
     ) -> bool {
-        todo!()
+        let mut state = state_handle.lock().unwrap();
+        *state.value_override.lock().unwrap() = Some(new_high.value.clone());
+
+        let mut did_work = false;
+
+        if !state
+            .current_ballot
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|current_ballot| !current_ballot.compatible(new_high))
+        {
+            if let Some(high_ballot) = state.high_ballot.lock().unwrap().as_mut() {
+                *high_ballot = SCPBallot::make_ballot(new_high);
+                did_work = true;
+            }
+
+            if new_commit.counter != 0 {
+                *state.commit.lock().unwrap() = Some(SCPBallot::make_ballot(new_commit));
+                did_work = true;
+            }
+
+            if did_work {
+                self.confirm_ballot_prepared(&self.slot_index, new_high);
+            }
+        }
+
+        // always perform step (8) with the computed value of h
+        did_work = did_work || self.update_current_if_needed(&mut state, new_high);
+
+        if did_work {
+            self.emit_current_state_statement(&mut state);
+        }
+
+        did_work
     }
 
     fn attempt_accept_commit(state: &mut BallotProtocolState, hint: &SCPStatement) -> bool {

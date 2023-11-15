@@ -4,6 +4,8 @@ use std::{
     sync::{Arc, Mutex, Weak},
 };
 
+pub type Hash = u32;
+
 use weak_self_derive::WeakSelf;
 
 use crate::{
@@ -70,6 +72,8 @@ pub trait SCPDriver {
     // `accepted_bsallot_prepared` every time a ballot is accepted as prepared
     fn accepted_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot);
 
+    fn confirm_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot) {}
+
     // the following methods are used for monitoring of the SCP subsystem most implementation don't really need to do anything with these.
 
     fn emit_envelope(envelope: &SCPEnvelope);
@@ -120,6 +124,18 @@ impl SlotDriver {
             }
         }
     }
+
+    pub fn federated_ratify(
+        &self,
+        voted_predicate: impl Fn(&SCPStatement) -> bool,
+        envelopes: &BTreeMap<NodeID, HSCPEnvelope>,
+    ) -> bool {
+        LocalNode::is_quorum(
+            self.get_local_node().get_quorum_set(),
+            envelopes,
+            voted_predicate,
+        )
+    }
 }
 
 impl SCPDriver for SlotDriver {
@@ -144,4 +160,6 @@ impl SCPDriver for SlotDriver {
     }
 
     fn accepted_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot) {}
+
+    fn confirm_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot) {}
 }
