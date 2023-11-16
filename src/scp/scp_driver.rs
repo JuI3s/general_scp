@@ -72,6 +72,8 @@ pub trait SCPDriver {
     // `accepted_bsallot_prepared` every time a ballot is accepted as prepared
     fn accepted_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot);
 
+    fn accepted_commit(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot);
+
     fn confirm_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot) {}
 
     // the following methods are used for monitoring of the SCP subsystem most implementation don't really need to do anything with these.
@@ -160,6 +162,6 @@ impl SCPDriver for SlotDriver {
     }
 
     fn accepted_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot) {}
-
+    fn accepted_commit(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot) {}
     fn confirm_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot) {}
 }
