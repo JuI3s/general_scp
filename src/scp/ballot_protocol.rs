@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, BTreeSet},
+    collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
+    hash::Hash,
     sync::{Arc, Mutex},
 };
 
@@ -12,8 +13,8 @@ use crate::scp::{
 
 use super::{
     nomination_protocol::{HNominationProtocolState, HNominationValue, NominationValue},
-    scp::{NodeID, SCP},
-    scp_driver::{HSCPEnvelope, Hash, SlotDriver},
+    scp::{NodeID, SCPEnvelope, SCP},
+    scp_driver::{HSCPEnvelope, HashValue, SlotDriver},
 };
 
 pub trait ToBallot {
@@ -27,7 +28,7 @@ pub enum SCPStatement {
 }
 
 pub struct SCPStatementPrepare {
-    quorum_set_hash: Hash,
+    quorum_set_hash: HashValue,
     ballot: SCPBallot,
     prepared: Option<SCPBallot>,
     prepared_prime: Option<SCPBallot>,
@@ -36,7 +37,7 @@ pub struct SCPStatementPrepare {
 }
 
 pub struct SCPStatementConfirm {
-    quorum_set_hash: Hash,
+    quorum_set_hash: HashValue,
     ballot: SCPBallot,
     num_prepared: u32,
     num_commit: u32,
@@ -44,7 +45,7 @@ pub struct SCPStatementConfirm {
 }
 
 pub struct SCPStatementExternalize {
-    commit_quorum_set_hash: Hash,
+    commit_quorum_set_hash: HashValue,
     commit: SCPBallot,
     num_high: u32,
 }
@@ -343,7 +344,7 @@ impl BallotProtocolState {
         }
     }
 
-    fn create_statement(&self, local_quorum_set_hash: Hash) -> SCPStatement {
+    fn create_statement(&self, local_quorum_set_hash: HashValue) -> SCPStatement {
         self.check_invariants();
 
         match self.phase {
@@ -478,11 +479,26 @@ impl BallotProtocolUtils {
 
 impl SlotDriver {
     fn emit_current_state_statement(self: &Arc<Self>, state: &mut BallotProtocolState) {
-        match state.phase {
-            SCPPhase::PhasePrepare => todo!(),
-            SCPPhase::PhaseConfirm => todo!(),
-            SCPPhase::PhaseExternalize => todo!(),
-        }
+        let statement = state.create_statement(
+            self.local_node
+                .lock()
+                .unwrap()
+                .get_quorum_set()
+                .hash_value(),
+        );
+
+        let mut can_emit = state.current_ballot.lock().unwrap().is_some();
+        let local_node_id = self.local_node.lock().unwrap().node_id.clone();
+
+        // if we generate the same envelope, don't process it again
+        // this can occur when updating h in PREPARE phase
+        // as statements only keep track of h.n (but h.x could be different)
+        if let Some(last_envelope) = state
+            .latest_envelopes
+            .values()
+            .find(|envelope| envelope.lock().unwrap().node_id == local_node_id)
+        {}
+
         todo!()
     }
 
@@ -598,6 +614,9 @@ impl SlotDriver {
         state.check_invariants();
 
         updated
+    }
+
+    fn process_envelope(self: &Arc<Self>, state: &mut BallotProtocolState, envelope: &SCPEnvelope) {
     }
 }
 

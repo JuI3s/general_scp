@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex, Weak},
 };
 
-pub type Hash = u32;
+pub type HashValue = u64;
 
 use weak_self_derive::WeakSelf;
 
@@ -42,7 +42,12 @@ pub enum ValidationLevel {
 }
 
 pub type HSCPEnvelope = Arc<Mutex<SCPEnvelope>>;
-pub struct SCPEnvelope {}
+pub struct SCPEnvelope {
+    pub statement: SCPStatement,
+    pub node_id: NodeID,
+    pub slot_index: SlotIndex,
+    pub signature: HashValue,
+}
 
 impl SCPEnvelope {
     pub fn get_statement(&self) -> &SCPStatement {
@@ -52,7 +57,9 @@ impl SCPEnvelope {
 
 impl Default for SCPEnvelope {
     fn default() -> Self {
-        Self {}
+        Self {
+            ..Default::default()
+        }
     }
 }
 
@@ -139,8 +146,17 @@ impl SlotDriver {
         )
     }
 
-    pub fn create_envelope(&self) -> SCPEnvelope {
+    fn sign_envelope(&self) -> HashValue {
         todo!()
+    }
+
+    pub fn create_envelope(&self, statement: SCPStatement) -> SCPEnvelope {
+        SCPEnvelope {
+            statement,
+            node_id: self.local_node.lock().unwrap().node_id.clone(),
+            slot_index: self.slot_index.clone(),
+            signature: self.sign_envelope(),
+        }
     }
 }
 

@@ -1,12 +1,13 @@
 use std::{
-    collections::{btree_set, BTreeSet},
+    collections::{btree_set, hash_map::DefaultHasher, BTreeSet},
     f32::consts::E,
+    hash::{Hash, Hasher},
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
 };
 
 use serde::{Deserialize, Serialize};
 
-use crate::scp::scp::NodeID;
+use crate::scp::{scp::NodeID, scp_driver::HashValue};
 
 // pub type QuorumSet = HashSet<SocketAddr>;
 // pub type Quorum = HashSet<QuorumSet>;
@@ -18,7 +19,7 @@ pub struct QuorumNode {
 }
 
 // Set of quorum slices for local node.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Hash)]
 pub struct QuorumSet {
     pub slices: BTreeSet<QuorumSlice>,
     pub threshold: usize,
@@ -29,12 +30,26 @@ pub struct QuorumSlice {
     pub data: BTreeSet<QuorumNode>,
 }
 
+impl QuorumSlice {
+    pub fn hash_value(&self) -> HashValue {
+        let mut s = DefaultHasher::new();
+        self.hash(&mut s);
+        s.finish()
+    }
+}
+
 impl QuorumSet {
     pub fn new(threshold: usize) -> Self {
         QuorumSet {
             slices: BTreeSet::new(),
             threshold: threshold,
         }
+    }
+
+    pub fn hash_value(&self) -> HashValue {
+        let mut s = DefaultHasher::new();
+        self.hash(&mut s);
+        s.finish()
     }
 
     pub fn insert(&mut self, slice: QuorumSlice) {
