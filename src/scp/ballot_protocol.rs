@@ -4,10 +4,14 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::scp::{scp_driver::SCPDriver, nomination_protocol::NominationProtocol};
+use crate::scp::{
+    local_node::{self, LocalNode},
+    nomination_protocol::NominationProtocol,
+    scp_driver::SCPDriver,
+};
 
 use super::{
-    nomination_protocol::{HNominationValue, NominationValue, HNominationProtocolState},
+    nomination_protocol::{HNominationProtocolState, HNominationValue, NominationValue},
     scp::{NodeID, SCP},
     scp_driver::{HSCPEnvelope, Hash, SlotDriver},
 };
@@ -43,6 +47,16 @@ pub struct SCPStatementExternalize {
     commit_quorum_set_hash: Hash,
     commit: SCPBallot,
     num_high: u32,
+}
+
+impl SCPStatement {
+    fn ballot_counter(&self) -> u32 {
+        match self {
+            SCPStatement::Prepare(st) => st.ballot.counter,
+            SCPStatement::Confirm(st) => st.ballot.counter,
+            SCPStatement::Externalize(st) => st.commit.counter,
+        }
+    }
 }
 
 // TODO: Probably make this generic using macros?
@@ -116,7 +130,6 @@ pub enum SCPPhase {
     PhasePrepare,
     PhaseConfirm,
     PhaseExternalize,
-    PhaseNum,
 }
 
 pub trait BallotProtocol {
@@ -193,7 +206,7 @@ pub trait BallotProtocol {
     ) -> bool;
 
     // step 9 from the SCP paper
-    fn attempt_bump() -> bool;
+    fn attempt_bump(self: &Arc<Self>, state_handle: &HBallotProtocolState) -> bool;
 }
 
 pub type HBallot = Arc<Mutex<Option<SCPBallot>>>;
@@ -270,6 +283,65 @@ impl BallotProtocolState {
         };
         did_work
     }
+
+    fn check_invariants(&self) {
+        {
+            match self.phase {
+                SCPPhase::PhasePrepare => {}
+                _ => {
+                    // Confirm or Externalize phases
+                    assert!(self.current_ballot.lock().unwrap().is_some());
+                    assert!(self.prepared.lock().unwrap().is_some());
+                    assert!(self.commit.lock().unwrap().is_some());
+                    assert!(self.high_ballot.lock().unwrap().is_some());
+                }
+            }
+
+            if let Some(current_ballot) = self.current_ballot.lock().unwrap().as_ref() {
+                assert!(current_ballot.counter != 0);
+            }
+
+            if let Some(prepared) = self.prepared.lock().unwrap().as_ref() {
+                if let Some(prepared_prime) = self.prepared_prime.lock().unwrap().as_ref() {
+                    assert!(prepared_prime.less_and_compatible(prepared));
+                }
+            }
+
+            if let Some(high_ballot) = self.high_ballot.lock().unwrap().as_ref() {
+                assert!(high_ballot.less_and_compatible(
+                    self.current_ballot
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .expect("Current ballot is not None")
+                ));
+            }
+
+            if let Some(commit) = self.commit.lock().unwrap().as_ref() {
+                assert!(self.current_ballot.lock().unwrap().is_some());
+                assert!(commit.less_and_compatible(
+                    self.high_ballot
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .expect("High ballot is not None")
+                ));
+                assert!(self
+                    .high_ballot
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .expect("High ballot is not None")
+                    .less_and_compatible(
+                        self.current_ballot
+                            .lock()
+                            .unwrap()
+                            .as_ref()
+                            .expect("Current ballot is not None")
+                    ));
+            }
+        }
+    }
 }
 
 impl Default for BallotProtocolState {
@@ -320,6 +392,11 @@ impl BallotProtocolUtils {
 
 impl SlotDriver {
     fn emit_current_state_statement(self: &Arc<Self>, state: &mut BallotProtocolState) {
+        match state.phase {
+            SCPPhase::PhasePrepare => todo!(),
+            SCPPhase::PhaseConfirm => todo!(),
+            SCPPhase::PhaseExternalize => todo!(),
+        }
         todo!()
     }
 
@@ -330,6 +407,111 @@ impl SlotDriver {
         h: &SCPBallot,
     ) -> bool {
         todo!();
+    }
+
+    fn has_v_blocking_subset_strictly_ahead_of(
+        self: &Arc<Self>,
+
+        envelopes: &BTreeMap<NodeID, HSCPEnvelope>,
+        counter: u32,
+    ) -> bool {
+        let local_node = self.local_node.lock().unwrap();
+
+        // let local_node = self.l
+
+        LocalNode::is_v_blocking(&local_node.quorum_set, envelopes, &|st: &SCPStatement| {
+            st.ballot_counter() > counter
+        });
+        todo!()
+    }
+
+    fn abandon_ballot(self: &Arc<Self>, state: &mut BallotProtocolState) -> bool {
+        todo!()
+    }
+
+    fn bump_state(
+        self: &Arc<Self>,
+        state: &mut BallotProtocolState,
+        nomination_value: &NominationValue,
+        n: u32,
+    ) -> bool {
+        if state.phase == SCPPhase::PhaseExternalize {
+            return false;
+        }
+
+        let value = match state.value_override.lock().unwrap().as_ref() {
+            Some(value_override) => value_override.clone(),
+            None => nomination_value.clone(),
+        };
+
+        let mut new_ballot = SCPBallot {
+            counter: n,
+            value: value,
+        };
+
+        let mut updated = self.update_current_value(state, &new_ballot);
+
+        if updated {}
+
+        todo!();
+    }
+
+    fn bump_to_ballot(
+        self: &Arc<Self>,
+        state: &mut BallotProtocolState,
+        ballot: &SCPBallot,
+        from_self: bool,
+    ) {
+        todo!()
+    }
+
+    // updates the local state based to the specified ballot
+    // (that could be a prepared ballot) enforcing invariants
+    fn update_current_value(
+        self: &Arc<Self>,
+        state: &mut BallotProtocolState,
+        ballot: &SCPBallot,
+    ) -> bool {
+        if state.phase == SCPPhase::PhaseExternalize {
+            return false;
+        }
+
+        let mut updated = false;
+        match state.current_ballot.lock().unwrap().as_ref() {
+            None => {
+                updated = true;
+            }
+            Some(current_ballot) => {
+                // Canonot update if the ballot is incompatible with current commit.
+                if state
+                    .commit
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .is_some_and(|commit| !commit.compatible(ballot))
+                {
+                    return false;
+                }
+
+                if current_ballot < ballot {
+                    updated = true;
+                } else {
+                    if current_ballot > ballot {
+                        dbg! {"BallotProtocol::updateCurrentValue attempt to bump to
+                        a smaller value"};
+                        return false;
+                    }
+                }
+            }
+        }
+
+        if updated {
+            self.bump_to_ballot(state, ballot, true);
+        }
+
+        state.check_invariants();
+
+        updated
     }
 }
 
@@ -699,20 +881,76 @@ impl BallotProtocol for SlotDriver {
         *state.commit.lock().unwrap() = Some(accept_commit_low.clone());
         *state.high_ballot.lock().unwrap() = Some(accept_commit_high.clone());
         self.update_current_if_needed(&mut state, accept_commit_high);
-    
+
         state.phase = SCPPhase::PhaseExternalize;
 
         self.emit_current_state_statement(&mut state);
 
-        let mut nomination_state = nomination_state_handle.lock().unwrap(); 
+        let mut nomination_state = nomination_state_handle.lock().unwrap();
         self.stop_nomination(&mut nomination_state);
 
-        self.value_externalized(self.slot_index, &state.commit.lock().unwrap().as_ref().expect("").value);
+        self.value_externalized(
+            self.slot_index,
+            &state.commit.lock().unwrap().as_ref().expect("").value,
+        );
 
-        true 
+        true
     }
 
-    fn attempt_bump() -> bool {
-        todo!()
+    // Step 9 from the paper (Feb 2016):
+    //
+    //   If ∃ S ⊆ M such that the set of senders {v_m | m ∈ S} is v-blocking
+    //   and ∀m ∈ S, b_m.n > b_v.n, then set b <- <n, z> where n is the lowest
+    //   counter for which no such S exists.
+    //
+    // a.k.a 4th rule for setting ballot.counter in the internet-draft (v03):
+    //
+    //   If nodes forming a blocking threshold all have ballot.counter values
+    //   greater than the local ballot.counter, then the local node immediately
+    //   cancels any pending timer, increases ballot.counter to the lowest
+    //   value such that this is no longer the case, and if appropriate
+    //   according to the rules above arms a new timer. Note that the blocking
+    //   threshold may include ballots from SCPCommit messages as well as
+    //   SCPExternalize messages, which implicitly have an infinite ballot
+    //   counter.
+    fn attempt_bump(self: &Arc<Self>, state_handle: &HBallotProtocolState) -> bool {
+        let mut state = state_handle.lock().unwrap();
+        if state.phase == SCPPhase::PhasePrepare || state.phase == SCPPhase::PhaseConfirm {
+            let local_counter = match state.current_ballot.lock().unwrap().as_ref() {
+                Some(local_ballot) => local_ballot.counter,
+                None => 0,
+            };
+
+            // First check to see if this condition applies at all. If there
+            // is no v-blocking set ahead of the local node, there's nothing
+            // to do, return early.
+            if !self.has_v_blocking_subset_strictly_ahead_of(&state.latest_envelopes, local_counter)
+            {
+                return false;
+            }
+
+            let mut all_counters = BTreeSet::new();
+            for entry in &state.latest_envelopes {
+                let counter = entry.1.lock().unwrap().get_statement().ballot_counter();
+                if counter > local_counter {
+                    all_counters.insert(counter);
+                }
+            }
+
+            // If we got to here, implicitly there _was_ a v-blocking subset
+            // with counters above the local counter; we just need to find a
+            // minimal n at which that's no longer true. So check them in
+            // order, starting from the smallest.
+            for counter in all_counters {
+                if !self.has_v_blocking_subset_strictly_ahead_of(&state.latest_envelopes, counter) {
+                    return self.abandon_ballot(&mut state);
+                }
+            }
+
+            // Unreachable
+            false
+        } else {
+            true
+        }
     }
 }

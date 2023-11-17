@@ -138,6 +138,10 @@ impl SlotDriver {
             voted_predicate,
         )
     }
+
+    pub fn create_envelope(&self) -> SCPEnvelope {
+        todo!()
+    }
 }
 
 impl SCPDriver for SlotDriver {
