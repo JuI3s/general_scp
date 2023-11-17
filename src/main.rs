@@ -38,7 +38,7 @@ async fn main() {
     //         rpc_gateway.lock().unwrap().send_hello_message(cfg.peer_id);
     //     }
     // });
- 
+
     // app.start().await;
 
     // let _ = handle.await;

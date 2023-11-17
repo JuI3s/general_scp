@@ -342,6 +342,92 @@ impl BallotProtocolState {
             }
         }
     }
+
+    fn create_statement(&self, local_quorum_set_hash: Hash) -> SCPStatement {
+        self.check_invariants();
+
+        match self.phase {
+            SCPPhase::PhasePrepare => {
+                let num_commit = if let Some(val) = self.commit.lock().unwrap().as_ref() {
+                    val.counter.clone()
+                } else {
+                    0
+                };
+                let num_high = if let Some(val) = self.commit.lock().unwrap().as_ref() {
+                    val.counter.clone()
+                } else {
+                    0
+                };
+
+                SCPStatement::Prepare(SCPStatementPrepare {
+                    quorum_set_hash: local_quorum_set_hash,
+                    ballot: self
+                        .current_ballot
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .expect("Current ballot")
+                        .clone(),
+                    prepared: self.prepared.lock().unwrap().clone(),
+                    prepared_prime: self.prepared_prime.lock().unwrap().clone(),
+                    num_commit: num_commit,
+                    num_high: num_high,
+                })
+            }
+            SCPPhase::PhaseConfirm => SCPStatement::Confirm(SCPStatementConfirm {
+                quorum_set_hash: local_quorum_set_hash,
+                ballot: self
+                    .current_ballot
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .expect("Current ballot")
+                    .clone(),
+                num_prepared: self
+                    .prepared
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .expect("Prepared")
+                    .counter
+                    .clone(),
+                num_commit: self
+                    .prepared
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .expect("Commit")
+                    .counter
+                    .clone(),
+                num_high: self
+                    .high_ballot
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .expect("High ballot")
+                    .counter
+                    .clone(),
+            }),
+            SCPPhase::PhaseExternalize => SCPStatement::Externalize(SCPStatementExternalize {
+                commit_quorum_set_hash: local_quorum_set_hash,
+                commit: self
+                    .commit
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .expect("Commit")
+                    .clone(),
+                num_high: self
+                    .high_ballot
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .expect("High ballot")
+                    .counter
+                    .clone(),
+            }),
+        }
+    }
 }
 
 impl Default for BallotProtocolState {
