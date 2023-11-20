@@ -15,6 +15,7 @@ use super::{
     nomination_protocol::{HNominationProtocolState, HNominationValue, NominationValue},
     scp::{NodeID, SCPEnvelope, SCP},
     scp_driver::{HSCPEnvelope, HashValue, SlotDriver},
+    slot::SlotIndex,
 };
 
 pub trait ToBallot {
@@ -34,6 +35,7 @@ pub struct SCPStatementPrepare {
     prepared_prime: Option<SCPBallot>,
     num_commit: u32,
     num_high: u32,
+    from_self: bool,
 }
 
 pub struct SCPStatementConfirm {
@@ -56,6 +58,48 @@ impl SCPStatement {
             SCPStatement::Prepare(st) => st.ballot.counter,
             SCPStatement::Confirm(st) => st.ballot.counter,
             SCPStatement::Externalize(st) => st.commit.counter,
+        }
+    }
+
+    pub fn is_statement_sane(&self) -> bool {
+        match self {
+            SCPStatement::Prepare(st) => {
+                // Statement from self is allowed to have b = 0 (as long as it never gets emitted)
+                if !(st.from_self || st.ballot.counter > 0) {
+                    return false;
+                }
+
+                // If prepared_prime and prepared are not None, then prepared_prime should be less and incompatible with prepared.
+                if let Some(prepared) = st.prepared.as_ref() {
+                    if let Some(prepared_prime) = st.prepared_prime.as_ref() {
+                        if !prepared_prime.less_and_incompatible(prepared) {
+                            return false;
+                        }
+                    }
+                }
+
+                // high ballot counter number should be 0 or no greater than the prepared counter (in which case the prepared ballot field is set).
+                if !(st.num_high == 0
+                    || st
+                        .prepared
+                        .as_ref()
+                        .is_some_and(|prepared| st.num_high <= prepared.counter))
+                {
+                    return false;
+                }
+
+                // c != 0 -> c <= h <= b
+                st.num_commit == 0
+                    || (st.num_high != 0
+                        && st.ballot.counter >= st.num_high
+                        && st.num_high >= st.num_commit)
+            }
+            SCPStatement::Confirm(st) => {
+                st.ballot.counter > 0 && st.num_high <= st.ballot.counter && st.num_commit <= st.num_high
+            },
+            SCPStatement::Externalize(st) => {
+                st.commit.counter > 0 && st.num_high >= st.commit.counter
+            },
         }
     }
 }
@@ -134,8 +178,7 @@ pub enum SCPPhase {
 }
 
 pub trait BallotProtocol {
-    fn externalize(&mut self);
-    fn recv_ballot_envelope(&mut self);
+    fn advance_slot(self: &Arc<Self>, state: &HNominationProtocolState, hint: &SCPStatement);
 
     // `attempt*` methods are called by `advanceSlot` internally call the
     //  the `set*` methods.
@@ -233,6 +276,8 @@ pub struct BallotProtocolState {
 
     // last envelope emitted by this node
     pub last_envelope_emitted: HSCPEnvelope,
+
+    pub message_level: u32,
 }
 
 impl BallotProtocolState {
@@ -373,6 +418,7 @@ impl BallotProtocolState {
                     prepared_prime: self.prepared_prime.lock().unwrap().clone(),
                     num_commit: num_commit,
                     num_high: num_high,
+                    from_self: true,
                 })
             }
             SCPPhase::PhaseConfirm => SCPStatement::Confirm(SCPStatementConfirm {
@@ -446,6 +492,7 @@ impl Default for BallotProtocolState {
             current_message_level: Default::default(),
             last_envelope: Default::default(),
             last_envelope_emitted: Default::default(),
+            message_level: Default::default(),
         }
     }
 }
@@ -478,6 +525,39 @@ impl BallotProtocolUtils {
 }
 
 impl SlotDriver {
+    const MAXIMUM_ADVANCE_SLOT_RECURSION: u32 = 50;
+
+    fn advance_slot(self: &Arc<Self>, state_handle: &HBallotProtocolState, hint: &SCPStatement) {
+        state_handle.lock().unwrap().message_level -= 1;
+        if state_handle.lock().unwrap().message_level >= SlotDriver::MAXIMUM_ADVANCE_SLOT_RECURSION
+        {
+            panic!("maximum number of transitions reached in advance_slot");
+        }
+
+        let mut did_work = false;
+
+        did_work = self.attempt_accept_commit(state_handle, hint) || did_work;
+        did_work = self.attempt_confirm_prepared(state_handle, hint) || did_work;
+        did_work = self.attempt_accept_commit(state_handle, hint) || did_work;
+        did_work = self.attempt_confirm_commit(state_handle, hint) || did_work;
+
+        // only bump after we're done with everything else
+        if state_handle.lock().unwrap().message_level == 1 {
+            let mut did_bump = false;
+            loop {
+                did_bump = self.attempt_bump(state_handle);
+                did_work = did_bump || did_work;
+                if !did_bump {
+                    break;
+                }
+            }
+        }
+
+        state_handle.lock().unwrap().message_level -= 1;
+
+        if did_work {}
+    }
+
     fn emit_current_state_statement(self: &Arc<Self>, state: &mut BallotProtocolState) {
         let statement = state.create_statement(
             self.local_node
@@ -617,18 +697,42 @@ impl SlotDriver {
     }
 
     fn process_envelope(self: &Arc<Self>, state: &mut BallotProtocolState, envelope: &SCPEnvelope) {
+        assert!(envelope.slot_index == self.slot_index);
+    }
+
+    fn check_heard_from_quorum(self: &Arc<Self>, state: &mut BallotProtocolState) {
+        // this method is safe to call regardless of the transitions of the
+        // other nodes on the network: we guarantee that other nodes can only
+        // transition to higher counters (messages are ignored upstream)
+        // therefore the local node will not flip flop between "seen" and "not
+        // seen" for a given counter on the local node
+        if let Some(current_ballot) = state.current_ballot.lock().unwrap().as_ref() {
+            let predicate = |statement: &SCPStatement| match statement {
+                SCPStatement::Prepare(st) => current_ballot.counter <= st.ballot.counter,
+                SCPStatement::Confirm(_) => true,
+                SCPStatement::Externalize(_) => true,
+            };
+
+            if LocalNode::is_quorum(
+                &self.local_node.lock().unwrap().quorum_set,
+                &state.latest_envelopes,
+                predicate,
+            ) {
+                let old_heard_from_quorum = state.heard_from_quorum;
+                state.heard_from_quorum = true;
+                if !old_heard_from_quorum {
+                    // if we transition from not heard -> heard, we start the
+                    // timer
+                    todo!()
+                }
+            } else {
+                state.heard_from_quorum = false;
+            }
+        }
     }
 }
 
 impl BallotProtocol for SlotDriver {
-    fn externalize(&mut self) {
-        todo!()
-    }
-
-    fn recv_ballot_envelope(&mut self) {
-        todo!()
-    }
-
     fn attempt_accept_prepared(
         self: &Arc<Self>,
         state_handle: &HBallotProtocolState,
@@ -1057,5 +1161,12 @@ impl BallotProtocol for SlotDriver {
         } else {
             true
         }
+    }
+
+    fn advance_slot(
+        self: &Arc<Self>,
+        state_handle: &HNominationProtocolState,
+        hint: &SCPStatement,
+    ) {
     }
 }

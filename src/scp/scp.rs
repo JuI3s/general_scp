@@ -6,7 +6,7 @@ use std::{
 use crate::overlay::peer::PeerID;
 
 use super::{
-    ballot_protocol::BallotProtocol,
+    ballot_protocol::{BallotProtocol, SCPStatement},
     nomination_protocol::{HNominationValue, NominationProtocol, NominationValue},
     scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver},
     slot::{HSlot, Slot, SlotIndex},
@@ -16,18 +16,12 @@ pub type NodeID = String;
 
 pub struct SCPEnvelope {
     pub node_id: NodeID,
+    pub slot_index: SlotIndex,
+    pub statement: SCPStatement,
 }
 
 impl SCPEnvelope {
     pub fn name(&'_ self) {}
-}
-
-impl Default for SCPEnvelope {
-    fn default() -> Self {
-        Self {
-            node_id: Default::default(),
-        }
-    }
 }
 
 pub enum EnvelopeState {
