@@ -95,11 +95,13 @@ impl SCPStatement {
                         && st.num_high >= st.num_commit)
             }
             SCPStatement::Confirm(st) => {
-                st.ballot.counter > 0 && st.num_high <= st.ballot.counter && st.num_commit <= st.num_high
-            },
+                st.ballot.counter > 0
+                    && st.num_high <= st.ballot.counter
+                    && st.num_commit <= st.num_high
+            }
             SCPStatement::Externalize(st) => {
                 st.commit.counter > 0 && st.num_high >= st.commit.counter
-            },
+            }
         }
     }
 }
@@ -389,6 +391,64 @@ impl BallotProtocolState {
         }
     }
 
+    // This update current ballot and other related fields according to the new high ballot.
+    fn update_current_if_needed(&mut self, high_ballot: &SCPBallot) -> bool {
+        if self
+            .current_ballot
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|current_ballot| current_ballot > high_ballot)
+        {
+            true
+        } else {
+            self.bump_to_ballot(true, high_ballot);
+            false
+        }
+    }
+
+    fn bump_to_ballot(&mut self, require_monotone: bool, ballot: &SCPBallot) {
+        assert!(self.phase != SCPPhase::PhaseExternalize);
+
+        if require_monotone {
+            if let Some(current_ballot) = self.current_ballot.lock().unwrap().as_ref() {
+                assert!(ballot >= current_ballot);
+            }
+        }
+
+        let got_bumped = self.current_ballot.lock().unwrap().is_none()
+            || self
+                .current_ballot
+                .lock()
+                .unwrap()
+                .as_ref()
+                .is_some_and(|current_ballot| current_ballot.counter != ballot.counter);
+
+        if self.current_ballot.lock().unwrap().is_none() {
+            // Start ballot protocol
+        }
+
+        *self.current_ballot.lock().unwrap() = Some(ballot.clone());
+
+        // note: we have to clear some fields (and recompute them based on latest
+        // messages)
+        // invariant: h.value = b.value
+        if self
+            .high_ballot
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|high_ballot| !high_ballot.compatible(ballot))
+        {
+            *self.high_ballot.lock().unwrap() = None;
+            *self.commit.lock().unwrap() = None;
+        }
+
+        if got_bumped {
+            self.heard_from_quorum = false;
+        }
+    }
+
     fn create_statement(&self, local_quorum_set_hash: HashValue) -> SCPStatement {
         self.check_invariants();
 
@@ -582,15 +642,6 @@ impl SlotDriver {
         todo!()
     }
 
-    // helper to perform step (8) from the paper
-    fn update_current_if_needed(
-        self: &Arc<Self>,
-        state: &mut BallotProtocolState,
-        h: &SCPBallot,
-    ) -> bool {
-        todo!();
-    }
-
     fn has_v_blocking_subset_strictly_ahead_of(
         self: &Arc<Self>,
 
@@ -633,18 +684,12 @@ impl SlotDriver {
 
         let mut updated = self.update_current_value(state, &new_ballot);
 
-        if updated {}
+        if updated {
+            self.emit_current_state_statement(state);
+            self.check_heard_from_quorum(state);
+        }
 
-        todo!();
-    }
-
-    fn bump_to_ballot(
-        self: &Arc<Self>,
-        state: &mut BallotProtocolState,
-        ballot: &SCPBallot,
-        from_self: bool,
-    ) {
-        todo!()
+        updated
     }
 
     // updates the local state based to the specified ballot
@@ -688,7 +733,7 @@ impl SlotDriver {
         }
 
         if updated {
-            self.bump_to_ballot(state, ballot, true);
+            state.bump_to_ballot(true, ballot);
         }
 
         state.check_invariants();
@@ -946,7 +991,7 @@ impl BallotProtocol for SlotDriver {
         }
 
         // always perform step (8) with the computed value of h
-        did_work = did_work || self.update_current_if_needed(&mut state, new_high);
+        did_work = did_work || state.update_current_if_needed(new_high);
 
         if did_work {
             self.emit_current_state_statement(&mut state);
@@ -1035,7 +1080,7 @@ impl BallotProtocol for SlotDriver {
         }
 
         if did_work {
-            self.update_current_if_needed(&mut state, high);
+            state.update_current_if_needed(high);
             self.accepted_commit(&self.slot_index, high);
             self.emit_current_state_statement(&mut state);
         }
@@ -1089,7 +1134,7 @@ impl BallotProtocol for SlotDriver {
 
         *state.commit.lock().unwrap() = Some(accept_commit_low.clone());
         *state.high_ballot.lock().unwrap() = Some(accept_commit_high.clone());
-        self.update_current_if_needed(&mut state, accept_commit_high);
+        state.update_current_if_needed(accept_commit_high);
 
         state.phase = SCPPhase::PhaseExternalize;
 
