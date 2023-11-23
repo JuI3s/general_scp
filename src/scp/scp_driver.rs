@@ -20,7 +20,7 @@ use super::{
         BallotProtocol, BallotProtocolState, HBallotProtocolState, SCPBallot, SCPStatement,
     },
     local_node::{HLocalNode, LocalNode},
-    nomination_protocol::NominationValue,
+    nomination_protocol::{NominationValue, HNominationValue, HNominationProtocolState},
     scp::NodeID,
     slot::{HSlot, Slot, SlotIndex},
 };
@@ -29,9 +29,11 @@ pub type HSCPDriver = Arc<Mutex<dyn SCPDriver>>;
 
 // #[derive(WeakSelf)]
 pub struct SlotDriver {
-    pub slot_index: u64,
+    pub slot_index: u64,    
     pub local_node: HLocalNode,
     pub timer: HSlotTimer,
+    nomination_state_handle: HNominationProtocolState,
+    ballot_state_handle: HBallotProtocolState, 
 }
 
 pub enum ValidationLevel {
@@ -104,6 +106,10 @@ impl SlotTimer {
 impl SlotDriver {
     fn get_local_node(&self) -> &LocalNode {
         todo!();
+    }
+
+    pub fn get_latest_composite_value(&self) -> Arc<Mutex<NominationValue>> {
+        self.nomination_state_handle.lock().unwrap().latest_composite_candidate.clone()
     }
 
     pub fn federated_accept(

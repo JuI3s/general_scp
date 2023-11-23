@@ -68,7 +68,7 @@ pub struct NominationProtocolState {
     pub round_leaders: BTreeSet<PeerID>,
 
     pub nomination_started: bool,
-    pub latest_composite_candidate: HNominationValue,
+    pub latest_composite_candidate: Arc<Mutex<NominationValue>>,
     pub previous_value: NominationValue,
 
     pub num_timeouts: usize,
