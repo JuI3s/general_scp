@@ -240,6 +240,7 @@ pub trait BallotProtocol {
     // step 7+8 from the SCP paper
     fn attempt_confirm_commit(
         self: &Arc<Self>,
+        nomination_state_handle: &HNominationProtocolState,
         state_handle: &HBallotProtocolState,
         hint: &SCPStatement,
     ) -> bool;
@@ -285,13 +286,14 @@ pub struct BallotProtocolState {
 type Interval = (u32, u32);
 
 impl BallotProtocolState {
-
     // TODO: needs to figure out how it works....
-    fn find_extended_interval(boundaries: &BTreeSet<u32>, candidate: &mut Interval, predicate: impl Fn(Interval) -> bool) {
-
+    fn find_extended_interval(
+        boundaries: &BTreeSet<u32>,
+        candidate: &mut Interval,
+        predicate: impl Fn(&Interval) -> bool,
+    ) {
         for b in boundaries.iter().rev() {
-
-            let mut cur: Interval = (0,0);
+            let mut cur: Interval = (0, 0);
             if candidate.0 == 0 {
                 // First, find the high bound
                 cur = (*b, *b);
@@ -302,19 +304,21 @@ impl BallotProtocolState {
                 cur.0 = *b;
                 cur.1 = candidate.1;
             }
-            
-            if predicate(cur) {
-                *candidate = cur;    
+
+            if predicate(&cur) {
+                *candidate = cur;
             } else if candidate.0 != 0 {
                 break;
             }
         }
     }
 
-    fn get_commit_boundaries_from_statements(&self, ballot: &SCPBallot) -> BTreeSet<u32>{
+    fn get_commit_boundaries_from_statements(&self, ballot: &SCPBallot) -> BTreeSet<u32> {
         let mut ret = BTreeSet::new();
-        self.latest_envelopes.values().into_iter().for_each(|envelope|{
-            match envelope.lock().unwrap().get_statement() {
+        self.latest_envelopes
+            .values()
+            .into_iter()
+            .for_each(|envelope| match envelope.lock().unwrap().get_statement() {
                 SCPStatement::Prepare(st) => {
                     if ballot.compatible(&st.ballot) {
                         if st.num_commit > 0 {
@@ -322,25 +326,23 @@ impl BallotProtocolState {
                             ret.insert(st.num_high);
                         }
                     }
-                },
+                }
                 SCPStatement::Confirm(st) => {
                     if ballot.compatible(&st.ballot) {
                         ret.insert(st.num_commit);
                         ret.insert(st.num_high);
                     }
-                },
+                }
                 SCPStatement::Externalize(st) => {
                     if ballot.compatible(&st.commit) {
                         ret.insert(st.commit.counter);
                         ret.insert(st.num_high);
                         ret.insert(std::u32::MAX);
                     }
-                },
-            }
-        });
+                }
+            });
         ret
     }
-
 
     // This function gives a set of ballots containing candidate values that we can accept based on current state and the hint SCP statement.
     fn get_prepare_candidates(&self, hint: &SCPStatement) -> BTreeSet<SCPBallot> {
@@ -701,7 +703,6 @@ impl Default for BallotProtocolState {
 struct BallotProtocolUtils {}
 
 impl BallotProtocolUtils {
-
     fn commit_predicate(ballot: &SCPBallot, check: &Interval, statement: &SCPStatement) -> bool {
         match statement {
             SCPStatement::Prepare(st) => false,
@@ -711,14 +712,14 @@ impl BallotProtocolUtils {
                 } else {
                     false
                 }
-            },
+            }
             SCPStatement::Externalize(st) => {
                 if ballot.compatible(&st.commit) {
                     st.commit.counter <= check.0
                 } else {
                     false
                 }
-            },
+            }
         }
     }
 
@@ -745,25 +746,32 @@ impl BallotProtocolUtils {
 impl SlotDriver {
     const MAXIMUM_ADVANCE_SLOT_RECURSION: u32 = 50;
 
-    fn advance_slot(self: &Arc<Self>, state_handle: &HBallotProtocolState, hint: &SCPStatement) {
-        state_handle.lock().unwrap().message_level -= 1;
-        if state_handle.lock().unwrap().message_level >= SlotDriver::MAXIMUM_ADVANCE_SLOT_RECURSION
+    fn advance_slot(
+        self: &Arc<Self>,
+        ballot_state_handle: &HBallotProtocolState,
+        nomination_state_handle: &HNominationProtocolState,
+        hint: &SCPStatement,
+    ) {
+        ballot_state_handle.lock().unwrap().message_level -= 1;
+        if ballot_state_handle.lock().unwrap().message_level
+            >= SlotDriver::MAXIMUM_ADVANCE_SLOT_RECURSION
         {
             panic!("maximum number of transitions reached in advance_slot");
         }
 
         let mut did_work = false;
 
-        did_work = self.attempt_accept_commit(state_handle, hint) || did_work;
-        did_work = self.attempt_confirm_prepared(state_handle, hint) || did_work;
-        did_work = self.attempt_accept_commit(state_handle, hint) || did_work;
-        did_work = self.attempt_confirm_commit(state_handle, hint) || did_work;
+        did_work = self.attempt_accept_commit(ballot_state_handle, hint) || did_work;
+        did_work = self.attempt_confirm_prepared(ballot_state_handle, hint) || did_work;
+        did_work = self.attempt_accept_commit(ballot_state_handle, hint) || did_work;
+        did_work = self.attempt_confirm_commit(nomination_state_handle, ballot_state_handle, hint)
+            || did_work;
 
         // only bump after we're done with everything else
-        if state_handle.lock().unwrap().message_level == 1 {
+        if ballot_state_handle.lock().unwrap().message_level == 1 {
             let mut did_bump = false;
             loop {
-                did_bump = self.attempt_bump(state_handle);
+                did_bump = self.attempt_bump(ballot_state_handle);
                 did_work = did_bump || did_work;
                 if !did_bump {
                     break;
@@ -771,7 +779,7 @@ impl SlotDriver {
             }
         }
 
-        state_handle.lock().unwrap().message_level -= 1;
+        ballot_state_handle.lock().unwrap().message_level -= 1;
 
         if did_work {}
     }
@@ -1022,9 +1030,7 @@ impl BallotProtocol for SlotDriver {
                         SCPStatement::Externalize(st) => ballot.compatible(&st.commit),
                     }
                 },
-                |st| {
-                     BallotProtocolUtils::has_prepared_ballot(candidate, st)
-                },
+                |st| BallotProtocolUtils::has_prepared_ballot(candidate, st),
                 &state.latest_envelopes,
             ) {
                 return self.set_accept_prepared(state_handle, candidate);
@@ -1215,44 +1221,71 @@ impl BallotProtocol for SlotDriver {
         }
 
         let predicate = |cur: &Interval| -> bool {
-            self.federated_accept(|_st: &SCPStatement| {
-                match _st {
+            self.federated_accept(
+                |_st: &SCPStatement| match _st {
                     SCPStatement::Prepare(st) => {
                         if ballot.compatible(&st.ballot) && st.num_commit != 0 {
                             st.num_commit <= cur.0 && cur.1 <= st.num_high
                         } else {
                             false
                         }
-                    },
+                    }
                     SCPStatement::Confirm(st) => {
                         if ballot.compatible(&st.ballot) {
                             st.num_commit <= cur.0
                         } else {
                             false
                         }
-                    },
+                    }
                     SCPStatement::Externalize(st) => {
                         if ballot.compatible(&st.commit) {
                             st.commit.counter <= cur.0
                         } else {
                             false
                         }
-                    },
-                }
-            }, 
-            |st: &SCPStatement| { }
-
-            , &state.latest_envelopes)
+                    }
+                },
+                |st: &SCPStatement| BallotProtocolUtils::commit_predicate(&ballot, cur, st),
+                &state.latest_envelopes,
+            )
         };
 
         let boundaries = state.get_commit_boundaries_from_statements(&ballot);
         if boundaries.is_empty() {
-            return  false;
+            return false;
         }
 
         let mut candidate: Interval = (0, 0);
 
-        todo!()
+        BallotProtocolState::find_extended_interval(&boundaries, &mut candidate, predicate);
+
+        // TODO: I didn't quite follow this part.
+        if candidate.0 != 0 {
+            if state.phase != SCPPhase::PhaseConfirm
+                || candidate.1
+                    > state
+                        .high_ballot
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .expect("High ballot")
+                        .counter
+            {
+                let commit_ballot = SCPBallot {
+                    counter: candidate.0,
+                    value: ballot.value.clone(),
+                };
+                let high_ballot = SCPBallot {
+                    counter: candidate.1,
+                    value: ballot.value.clone(),
+                };
+                self.set_accept_commit(state_handle, &commit_ballot, &high_ballot)
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 
     fn set_accept_commit(
@@ -1294,7 +1327,7 @@ impl BallotProtocol for SlotDriver {
                 .as_ref()
                 .is_some_and(|current_ballot| !high.less_and_compatible(current_ballot))
             {
-                state.bump_to_ballot(false, high);                
+                state.bump_to_ballot(false, high);
             }
 
             *state.prepared_prime.lock().unwrap() = None;
@@ -1312,10 +1345,11 @@ impl BallotProtocol for SlotDriver {
 
     fn attempt_confirm_commit(
         self: &Arc<Self>,
-        state_handle: &HBallotProtocolState,
+        nomination_state_handle: &HNominationProtocolState,
+        ballot_state_handle: &HBallotProtocolState,
         hint: &SCPStatement,
     ) -> bool {
-        let mut state = state_handle.lock().unwrap();
+        let mut state = ballot_state_handle.lock().unwrap();
         if state.phase != SCPPhase::PhaseConfirm {
             return false;
         }
@@ -1332,21 +1366,46 @@ impl BallotProtocol for SlotDriver {
             SCPStatement::Externalize(st) => st.to_ballot(),
         };
 
-
-
         if !state
             .commit
             .lock()
             .unwrap()
             .as_ref()
-            .expect("Commit ballot").compatible(&ballot)
+            .expect("Commit ballot")
+            .compatible(&ballot)
         {
             return false;
         }
 
-        
+        let boundaries = state.get_commit_boundaries_from_statements(&ballot);
+        let mut candidate: Interval = (0, 0);
+        let predicate = |cur: &Interval| {
+            self.federated_ratify(
+                |statement: &SCPStatement| {
+                    BallotProtocolUtils::commit_predicate(&ballot, cur, statement)
+                },
+                &state.latest_envelopes,
+            )
+        };
 
-        todo!()
+        if candidate.0 != 0 {
+            let commit_ballot = SCPBallot {
+                counter: candidate.0,
+                value: ballot.value.clone(),
+            };
+            let high_ballot = SCPBallot {
+                counter: candidate.1,
+                value: ballot.value.clone(),
+            };
+            self.set_confirm_commit(
+                ballot_state_handle,
+                nomination_state_handle,
+                &commit_ballot,
+                &high_ballot,
+            )
+        } else {
+            false
+        }
     }
 
     fn set_confirm_commit(
