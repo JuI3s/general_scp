@@ -1,5 +1,5 @@
 use std::{
-    borrow::Cow,
+    borrow::{BorrowMut, Cow},
     collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
     hash::Hash,
     sync::{Arc, Mutex},
@@ -283,6 +283,87 @@ pub struct BallotProtocolState {
 }
 
 impl BallotProtocolState {
+    fn get_prepare_candidates(&self, hint: &SCPStatement) -> BTreeSet<SCPBallot> {
+        let mut hint_ballots = BTreeSet::new();
+
+        // Get ballots
+        let _ = match hint {
+            SCPStatement::Prepare(st) => {
+                hint_ballots.insert(st.ballot.clone());
+
+                if let Some(prepard) = &st.prepared {
+                    hint_ballots.insert(prepard.clone());
+                }
+
+                if let Some(prepared_prime) = &st.prepared_prime {
+                    hint_ballots.insert(prepared_prime.clone());
+                }
+            }
+            SCPStatement::Confirm(st) => {
+                hint_ballots.insert(SCPBallot {
+                    counter: st.num_prepared,
+                    value: st.ballot.value.clone(),
+                });
+                hint_ballots.insert(SCPBallot {
+                    counter: std::u32::MAX,
+                    value: st.ballot.value.clone(),
+                });
+            }
+            SCPStatement::Externalize(st) => {
+                hint_ballots.insert(SCPBallot {
+                    counter: std::u32::MAX,
+                    value: st.commit.value.clone(),
+                });
+            }
+        };
+
+        let mut candidates = BTreeSet::new();
+
+        // TODO: I am not entirely clear about the logic of this part, soneed to add more documentation.
+        hint_ballots.iter().rev().for_each(|top_vote| {
+            // find candidates that may have been prepared
+            self.latest_envelopes
+                .values()
+                .into_iter()
+                .for_each(|envelope| match envelope.lock().unwrap().get_statement() {
+                    SCPStatement::Prepare(st) => {
+                        if st.ballot.less_and_compatible(top_vote) {
+                            candidates.insert(st.ballot.clone());
+                        }
+                        if let Some(prepared_ballot) = &st.prepared {
+                            if prepared_ballot.less_and_compatible(top_vote) {
+                                candidates.insert(prepared_ballot.clone());
+                            }
+                        }
+
+                        if let Some(prepared_prime_ballot) = &st.prepared_prime {
+                            if prepared_prime_ballot.less_and_compatible(top_vote) {
+                                candidates.insert(prepared_prime_ballot.clone());
+                            }
+                        }
+                    }
+                    SCPStatement::Confirm(st) => {
+                        if top_vote.compatible(&st.ballot) {
+                            candidates.insert(top_vote.clone());
+                            if st.num_prepared < top_vote.counter {
+                                candidates.insert(SCPBallot {
+                                    counter: st.num_prepared,
+                                    value: top_vote.value.clone(),
+                                });
+                            }
+                        }
+                    }
+                    SCPStatement::Externalize(st) => {
+                        if st.commit.compatible(top_vote) {
+                            candidates.insert(top_vote.clone());
+                        }
+                    }
+                });
+        });
+
+        candidates
+    }
+
     fn set_prepared(&mut self, ballot: &SCPBallot) -> bool {
         let mut did_work = false;
 
@@ -560,10 +641,6 @@ impl Default for BallotProtocolState {
 struct BallotProtocolUtils {}
 
 impl BallotProtocolUtils {
-    fn get_prepare_candidates(hint: &SCPStatement) -> BTreeSet<SCPBallot> {
-        todo!()
-    }
-
     fn has_prepared_ballot(ballot: &SCPBallot, statement: &SCPStatement) -> bool {
         match statement {
             SCPStatement::Prepare(st) => {
@@ -658,11 +735,39 @@ impl SlotDriver {
         todo!()
     }
 
-    fn abandon_ballot(self: &Arc<Self>, state: &mut BallotProtocolState) -> bool {
-        todo!()
+    // This method abandons the current ballot and sets the state according to state counter n.
+    fn abandon_ballot(self: &Arc<Self>, state: &mut BallotProtocolState, n: u32) -> bool {
+        match self.get_latest_composite_value().lock().unwrap().as_ref() {
+            Some(value) => {
+                if n == 0 {
+                    self.bump_state(state, value, true)
+                } else {
+                    self.bump_state_with_counter(state, value, n)
+                }
+            }
+            None => false,
+        }
     }
 
     fn bump_state(
+        self: &Arc<Self>,
+        state: &mut BallotProtocolState,
+        nomination_value: &NominationValue,
+        force: bool,
+    ) -> bool {
+        if !force && state.current_ballot.lock().unwrap().is_none() {
+            false
+        } else {
+            let n = if let Some(current_ballot) = state.current_ballot.lock().unwrap().as_ref() {
+                current_ballot.counter
+            } else {
+                1
+            };
+            self.bump_state_with_counter(state, nomination_value, n)
+        }
+    }
+
+    fn bump_state_with_counter(
         self: &Arc<Self>,
         state: &mut BallotProtocolState,
         nomination_value: &NominationValue,
@@ -788,7 +893,7 @@ impl BallotProtocol for SlotDriver {
             return false;
         }
 
-        let candidates = BallotProtocolUtils::get_prepare_candidates(hint);
+        let candidates = state.get_prepare_candidates(hint);
 
         // see if we can accept any of the candidates, starting with the highest
         for candidate in &candidates {
@@ -892,7 +997,7 @@ impl BallotProtocol for SlotDriver {
         let prepared_ballot_opt = state.prepared.lock().unwrap();
 
         if let Some(prepared_ballot) = prepared_ballot_opt.as_ref() {
-            let mut candidates = BallotProtocolUtils::get_prepare_candidates(hint);
+            let mut candidates = state.get_prepare_candidates(hint);
 
             if let Some(new_high) = candidates.iter().find(|&candidate| {
                 if state
@@ -1197,7 +1302,7 @@ impl BallotProtocol for SlotDriver {
             // order, starting from the smallest.
             for counter in all_counters {
                 if !self.has_v_blocking_subset_strictly_ahead_of(&state.latest_envelopes, counter) {
-                    return self.abandon_ballot(&mut state);
+                    return self.abandon_ballot(&mut state, counter);
                 }
             }
 

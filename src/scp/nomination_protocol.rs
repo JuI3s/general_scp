@@ -52,6 +52,7 @@ impl Default for NominationValue {
 }
 
 pub type HNominationValue = Arc<NominationValue>;
+pub type HLatestCompositeCandidateValue = Arc<Mutex<Option<NominationValue>>>;
 pub type NominationValueSet = BTreeSet<HNominationValue>;
 
 pub type HNominationProtocolState = Arc<Mutex<NominationProtocolState>>;
@@ -68,7 +69,7 @@ pub struct NominationProtocolState {
     pub round_leaders: BTreeSet<PeerID>,
 
     pub nomination_started: bool,
-    pub latest_composite_candidate: Arc<Mutex<NominationValue>>,
+    pub latest_composite_candidate: HLatestCompositeCandidateValue,
     pub previous_value: NominationValue,
 
     pub num_timeouts: usize,
