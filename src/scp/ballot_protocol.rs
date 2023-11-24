@@ -282,7 +282,67 @@ pub struct BallotProtocolState {
     pub message_level: u32,
 }
 
+type Interval = (u32, u32);
+
 impl BallotProtocolState {
+
+    // TODO: needs to figure out how it works....
+    fn find_extended_interval(boundaries: &BTreeSet<u32>, candidate: &mut Interval, predicate: impl Fn(Interval) -> bool) {
+
+        for b in boundaries.iter().rev() {
+
+            let mut cur: Interval = (0,0);
+            if candidate.0 == 0 {
+                // First, find the high bound
+                cur = (*b, *b);
+            } else if b > &candidate.1 {
+                // invalid
+                continue;
+            } else {
+                cur.0 = *b;
+                cur.1 = candidate.1;
+            }
+            
+            if predicate(cur) {
+                *candidate = cur;    
+            } else if candidate.0 != 0 {
+                break;
+            }
+        }
+    }
+
+    fn get_commit_boundaries_from_statements(&self, ballot: &SCPBallot) -> BTreeSet<u32>{
+        let mut ret = BTreeSet::new();
+        self.latest_envelopes.values().into_iter().for_each(|envelope|{
+            match envelope.lock().unwrap().get_statement() {
+                SCPStatement::Prepare(st) => {
+                    if ballot.compatible(&st.ballot) {
+                        if st.num_commit > 0 {
+                            ret.insert(st.num_commit);
+                            ret.insert(st.num_high);
+                        }
+                    }
+                },
+                SCPStatement::Confirm(st) => {
+                    if ballot.compatible(&st.ballot) {
+                        ret.insert(st.num_commit);
+                        ret.insert(st.num_high);
+                    }
+                },
+                SCPStatement::Externalize(st) => {
+                    if ballot.compatible(&st.commit) {
+                        ret.insert(st.commit.counter);
+                        ret.insert(st.num_high);
+                        ret.insert(std::u32::MAX);
+                    }
+                },
+            }
+        });
+        ret
+    }
+
+
+    // This function gives a set of ballots containing candidate values that we can accept based on current state and the hint SCP statement.
     fn get_prepare_candidates(&self, hint: &SCPStatement) -> BTreeSet<SCPBallot> {
         let mut hint_ballots = BTreeSet::new();
 
@@ -641,6 +701,27 @@ impl Default for BallotProtocolState {
 struct BallotProtocolUtils {}
 
 impl BallotProtocolUtils {
+
+    fn commit_predicate(ballot: &SCPBallot, check: &Interval, statement: &SCPStatement) -> bool {
+        match statement {
+            SCPStatement::Prepare(st) => false,
+            SCPStatement::Confirm(st) => {
+                if ballot.compatible(&st.ballot) {
+                    st.num_high <= check.0 && check.1 <= st.num_high
+                } else {
+                    false
+                }
+            },
+            SCPStatement::Externalize(st) => {
+                if ballot.compatible(&st.commit) {
+                    st.commit.counter <= check.0
+                } else {
+                    false
+                }
+            },
+        }
+    }
+
     fn has_prepared_ballot(ballot: &SCPBallot, statement: &SCPStatement) -> bool {
         match statement {
             SCPStatement::Prepare(st) => {
@@ -726,13 +807,9 @@ impl SlotDriver {
         counter: u32,
     ) -> bool {
         let local_node = self.local_node.lock().unwrap();
-
-        // let local_node = self.l
-
         LocalNode::is_v_blocking(&local_node.quorum_set, envelopes, &|st: &SCPStatement| {
             st.ballot_counter() > counter
-        });
-        todo!()
+        })
     }
 
     // This method abandons the current ballot and sets the state according to state counter n.
@@ -857,7 +934,7 @@ impl SlotDriver {
         // therefore the local node will not flip flop between "seen" and "not
         // seen" for a given counter on the local node
         if let Some(current_ballot) = state.current_ballot.lock().unwrap().as_ref() {
-            let predicate = |statement: &SCPStatement| match statement {
+            let heard_predicate = |statement: &SCPStatement| match statement {
                 SCPStatement::Prepare(st) => current_ballot.counter <= st.ballot.counter,
                 SCPStatement::Confirm(_) => true,
                 SCPStatement::Externalize(_) => true,
@@ -866,7 +943,7 @@ impl SlotDriver {
             if LocalNode::is_quorum(
                 &self.local_node.lock().unwrap().quorum_set,
                 &state.latest_envelopes,
-                predicate,
+                heard_predicate,
             ) {
                 let old_heard_from_quorum = state.heard_from_quorum;
                 state.heard_from_quorum = true;
@@ -946,8 +1023,7 @@ impl BallotProtocol for SlotDriver {
                     }
                 },
                 |st| {
-                    let ballot = &candidate;
-                    todo!()
+                     BallotProtocolUtils::has_prepared_ballot(candidate, st)
                 },
                 &state.latest_envelopes,
             ) {
@@ -1137,6 +1213,45 @@ impl BallotProtocol for SlotDriver {
         {
             return false;
         }
+
+        let predicate = |cur: &Interval| -> bool {
+            self.federated_accept(|_st: &SCPStatement| {
+                match _st {
+                    SCPStatement::Prepare(st) => {
+                        if ballot.compatible(&st.ballot) && st.num_commit != 0 {
+                            st.num_commit <= cur.0 && cur.1 <= st.num_high
+                        } else {
+                            false
+                        }
+                    },
+                    SCPStatement::Confirm(st) => {
+                        if ballot.compatible(&st.ballot) {
+                            st.num_commit <= cur.0
+                        } else {
+                            false
+                        }
+                    },
+                    SCPStatement::Externalize(st) => {
+                        if ballot.compatible(&st.commit) {
+                            st.commit.counter <= cur.0
+                        } else {
+                            false
+                        }
+                    },
+                }
+            }, 
+            |st: &SCPStatement| { }
+
+            , &state.latest_envelopes)
+        };
+
+        let boundaries = state.get_commit_boundaries_from_statements(&ballot);
+        if boundaries.is_empty() {
+            return  false;
+        }
+
+        let mut candidate: Interval = (0, 0);
+
         todo!()
     }
 
@@ -1171,6 +1286,7 @@ impl BallotProtocol for SlotDriver {
 
         if state.phase == SCPPhase::PhasePrepare {
             state.phase = SCPPhase::PhaseConfirm;
+
             if state
                 .current_ballot
                 .lock()
@@ -1178,10 +1294,11 @@ impl BallotProtocol for SlotDriver {
                 .as_ref()
                 .is_some_and(|current_ballot| !high.less_and_compatible(current_ballot))
             {
-                // Bump to ballot
-                did_work = true;
-                todo!();
+                state.bump_to_ballot(false, high);                
             }
+
+            *state.prepared_prime.lock().unwrap() = None;
+            did_work = true;
         }
 
         if did_work {
@@ -1215,15 +1332,19 @@ impl BallotProtocol for SlotDriver {
             SCPStatement::Externalize(st) => st.to_ballot(),
         };
 
+
+
         if !state
             .commit
             .lock()
             .unwrap()
             .as_ref()
-            .is_some_and(|commit| commit.compatible(&ballot))
+            .expect("Commit ballot").compatible(&ballot)
         {
             return false;
         }
+
+        
 
         todo!()
     }
