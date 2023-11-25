@@ -20,6 +20,7 @@ use super::{
     scp::SCPEnvelope,
     scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver},
     slot::Slot,
+    statement::SCPStatement,
 };
 
 pub trait NominationProtocol {
@@ -63,10 +64,10 @@ pub struct NominationProtocolState {
     pub votes: NominationValueSet,
     pub accepted: NominationValueSet,
     pub candidates: NominationValueSet,
-    pub latest_nominations: BTreeMap<PeerID, SCPEnvelope>,
+    pub latest_nominations: BTreeMap<String, HSCPEnvelope>,
 
     pub latest_envelope: HSCPEnvelope,
-    pub round_leaders: BTreeSet<PeerID>,
+    pub round_leaders: BTreeSet<String>,
 
     pub nomination_started: bool,
     pub latest_composite_candidate: HLatestCompositeCandidateValue,
@@ -95,15 +96,31 @@ impl Default for NominationProtocolState {
     }
 }
 
+impl SCPStatement {
+    fn get_accepted(&self) -> Vec<NominationValue> {
+        match self {
+            SCPStatement::Nominate(st) => st.accepted.clone(),
+            _ => panic!("Not a nomination statement."),
+        }
+    }
+
+    fn get_votes(&self) -> Vec<NominationValue> {
+        match self {
+            SCPStatement::Nominate(st) => st.votes.clone(),
+            _ => panic!("Not a nomination statement."),
+        }
+    }
+}
+
 impl NominationProtocolState {
-    fn get_new_value_form_nomination(&self, nomination: &SCPEnvelope) -> Option<NominationValue> {
+    fn get_new_value_form_nomination(&self, nomination: &HSCPEnvelope) -> Option<NominationValue> {
         todo!()
     }
 
     pub fn add_value_from_leaders(&mut self, driver: &Arc<impl SCPDriver>) -> bool {
         let mut updated = false;
         for leader in &self.round_leaders {
-            match self.latest_nominations.get(leader).to_owned() {
+            match self.latest_nominations.get(leader) {
                 Some(nomination) => match self.get_new_value_form_nomination(nomination) {
                     Some(new_value) => {
                         driver.nominating_value(&new_value);
@@ -117,6 +134,38 @@ impl NominationProtocolState {
             }
         }
         updated
+    }
+
+    // only called after a call to isNewerStatement so safe to replace the mLatestNomination
+    fn record_envelope(&mut self, envelope: &HSCPEnvelope) {
+        let nomination_env = envelope.lock().unwrap();
+        let node_id = &nomination_env.node_id;
+        if let Some(old_nomination) = self.latest_nominations.get(node_id).borrow_mut() {
+            *old_nomination = &envelope.clone()
+            // TODO: is this right?
+        } else {
+            self.latest_nominations
+                .insert(node_id.to_string(), envelope.clone());
+        }
+        // TODO: record statement
+    }
+
+    fn set_state_from_envelope(&mut self, envelope: &HSCPEnvelope) {
+        if self.nomination_started {
+            panic!("Cannot set state after nomination is started.")
+        }
+
+        self.record_envelope(envelope);
+        let nomination_env = envelope.lock().unwrap(); 
+        let nomination_statement = nomination_env.get_statement();
+        nomination_statement.get_accepted().into_iter().for_each(|statement| {
+            self.accepted.insert(Arc::new(statement));
+        });
+        nomination_statement.get_votes().into_iter().for_each(|statement| {
+            self.votes.insert(Arc::new(statement));
+        });
+        
+        self.latest_envelope = envelope.clone();
     }
 }
 
@@ -158,7 +207,7 @@ impl NominationProtocol for SlotDriver {
         // if we're leader, add our value if we haven't added any votes yet
         if state
             .round_leaders
-            .contains(&self.local_node.lock().unwrap().node_id.as_ref())
+            .contains(&self.local_node.lock().unwrap().node_id)
             && state.votes.is_empty()
         {
             if state.votes.insert(value.clone()) {

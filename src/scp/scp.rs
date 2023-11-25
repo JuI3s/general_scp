@@ -6,10 +6,11 @@ use std::{
 use crate::overlay::peer::PeerID;
 
 use super::{
-    ballot_protocol::{BallotProtocol, SCPStatement},
+    ballot_protocol::BallotProtocol,
     nomination_protocol::{HNominationValue, NominationProtocol, NominationValue},
     scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver},
     slot::{HSlot, Slot, SlotIndex},
+    statement::SCPStatement,
 };
 
 pub type NodeID = String;

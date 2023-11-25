@@ -8,7 +8,7 @@ use syn::token::Mut;
 
 use crate::application::quorum::QuorumSet;
 
-use super::{ballot_protocol::SCPStatement, scp::NodeID, scp_driver::HSCPEnvelope};
+use super::{scp::NodeID, scp_driver::HSCPEnvelope, statement::SCPStatement};
 
 pub type HLocalNode = Arc<Mutex<LocalNode>>;
 pub struct LocalNode {

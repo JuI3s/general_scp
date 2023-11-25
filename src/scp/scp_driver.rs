@@ -16,15 +16,14 @@ use crate::{
 };
 
 use super::{
-    ballot_protocol::{
-        BallotProtocol, BallotProtocolState, HBallotProtocolState, SCPBallot, SCPStatement,
-    },
+    ballot_protocol::{BallotProtocol, BallotProtocolState, HBallotProtocolState, SCPBallot},
     local_node::{HLocalNode, LocalNode},
     nomination_protocol::{
         HLatestCompositeCandidateValue, HNominationProtocolState, HNominationValue, NominationValue,
     },
     scp::NodeID,
     slot::{HSlot, Slot, SlotIndex},
+    statement::SCPStatement,
 };
 
 pub type HSCPDriver = Arc<Mutex<dyn SCPDriver>>;

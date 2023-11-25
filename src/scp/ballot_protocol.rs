@@ -16,52 +16,25 @@ use super::{
     scp::{NodeID, SCPEnvelope, SCP},
     scp_driver::{HSCPEnvelope, HashValue, SlotDriver},
     slot::SlotIndex,
+    statement::{SCPStatement, SCPStatementConfirm, SCPStatementExternalize, SCPStatementPrepare},
 };
 
 pub trait ToBallot {
     fn to_ballot(&self) -> SCPBallot;
 }
-
-pub enum SCPStatement {
-    Prepare(SCPStatementPrepare),
-    Confirm(SCPStatementConfirm),
-    Externalize(SCPStatementExternalize),
-}
-
-pub struct SCPStatementPrepare {
-    quorum_set_hash: HashValue,
-    ballot: SCPBallot,
-    prepared: Option<SCPBallot>,
-    prepared_prime: Option<SCPBallot>,
-    num_commit: u32,
-    num_high: u32,
-    from_self: bool,
-}
-
-pub struct SCPStatementConfirm {
-    quorum_set_hash: HashValue,
-    ballot: SCPBallot,
-    num_prepared: u32,
-    num_commit: u32,
-    num_high: u32,
-}
-
-pub struct SCPStatementExternalize {
-    commit_quorum_set_hash: HashValue,
-    commit: SCPBallot,
-    num_high: u32,
-}
-
 impl SCPStatement {
     fn ballot_counter(&self) -> u32 {
         match self {
             SCPStatement::Prepare(st) => st.ballot.counter,
             SCPStatement::Confirm(st) => st.ballot.counter,
             SCPStatement::Externalize(st) => st.commit.counter,
+            SCPStatement::Nominate(_) => {
+                panic!("Nomination statement encountered in ballot protocol.")
+            }
         }
     }
 
-    pub fn is_statement_sane(&self) -> bool {
+    fn is_statement_sane(&self) -> bool {
         match self {
             SCPStatement::Prepare(st) => {
                 // Statement from self is allowed to have b = 0 (as long as it never gets emitted)
@@ -101,6 +74,9 @@ impl SCPStatement {
             }
             SCPStatement::Externalize(st) => {
                 st.commit.counter > 0 && st.num_high >= st.commit.counter
+            }
+            SCPStatement::Nominate(_) => {
+                panic!("Nomination statement encountered in ballot protocol.")
             }
         }
     }
@@ -340,6 +316,9 @@ impl BallotProtocolState {
                         ret.insert(std::u32::MAX);
                     }
                 }
+                SCPStatement::Nominate(_) => {
+                    panic!("Nomination statement encountered in ballot protocol.")
+                }
             });
         ret
     }
@@ -376,6 +355,9 @@ impl BallotProtocolState {
                     counter: std::u32::MAX,
                     value: st.commit.value.clone(),
                 });
+            }
+            SCPStatement::Nominate(_) => {
+                panic!("Nomination statement encountered in ballot protocol.")
             }
         };
 
@@ -419,6 +401,9 @@ impl BallotProtocolState {
                         if st.commit.compatible(top_vote) {
                             candidates.insert(top_vote.clone());
                         }
+                    }
+                    SCPStatement::Nominate(_) => {
+                        panic!("Nomination statement encountered in ballot protocol.")
                     }
                 });
         });
@@ -720,6 +705,9 @@ impl BallotProtocolUtils {
                     false
                 }
             }
+            SCPStatement::Nominate(_) => {
+                panic!("Nomination statement encountered in ballot protocol.")
+            }
         }
     }
 
@@ -739,6 +727,9 @@ impl BallotProtocolUtils {
                 value: st.ballot.value.clone(),
             }),
             SCPStatement::Externalize(st) => ballot.compatible(&st.commit),
+            SCPStatement::Nominate(_) => {
+                panic!("Nomination statement encountered in ballot protocol.")
+            }
         }
     }
 }
@@ -946,6 +937,9 @@ impl SlotDriver {
                 SCPStatement::Prepare(st) => current_ballot.counter <= st.ballot.counter,
                 SCPStatement::Confirm(_) => true,
                 SCPStatement::Externalize(_) => true,
+                SCPStatement::Nominate(_) => {
+                    panic!("Nomination statement encountered in ballot protocol.")
+                }
             };
 
             if LocalNode::is_quorum(
@@ -1028,12 +1022,15 @@ impl BallotProtocol for SlotDriver {
                         SCPStatement::Prepare(st) => ballot.less_and_compatible(&st.ballot),
                         SCPStatement::Confirm(st) => ballot.less_and_compatible(&st.ballot),
                         SCPStatement::Externalize(st) => ballot.compatible(&st.commit),
+                        SCPStatement::Nominate(_) => {
+                            panic!("Nomination statement encountered in ballot protocol.")
+                        }
                     }
                 },
-                |st| BallotProtocolUtils::has_prepared_ballot(candidate, st),
+                |st| BallotProtocolUtils::has_prepared_ballot(&candidate, st),
                 &state.latest_envelopes,
             ) {
-                return self.set_accept_prepared(state_handle, candidate);
+                return self.set_accept_prepared(state_handle, &candidate);
             }
         }
         false
@@ -1207,6 +1204,9 @@ impl BallotProtocol for SlotDriver {
             }
             SCPStatement::Confirm(st) => st.to_ballot(),
             SCPStatement::Externalize(st) => st.to_ballot(),
+            SCPStatement::Nominate(_) => {
+                panic!("Nomination statement encountered in ballot protocol.")
+            }
         };
 
         if state.phase == SCPPhase::PhaseConfirm
@@ -1243,6 +1243,9 @@ impl BallotProtocol for SlotDriver {
                         } else {
                             false
                         }
+                    }
+                    SCPStatement::Nominate(_) => {
+                        panic!("Nomination statement encountered in ballot protocol.")
                     }
                 },
                 |st: &SCPStatement| BallotProtocolUtils::commit_predicate(&ballot, cur, st),
@@ -1364,6 +1367,9 @@ impl BallotProtocol for SlotDriver {
             }
             SCPStatement::Confirm(st) => st.to_ballot(),
             SCPStatement::Externalize(st) => st.to_ballot(),
+            SCPStatement::Nominate(_) => {
+                panic!("Nomination statement encountered in ballot protocol.")
+            }
         };
 
         if !state
