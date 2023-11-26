@@ -1,4 +1,9 @@
-use std::sync::Weak;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{self, Hash, Hasher},
+    ops::Deref,
+    sync::Weak,
+};
 use weak_self_derive::WeakSelf;
 
 use std::{
@@ -18,7 +23,7 @@ use crate::{
 
 use super::{
     scp::{NodeID, SCPEnvelope},
-    scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver},
+    scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver, ValidationLevel},
     slot::Slot,
     statement::{SCPStatement, SCPStatementNominate},
 };
@@ -151,35 +156,68 @@ impl NominationProtocolState {
             false
         }
     }
-    
+
     fn is_sane(&self, statement: &SCPStatementNominate) -> bool {
         (statement.votes.len() + statement.accepted.len() != 0)
             && statement.votes.windows(2).all(|win| win[0] < win[1])
             && statement.accepted.windows(2).all(|win| win[0] < win[1])
     }
 
-    fn get_new_value_form_nomination(&self, nomination: &HSCPEnvelope) -> Option<NominationValue> {
-        todo!()
+    fn get_new_value_form_nomination(
+        &self,
+        statement: &SCPStatementNominate,
+        extract_valid_value_predicate: impl Fn(&NominationValue) -> Option<NominationValue>,
+        validate_value_predicate: impl Fn(&NominationValue) -> ValidationLevel,
+    ) -> Option<NominationValue> {
+        let mut cur_hash: u64 = 0;
+        let mut cur_value: Option<NominationValue> = None;
+
+        // TODO: Can we avoid copying?
+        let mut pick_value = |value: &NominationValue| {
+            if let Some(value_to_nominate) = match validate_value_predicate(value) {
+                ValidationLevel::VoteToNominate => Some(value.to_owned()),
+                ValidationLevel::FullyValidated => Some(value.to_owned()),
+                _ => extract_valid_value_predicate(value),
+                // _ => Some(Arc::new(extract_valid_value_predicate(value).as_deref())),
+            } {
+                if !self.votes.contains(&value_to_nominate) {
+                    let new_hash = hash_value(&value_to_nominate);
+                    if new_hash > cur_hash {
+                        cur_hash = new_hash;
+                        cur_value = Some(value_to_nominate);
+                    }
+                }
+                true
+            } else {
+                false
+            }
+        };
+
+        if statement.accepted.iter().all(|val| !pick_value(val)) {
+            statement.votes.iter().all(|val| pick_value(val));
+        }
+
+        cur_value
     }
 
-    pub fn add_value_from_leaders(&mut self, driver: &Arc<impl SCPDriver>) -> bool {
-        let mut updated = false;
-        for leader in &self.round_leaders {
-            match self.latest_nominations.get(leader) {
-                Some(nomination) => match self.get_new_value_form_nomination(nomination) {
-                    Some(new_value) => {
-                        driver.nominating_value(&new_value);
-                        let new_value_handle = Arc::new(new_value);
-                        self.votes.insert(new_value_handle);
-                        updated = true;
-                    }
-                    None => {}
-                },
-                _ => (),
-            }
-        }
-        updated
-    }
+    // pub fn add_value_from_leaders(&mut self, driver: &Arc<impl SCPDriver>) -> bool {
+    //     let mut updated = false;
+    //     for leader in &self.round_leaders {
+    //         match self.latest_nominations.get(leader) {
+    //             Some(nomination) => match self.get_new_value_form_nomination(nomination) {
+    //                 Some(new_value) => {
+    //                     driver.nominating_value(&new_value);
+    //                     let new_value_handle = Arc::new(new_value);
+    //                     self.votes.insert(new_value_handle);
+    //                     updated = true;
+    //                 }
+    //                 None => {}
+    //             },
+    //             _ => (),
+    //         }
+    //     }
+    //     updated
+    // }
 
     // only called after a call to isNewerStatement so safe to replace the mLatestNomination
     fn record_envelope(&mut self, envelope: &HSCPEnvelope) {
@@ -220,6 +258,25 @@ impl NominationProtocolState {
     }
 }
 
+fn accept_predicat(value: &NominationValue, statement: &SCPStatementNominate) -> bool {
+    statement.accepted.contains(value)
+}
+
+fn apply_all(statement: &SCPStatementNominate, function: impl Fn(&NominationValue)) {
+    statement.votes.iter().for_each(|vote| function(vote));
+    // Accepted should be a subset of votes.
+    statement
+        .accepted
+        .iter()
+        .for_each(|accepted| function(accepted));
+}
+
+fn hash_value(value: &NominationValue) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
 impl NominationProtocol for SlotDriver {
     fn nominate(
         self: &Arc<Self>,
@@ -253,7 +310,8 @@ impl NominationProtocol for SlotDriver {
 
         let timeout = Slot::compute_timeout(state.round_number);
 
-        state.add_value_from_leaders(self);
+        todo!();
+        // state.add_value_from_leaders(self);
 
         // if we're leader, add our value if we haven't added any votes yet
         if state

@@ -28,6 +28,13 @@ use super::{
 
 pub type HSCPDriver = Arc<Mutex<dyn SCPDriver>>;
 
+pub enum ValidationLevel {
+    Invalid,
+    MaybeValid,
+    VoteToNominate,
+    FullyValidated,
+}
+
 // #[derive(WeakSelf)]
 pub struct SlotDriver {
     pub slot_index: u64,
@@ -35,13 +42,6 @@ pub struct SlotDriver {
     pub timer: HSlotTimer,
     nomination_state_handle: HNominationProtocolState,
     ballot_state_handle: HBallotProtocolState,
-}
-
-pub enum ValidationLevel {
-    InvalidValue,
-    MaybeValidValue,
-    FullyValidatedValue,
-    VoteToNominate,
 }
 
 pub type HSCPEnvelope = Arc<Mutex<SCPEnvelope>>;
@@ -179,7 +179,7 @@ impl SCPDriver for SlotDriver {
         value: &NominationValue,
         nomination: bool,
     ) -> ValidationLevel {
-        ValidationLevel::MaybeValidValue
+        ValidationLevel::MaybeValid
     }
 
     fn emit_envelope(envelope: &SCPEnvelope) {}
