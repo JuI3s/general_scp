@@ -38,3 +38,31 @@ pub struct SCPStatementExternalize {
     pub commit: SCPBallot,
     pub num_high: u32,
 }
+
+fn is_subset(left: &Vec<NominationValue>, right: &Vec<NominationValue>) -> (bool, bool) {
+    let mut is_subset = false;
+    let mut equal = false;
+    if left.len() <= right.len() {
+        is_subset = left.iter().all(|value| right.contains(value));
+        equal = is_subset && left.len() == right.len();
+    }
+
+    (is_subset, !equal)
+}
+
+impl SCPStatementNominate {
+    pub fn is_older_than(&self, other: &SCPStatementNominate) -> bool {
+        let mut ret = false;
+
+        let (is_subset_votes, equal_votes_grown) = is_subset(&self.votes, &other.votes);
+        if is_subset_votes {
+            let (is_subset_accepted, equal_accepted_grown) =
+                is_subset(&self.accepted, &other.accepted);
+            if is_subset_accepted {
+                ret = equal_votes_grown || equal_accepted_grown;
+            }
+        }
+
+        ret
+    }
+}

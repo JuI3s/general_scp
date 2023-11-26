@@ -17,10 +17,10 @@ use crate::{
 };
 
 use super::{
-    scp::SCPEnvelope,
+    scp::{NodeID, SCPEnvelope},
     scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver},
     slot::Slot,
-    statement::SCPStatement,
+    statement::{SCPStatement, SCPStatementNominate},
 };
 
 pub trait NominationProtocol {
@@ -97,6 +97,13 @@ impl Default for NominationProtocolState {
 }
 
 impl SCPStatement {
+    fn as_nomination_statement(&self) -> &SCPStatementNominate {
+        match self {
+            SCPStatement::Nominate(st) => st,
+            _ => panic!("Not a nomination statement."),
+        }
+    }
+
     fn get_accepted(&self) -> Vec<NominationValue> {
         match self {
             SCPStatement::Nominate(st) => st.accepted.clone(),
@@ -113,6 +120,44 @@ impl SCPStatement {
 }
 
 impl NominationProtocolState {
+    fn is_newer_statement(&self, node_id: &NodeID, statement: &SCPStatementNominate) -> bool {
+        if let Some(envelope) = self.latest_nominations.get(node_id) {
+            envelope
+                .lock()
+                .unwrap()
+                .get_statement()
+                .as_nomination_statement()
+                .is_older_than(statement)
+        } else {
+            true
+        }
+    }
+
+    // Returns true if we have processed a statement newer than s
+    fn processed_newer_statement(
+        &self,
+        node_id: &NodeID,
+        statement: &SCPStatementNominate,
+    ) -> bool {
+        if let Some(envelope) = self.latest_nominations.get(node_id) {
+            statement.is_older_than(
+                envelope
+                    .lock()
+                    .unwrap()
+                    .get_statement()
+                    .as_nomination_statement(),
+            )
+        } else {
+            false
+        }
+    }
+    
+    fn is_sane(&self, statement: &SCPStatementNominate) -> bool {
+        (statement.votes.len() + statement.accepted.len() != 0)
+            && statement.votes.windows(2).all(|win| win[0] < win[1])
+            && statement.accepted.windows(2).all(|win| win[0] < win[1])
+    }
+
     fn get_new_value_form_nomination(&self, nomination: &HSCPEnvelope) -> Option<NominationValue> {
         todo!()
     }
@@ -156,15 +201,21 @@ impl NominationProtocolState {
         }
 
         self.record_envelope(envelope);
-        let nomination_env = envelope.lock().unwrap(); 
+        let nomination_env = envelope.lock().unwrap();
         let nomination_statement = nomination_env.get_statement();
-        nomination_statement.get_accepted().into_iter().for_each(|statement| {
-            self.accepted.insert(Arc::new(statement));
-        });
-        nomination_statement.get_votes().into_iter().for_each(|statement| {
-            self.votes.insert(Arc::new(statement));
-        });
-        
+        nomination_statement
+            .get_accepted()
+            .into_iter()
+            .for_each(|statement| {
+                self.accepted.insert(Arc::new(statement));
+            });
+        nomination_statement
+            .get_votes()
+            .into_iter()
+            .for_each(|statement| {
+                self.votes.insert(Arc::new(statement));
+            });
+
         self.latest_envelope = envelope.clone();
     }
 }
