@@ -58,20 +58,20 @@ where
     known_slots: BTreeMap<SlotIndex, HSlot>,
 }
 
-impl SCPimpl<SlotDriver> {
-    pub fn get_slot(&mut self, index: SlotIndex, create_if_not_exists: bool) -> Option<HSlot> {
-        match self.known_slots.get(&index) {
-            Some(_) => todo!(),
-            None => {
-                if create_if_not_exists {
-                    let new = self
-                        .known_slots
-                        .insert(index, Arc::new(Mutex::new(Slot::new(index))));
-                    new
-                } else {
-                    None
-                }
-            }
-        }
-    }
-}
+// impl SCPimpl<SlotDriver> {
+//     pub fn get_slot(&mut self, index: SlotIndex, create_if_not_exists: bool) -> Option<HSlot> {
+//         match self.known_slots.get(&index) {
+//             Some(_) => todo!(),
+//             None => {
+//                 if create_if_not_exists {
+//                     let new = self
+//                         .known_slots
+//                         .insert(index, Arc::new(Mutex::new(Slot::new(index))));
+//                     new
+//                 } else {
+//                     None
+//                 }
+//             }
+//         }
+//     }
+// }

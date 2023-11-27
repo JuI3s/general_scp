@@ -22,8 +22,8 @@ use crate::{
 };
 
 use super::{
-    scp::{NodeID, SCPEnvelope},
-    scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver, ValidationLevel},
+    scp::{EnvelopeState, NodeID, SCPEnvelope},
+    scp_driver::{HSCPEnvelope, HerderDriver, SCPDriver, SlotDriver, ValidationLevel},
     slot::Slot,
     statement::{SCPStatement, SCPStatementNominate},
 };
@@ -43,6 +43,12 @@ pub trait NominationProtocol {
 
     fn get_latest_composite_value(&self) -> HNominationValue;
     fn get_json_info(&self);
+
+    fn process_envelope(
+        self: &Arc<Self>,
+        state_handle: &HNominationProtocolState,
+        envelope: &HSCPEnvelope,
+    ) -> EnvelopeState;
 }
 
 type HNominationEnvelope = Arc<Mutex<NominationEnvelope>>;
@@ -125,6 +131,12 @@ impl SCPStatement {
 }
 
 impl NominationProtocolState {
+    fn get_statement_values(&self, statement: &SCPStatementNominate) -> Vec<NominationValue> {
+        let mut ret = Vec::new();
+        apply_all(statement, |value: &NominationValue| ret.push(value.clone()));
+        ret
+    }
+
     fn is_newer_statement(&self, node_id: &NodeID, statement: &SCPStatementNominate) -> bool {
         if let Some(envelope) = self.latest_nominations.get(node_id) {
             envelope
@@ -178,7 +190,6 @@ impl NominationProtocolState {
                 ValidationLevel::VoteToNominate => Some(value.to_owned()),
                 ValidationLevel::FullyValidated => Some(value.to_owned()),
                 _ => extract_valid_value_predicate(value),
-                // _ => Some(Arc::new(extract_valid_value_predicate(value).as_deref())),
             } {
                 if !self.votes.contains(&value_to_nominate) {
                     let new_hash = hash_value(&value_to_nominate);
@@ -258,11 +269,11 @@ impl NominationProtocolState {
     }
 }
 
-fn accept_predicat(value: &NominationValue, statement: &SCPStatementNominate) -> bool {
-    statement.accepted.contains(value)
+fn accept_predicat(value: &NominationValue, statement: &SCPStatement) -> bool {
+    statement.as_nomination_statement().accepted.contains(value)
 }
 
-fn apply_all(statement: &SCPStatementNominate, function: impl Fn(&NominationValue)) {
+fn apply_all(statement: &SCPStatementNominate, mut function: impl FnMut(&NominationValue)) {
     statement.votes.iter().for_each(|vote| function(vote));
     // Accepted should be a subset of votes.
     statement
@@ -277,7 +288,21 @@ fn hash_value(value: &NominationValue) -> u64 {
     hasher.finish()
 }
 
-impl NominationProtocol for SlotDriver {
+impl<T: HerderDriver> SlotDriver<T> {
+    fn validate_value(self: &Arc<Self>, value: &NominationValue) -> ValidationLevel {
+        todo!()
+    }
+
+    fn extract_valid_value(self: &Arc<Self>, value: &NominationValue) -> Option<HNominationValue> {
+        todo!()
+    }
+
+    fn emit_nomination(self: &Arc<Self>, state: &mut NominationProtocolState) {
+        todo!()
+    }
+}
+
+impl<T: HerderDriver> NominationProtocol for SlotDriver<T> {
     fn nominate(
         self: &Arc<Self>,
         state_handle: HNominationProtocolState,
@@ -345,6 +370,7 @@ impl NominationProtocol for SlotDriver {
 
         if updated {
             todo!();
+            self.emit_nomination(&mut state);
             // Emit nomination
         } else {
             debug!("NominationProtocol::nominate (SKIPPED");
@@ -375,5 +401,84 @@ impl NominationProtocol for SlotDriver {
 
     fn get_json_info(&self) {
         todo!()
+    }
+
+    fn process_envelope(
+        self: &Arc<Self>,
+        state_handle: &HNominationProtocolState,
+        envelope: &HSCPEnvelope,
+    ) -> EnvelopeState {
+        let env = envelope.lock().unwrap();
+        let node_id = &env.node_id;
+        let statement = env.get_statement().as_nomination_statement();
+        let mut state = state_handle.lock().unwrap();
+
+        // TODO: this comment seems to be wrong
+        // If we've processed the same envelope, we'll process it again
+        // since the validity of values might have changed
+        // (e.g., tx set fetch)
+
+        if state.processed_newer_statement(&node_id, statement) {
+            return EnvelopeState::Invalid;
+        }
+
+        if !state.is_sane(statement) {
+            return EnvelopeState::Invalid;
+        }
+
+        state.record_envelope(envelope);
+
+        if state.nomination_started {
+            // Whether we have modified nomination state.
+            let modified = statement.votes.iter().any(|vote| {
+                if state.accepted.contains(vote) {
+                    return false;
+                }
+                if self.federated_accept(
+                    |st: &SCPStatement| st.as_nomination_statement().votes.contains(vote),
+                    |st: &SCPStatement| accept_predicat(vote, st),
+                    &state.latest_nominations,
+                ) {
+                    match self.validate_value(vote) {
+                        ValidationLevel::FullyValidated => {
+                            let value = Arc::new(vote.clone());
+                            state.accepted.insert(value.clone());
+                            state.votes.insert(value.clone());
+                            return true;
+                        }
+                        _ => {
+                            if let Some(value) = self.extract_valid_value(vote) {
+                                state.accepted.insert(value.clone());
+                                state.votes.insert(value.clone());
+                                return true;
+                            }
+                        }
+                    }
+                }
+                false
+            });
+
+            let new_candidates = statement.accepted.iter().any(|value| {
+                if state.candidates.contains(value) {
+                    return false;
+                }
+                if self.federated_ratify(
+                    |st: &SCPStatement| accept_predicat(value, st),
+                    &state.latest_nominations,
+                ) {
+                    state.candidates.insert(Arc::new(value.clone()));
+                    todo!();
+                    // Stop timer.
+                    return true;
+                }
+                false
+            });
+
+            if modified {
+                self.emit_nomination(&mut state);
+            }
+        }
+        todo!();
+        EnvelopeState::Valid
     }
 }

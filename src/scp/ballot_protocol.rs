@@ -14,7 +14,7 @@ use crate::scp::{
 use super::{
     nomination_protocol::{HNominationProtocolState, HNominationValue, NominationValue},
     scp::{NodeID, SCPEnvelope, SCP},
-    scp_driver::{HSCPEnvelope, HashValue, SlotDriver},
+    scp_driver::{HSCPEnvelope, HashValue, HerderDriver, SlotDriver},
     slot::SlotIndex,
     statement::{SCPStatement, SCPStatementConfirm, SCPStatementExternalize, SCPStatementPrepare},
 };
@@ -734,7 +734,7 @@ impl BallotProtocolUtils {
     }
 }
 
-impl SlotDriver {
+impl<T: HerderDriver> SlotDriver<T> {
     const MAXIMUM_ADVANCE_SLOT_RECURSION: u32 = 50;
 
     fn advance_slot(
@@ -745,7 +745,7 @@ impl SlotDriver {
     ) {
         ballot_state_handle.lock().unwrap().message_level -= 1;
         if ballot_state_handle.lock().unwrap().message_level
-            >= SlotDriver::MAXIMUM_ADVANCE_SLOT_RECURSION
+            >= SlotDriver::<T>::MAXIMUM_ADVANCE_SLOT_RECURSION
         {
             panic!("maximum number of transitions reached in advance_slot");
         }
@@ -961,7 +961,7 @@ impl SlotDriver {
     }
 }
 
-impl BallotProtocol for SlotDriver {
+impl<T: HerderDriver> BallotProtocol for SlotDriver<T> {
     fn attempt_accept_prepared(
         self: &Arc<Self>,
         state_handle: &HBallotProtocolState,

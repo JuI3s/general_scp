@@ -28,6 +28,11 @@ use super::{
 
 pub type HSCPDriver = Arc<Mutex<dyn SCPDriver>>;
 
+pub enum EnvelopeState {
+    Invalid,
+    Valid,
+}
+
 pub enum ValidationLevel {
     Invalid,
     MaybeValid,
@@ -35,13 +40,21 @@ pub enum ValidationLevel {
     FullyValidated,
 }
 
+pub trait HerderDriver {
+    fn combine();
+}
+
 // #[derive(WeakSelf)]
-pub struct SlotDriver {
+pub struct SlotDriver<T>
+where
+    T: HerderDriver,
+{
     pub slot_index: u64,
     pub local_node: HLocalNode,
     pub timer: HSlotTimer,
     nomination_state_handle: HNominationProtocolState,
     ballot_state_handle: HBallotProtocolState,
+    herder_driver: T,
 }
 
 pub type HSCPEnvelope = Arc<Mutex<SCPEnvelope>>;
@@ -104,7 +117,7 @@ impl SlotTimer {
     }
 }
 
-impl SlotDriver {
+impl<T: HerderDriver> SlotDriver<T> {
     fn get_local_node(&self) -> &LocalNode {
         todo!();
     }
@@ -171,7 +184,7 @@ impl SlotDriver {
     }
 }
 
-impl SCPDriver for SlotDriver {
+impl<T: HerderDriver> SCPDriver for SlotDriver<T> {
     fn nominating_value(self: &Arc<Self>, value: &NominationValue) {}
 
     fn validate_value(
