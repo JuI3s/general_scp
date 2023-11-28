@@ -3,11 +3,25 @@ use std::{ops::Deref, time::Duration};
 use crate::scp::{
     nomination_protocol::{HNominationValue, NominationValue, NominationValueSet},
     scp::SCPEnvelope,
+    scp_driver::ValidationLevel,
 };
 
 pub trait HerderDriver {
     fn combine_candidates(&self, candidates: &NominationValueSet) -> Option<NominationValue>;
     fn emit_envelope(&self, envelope: &SCPEnvelope);
+
+    fn validate_value(&self, value: &NominationValue, nomination: bool) -> ValidationLevel {
+        // TODO: evaluates to true for every value for now.
+        ValidationLevel::FullyValidated
+    }
+
+    fn nominating_value(&self, value: &NominationValue, slot_index: &u64) {}
+
+    fn extract_valid_value(&self, value: &NominationValue) -> Option<NominationValue> {
+        // TODO: assume input value is always valid and just return the input value for now.
+        Some(value.to_owned())
+    }
+
     fn compute_timeout(&self, round_number: u64) -> Duration {
         const MAX_TIMEOUT_SECONDS: u64 = 30 * 60;
 

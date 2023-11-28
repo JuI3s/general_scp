@@ -736,7 +736,7 @@ impl BallotProtocolUtils {
     }
 }
 
-impl<T: HerderDriver> SlotDriver<T> {
+impl<T: HerderDriver + 'static> SlotDriver<T> {
     const MAXIMUM_ADVANCE_SLOT_RECURSION: u32 = 50;
 
     fn advance_slot(
@@ -963,7 +963,7 @@ impl<T: HerderDriver> SlotDriver<T> {
     }
 }
 
-impl<T: HerderDriver> BallotProtocol for SlotDriver<T> {
+impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
     fn attempt_accept_prepared(
         self: &Arc<Self>,
         state_handle: &HBallotProtocolState,

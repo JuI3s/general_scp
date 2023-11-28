@@ -19,7 +19,7 @@ use tokio::time::timeout;
 
 use crate::{
     application::work_queue::ClockEvent, herder::herder::HerderDriver, overlay::peer::PeerID,
-    utils::weak_self::WeakSelf,
+    scp::slot, utils::weak_self::WeakSelf,
 };
 
 use super::{
@@ -40,9 +40,6 @@ pub trait NominationProtocol {
 
     fn update_round_learders(&mut self);
 
-    fn set_state_from_envelope(&mut self, envelope: HSCPEnvelope);
-
-    fn get_latest_composite_value(&self) -> HNominationValue;
     fn get_json_info(&self);
 
     fn process_envelope(
@@ -132,6 +129,38 @@ impl SCPStatement {
 }
 
 impl NominationProtocolState {
+    // TODO: I really need to make local_id a part of nomination state.
+    fn gather_votes_from_round_leaders(
+        &mut self,
+        slot_index: &u64,
+        local_id: &NodeID,
+        extract_valid_value_predicate: &impl Fn(&NominationValue) -> Option<NominationValue>,
+        validate_value_predicate: &impl Fn(&NominationValue) -> ValidationLevel,
+        nominating_value_predicate: &impl Fn(&NominationValue),
+    ) -> bool {
+        let mut updated = false;
+
+        for leader in &self.round_leaders {
+            if let Some(nomination) = self.latest_nominations.get(leader) {
+                if let Some(new_value) = self.get_new_value_form_nomination(
+                    nomination
+                        .lock()
+                        .unwrap()
+                        .get_statement()
+                        .as_nomination_statement(),
+                    |value| extract_valid_value_predicate(value),
+                    |value| validate_value_predicate(value),
+                ) {
+                    self.votes.insert(new_value.to_owned().into());
+                    updated = true;
+                    nominating_value_predicate(&new_value);
+                }
+            }
+        }
+
+        updated
+    }
+
     fn get_statement_values(&self, statement: &SCPStatementNominate) -> Vec<NominationValue> {
         let mut ret = Vec::new();
         apply_all(statement, |value: &NominationValue| ret.push(value.clone()));
@@ -290,14 +319,6 @@ fn hash_value(value: &NominationValue) -> u64 {
 }
 
 impl<T: HerderDriver> SlotDriver<T> {
-    fn validate_value(self: &Arc<Self>, value: &NominationValue) -> ValidationLevel {
-        todo!()
-    }
-
-    fn extract_valid_value(self: &Arc<Self>, value: &NominationValue) -> Option<HNominationValue> {
-        todo!()
-    }
-
     fn emit_nomination(self: &Arc<Self>, state: &mut NominationProtocolState) {
         todo!()
     }
@@ -305,7 +326,7 @@ impl<T: HerderDriver> SlotDriver<T> {
 
 impl<T> NominationProtocol for SlotDriver<T>
 where
-    T: HerderDriver,
+    T: HerderDriver + 'static,
 {
     fn nominate(
         self: &Arc<Self>,
@@ -339,7 +360,25 @@ where
 
         let timeout: std::time::Duration = self.herder_driver.compute_timeout(state.round_number);
 
-        todo!();
+        let local_node = &self.local_node.lock().unwrap();
+
+        updated = updated
+            || state.gather_votes_from_round_leaders(
+                &self.slot_index,
+                &local_node.node_id,
+                &|value| self.herder_driver.extract_valid_value(value),
+                &|value| self.herder_driver.validate_value(value, true),
+                &|value| self.herder_driver.nominating_value(value, &self.slot_index),
+            );
+
+        // if we're leader, add our value if we haven't added any votes yet
+        if state.round_leaders.contains(&local_node.node_id) && state.votes.is_empty() {
+            state.votes.insert(value.clone().into());
+            updated = true;
+            self.herder_driver
+                .nominating_value(&value, &self.slot_index);
+        }
+
         // state.add_value_from_leaders(self);
 
         // if we're leader, add our value if we haven't added any votes yet
@@ -373,9 +412,7 @@ where
         self.timer.lock().unwrap().add_task(clock_event);
 
         if updated {
-            todo!();
             self.emit_nomination(&mut state);
-            // Emit nomination
         } else {
             debug!("NominationProtocol::nominate (SKIPPED");
         }
@@ -392,14 +429,6 @@ where
 
         let max_leader_count = &self.local_node.lock().unwrap().quorum_set;
 
-        todo!()
-    }
-
-    fn set_state_from_envelope(&mut self, envelope: HSCPEnvelope) {
-        todo!()
-    }
-
-    fn get_latest_composite_value(&self) -> HNominationValue {
         todo!()
     }
 
@@ -443,7 +472,7 @@ where
                     |st: &SCPStatement| accept_predicat(vote, st),
                     &state.latest_nominations,
                 ) {
-                    match self.validate_value(vote) {
+                    match self.herder_driver.validate_value(vote, true) {
                         ValidationLevel::FullyValidated => {
                             let value = Arc::new(vote.clone());
                             state.accepted.insert(value.clone());
@@ -451,9 +480,9 @@ where
                             return true;
                         }
                         _ => {
-                            if let Some(value) = self.extract_valid_value(vote) {
-                                state.accepted.insert(value.clone());
-                                state.votes.insert(value.clone());
+                            if let Some(value) = self.herder_driver.extract_valid_value(vote) {
+                                state.accepted.insert(Arc::new(value.clone()));
+                                state.votes.insert(Arc::new(value.clone()));
                                 return true;
                             }
                         }

@@ -112,7 +112,7 @@ impl SlotTimer {
     }
 }
 
-impl<T: HerderDriver> SlotDriver<T> {
+impl<T: HerderDriver + 'static> SlotDriver<T> {
     pub fn bump_state_(self: &Arc<Self>, nomination_value: &NominationValue, force: bool) -> bool {
         self.bump_state(
             &mut self.ballot_state_handle.lock().unwrap(),
