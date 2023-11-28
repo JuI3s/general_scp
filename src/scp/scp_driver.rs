@@ -10,7 +10,7 @@ use weak_self_derive::WeakSelf;
 
 use crate::{
     application::work_queue::{ClockEvent, HWorkQueue},
-    herder::herder::Herder,
+    herder::herder::HerderDriver,
     scp::ballot_protocol::SCPPhase,
     utils::weak_self::WeakSelf,
 };
@@ -39,11 +39,6 @@ pub enum ValidationLevel {
     VoteToNominate,
     FullyValidated,
 }
-
-pub trait HerderDriver {
-    fn combine();
-}
-
 // #[derive(WeakSelf)]
 pub struct SlotDriver<T>
 where
@@ -54,7 +49,7 @@ where
     pub timer: HSlotTimer,
     nomination_state_handle: HNominationProtocolState,
     ballot_state_handle: HBallotProtocolState,
-    herder_driver: T,
+    pub herder_driver: T,
 }
 
 pub type HSCPEnvelope = Arc<Mutex<SCPEnvelope>>;
@@ -118,6 +113,14 @@ impl SlotTimer {
 }
 
 impl<T: HerderDriver> SlotDriver<T> {
+    pub fn bump_state_(self: &Arc<Self>, nomination_value: &NominationValue, force: bool) -> bool {
+        self.bump_state(
+            &mut self.ballot_state_handle.lock().unwrap(),
+            nomination_value,
+            force,
+        )
+    }
+
     fn get_local_node(&self) -> &LocalNode {
         todo!();
     }

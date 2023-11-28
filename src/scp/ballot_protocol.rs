@@ -5,17 +5,19 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::scp::{
-    local_node::{self, LocalNode},
-    nomination_protocol::NominationProtocol,
-    scp_driver::SCPDriver,
+use crate::{
+    herder::herder::HerderDriver,
+    scp::{
+        local_node::{self, LocalNode},
+        nomination_protocol::NominationProtocol,
+        scp_driver::SCPDriver,
+    },
 };
 
 use super::{
-    nomination_protocol::{HNominationProtocolState, HNominationValue, NominationValue},
-    scp::{NodeID, SCPEnvelope, SCP},
-    scp_driver::{HSCPEnvelope, HashValue, HerderDriver, SlotDriver},
-    slot::SlotIndex,
+    nomination_protocol::{HNominationProtocolState, NominationValue},
+    scp::{NodeID, SCPEnvelope},
+    scp_driver::{HSCPEnvelope, HashValue, SlotDriver},
     statement::{SCPStatement, SCPStatementConfirm, SCPStatementExternalize, SCPStatementPrepare},
 };
 
@@ -825,7 +827,7 @@ impl<T: HerderDriver> SlotDriver<T> {
         }
     }
 
-    fn bump_state(
+    pub fn bump_state(
         self: &Arc<Self>,
         state: &mut BallotProtocolState,
         nomination_value: &NominationValue,

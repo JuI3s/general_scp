@@ -18,12 +18,13 @@ use log::debug;
 use tokio::time::timeout;
 
 use crate::{
-    application::work_queue::ClockEvent, overlay::peer::PeerID, utils::weak_self::WeakSelf,
+    application::work_queue::ClockEvent, herder::herder::HerderDriver, overlay::peer::PeerID,
+    utils::weak_self::WeakSelf,
 };
 
 use super::{
     scp::{EnvelopeState, NodeID, SCPEnvelope},
-    scp_driver::{HSCPEnvelope, HerderDriver, SCPDriver, SlotDriver, ValidationLevel},
+    scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver, ValidationLevel},
     slot::Slot,
     statement::{SCPStatement, SCPStatementNominate},
 };
@@ -302,7 +303,10 @@ impl<T: HerderDriver> SlotDriver<T> {
     }
 }
 
-impl<T: HerderDriver> NominationProtocol for SlotDriver<T> {
+impl<T> NominationProtocol for SlotDriver<T>
+where
+    T: HerderDriver,
+{
     fn nominate(
         self: &Arc<Self>,
         state_handle: HNominationProtocolState,
@@ -333,7 +337,7 @@ impl<T: HerderDriver> NominationProtocol for SlotDriver<T> {
         state.previous_value = previous_value.clone();
         state.round_number += 1;
 
-        let timeout = Slot::compute_timeout(state.round_number);
+        let timeout: std::time::Duration = self.herder_driver.compute_timeout(state.round_number);
 
         todo!();
         // state.add_value_from_leaders(self);
@@ -477,8 +481,22 @@ impl<T: HerderDriver> NominationProtocol for SlotDriver<T> {
             if modified {
                 self.emit_nomination(&mut state);
             }
+
+            if new_candidates {
+                // TODO: Is this correct?
+
+                if let Some(value) = self.herder_driver.combine_candidates(&state.candidates) {}
+
+                *state.latest_composite_candidate.lock().unwrap() =
+                    self.herder_driver.combine_candidates(&state.candidates);
+                let _ = match state.latest_composite_candidate.lock().unwrap().as_ref() {
+                    Some(val) => {
+                        self.bump_state_(val, false);
+                    }
+                    None => {}
+                };
+            }
         }
-        todo!();
         EnvelopeState::Valid
     }
 }

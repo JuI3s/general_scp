@@ -6,7 +6,7 @@ use std::{
 
 use log::debug;
 
-use crate::{herder::herder::Herder, overlay::peer::PeerID};
+use crate::overlay::peer::PeerID;
 
 use super::{
     ballot_protocol::BallotProtocolState, nomination_protocol::NominationProtocolState,
