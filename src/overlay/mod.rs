@@ -1,5 +1,5 @@
+pub mod outgate;
+pub mod overlay_manager;
 pub mod peer;
 pub mod rpc_gateway;
-
-pub mod outgate;
 mod rpc_gateway_test;

@@ -3,7 +3,15 @@ use std::{
     time::SystemTime,
 };
 
-use crate::application::work_queue::{ClockEvent, WorkQueue};
+use crate::{
+    application::work_queue::{ClockEvent, WorkQueue},
+    scp::{
+        scp::{NodeID, SCPEnvelope},
+        scp_driver::HSCPEnvelope,
+    },
+};
+
+use super::overlay_manager::{HSCPMessage, SCPMessage};
 
 type ArcState = Arc<Mutex<State>>;
 pub type PeerID = &'static str;
@@ -14,6 +22,7 @@ struct State {
 }
 
 pub struct Peer {
+    pub id: NodeID,
     state: ArcState,
 }
 
@@ -21,6 +30,7 @@ impl Peer {
     pub fn new() -> Self {
         Peer {
             state: Arc::new(Mutex::new(State::new())),
+            id: todo!(),
         }
     }
 
@@ -104,3 +114,9 @@ impl State {
         a
     }
 }
+
+pub trait SCPPeer {
+    fn send_message(&self, envelope: &HSCPMessage) {}
+}
+
+impl SCPPeer for Peer {}

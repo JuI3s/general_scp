@@ -1,6 +1,7 @@
 use std::{
     alloc::System,
     collections::VecDeque,
+    f32::consts::E,
     sync::{Arc, Mutex},
     time::SystemTime,
 };
@@ -20,6 +21,72 @@ impl ClockEvent {
             timestamp: timestamp,
             callback: callback,
         }
+    }
+}
+
+pub type HWorkScheduler = Arc<Mutex<WorkScheduler>>;
+pub struct WorkScheduler {
+    main_thread_queue: MainWorkQueue,
+}
+
+impl WorkScheduler {
+    pub fn post_on_main_thread(&mut self, callback: Callback) {
+        self.main_thread_queue.add_task(callback);
+    }
+
+    pub fn execute_one_main_thread_task(&mut self) -> bool {
+        self.main_thread_queue.execute_one_task()
+    }
+
+    pub fn excecute_main_thread_tasks(&mut self) -> u64 {
+        self.main_thread_queue.execute_tasks()
+    }
+}
+
+struct MainWorkQueue {
+    tasks: VecDeque<Callback>,
+}
+
+impl Default for WorkScheduler {
+    fn default() -> Self {
+        Self {
+            main_thread_queue: Default::default(),
+        }
+    }
+}
+
+impl Default for MainWorkQueue {
+    fn default() -> Self {
+        Self {
+            tasks: Default::default(),
+        }
+    }
+}
+
+impl MainWorkQueue {
+    fn add_task(&mut self, callback: Callback) {
+        self.tasks.push_back(Box::new(callback))
+    }
+
+    fn execute_one_task(&mut self) -> bool {
+        if let Some(front) = self.tasks.pop_front() {
+            front();
+            true
+        } else {
+            false
+        }
+    }
+
+    // Execute tasks and return the total number of tasks executed.
+    fn execute_tasks(&mut self) -> u64 {
+        let mut num_tasks_executed = 0;
+
+        while let Some(top) = self.tasks.pop_front() {
+            top();
+            num_tasks_executed += 1;
+        }
+
+        num_tasks_executed
     }
 }
 
