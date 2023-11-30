@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, rc::Weak, sync::Mutex};
+use std::{collections::VecDeque, sync::{Mutex, Arc, Weak}};
 
 use crate::application::work_queue::HWorkScheduler;
 
@@ -21,29 +21,49 @@ impl LoopbackPeer {
         }
     }
 
-    fn process_in_queue(&mut self) {
-        todo!();
+    fn process_in_queue(this: Arc<Mutex<Self>>) {
+        let mut peer = this.lock().unwrap();
+
+        if let Some(message) = peer.in_queue.pop_front() {
+            peer.recv_message(&message);
+        }
+
+        // If we have more messages, process them on the main thread.
+        if !peer.in_queue.is_empty() {
+            let self_clone = Arc::downgrade(&this.clone());
+            peer.work_schedular.lock().unwrap().post_on_main_thread(Box::new(move || {
+                if let Some(p) = self_clone.upgrade() {
+                    LoopbackPeer::process_in_queue(p);
+                }
+            }))
+        }
     }
 }
 
 impl SCPPeer for LoopbackPeer {
-    fn send_message(&self, envelope: &super::overlay_manager::HSCPMessage) {
+    fn send_message(&mut self, envelope: &super::overlay_manager::HSCPMessage) {
         if let Some(remote) = self.remote.upgrade() {
             remote
-                .lock()
-                .unwrap()
+            .lock().unwrap()
                 .in_queue
                 .push_back(envelope.lock().unwrap().clone());
 
             let remote_clone = self.remote.clone();
+
             self.work_schedular
                 .lock()
                 .unwrap()
                 .post_on_main_thread(Box::new(move || {
+
                     if let Some(peer) = remote_clone.upgrade() {
-                        peer.lock().unwrap().process_in_queue();
+                        LoopbackPeer::process_in_queue(peer); 
                     }
                 }))
         }
+    }
+
+    fn recv_message(&mut self, message: &SCPMessage) {
+        println!("{:?}", message);
+        // todo!()
     }
 }

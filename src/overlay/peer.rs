@@ -116,7 +116,8 @@ impl State {
 }
 
 pub trait SCPPeer {
-    fn send_message(&self, envelope: &HSCPMessage) {}
+    fn send_message(&mut self, envelope: &HSCPMessage) {}
+    fn recv_message(&mut self, message: &SCPMessage) {}
 }
 
 impl SCPPeer for Peer {}

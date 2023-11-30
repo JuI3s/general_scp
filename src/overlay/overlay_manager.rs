@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex}, fmt::Display,
 };
 
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
 
 use super::peer::{HPeer, Peer, PeerID, SCPPeer};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SCPMessage {}
 pub type HSCPMessage = Arc<Mutex<SCPMessage>>;
 
