@@ -1,3 +1,4 @@
+pub mod loopback_peer;
 pub mod outgate;
 pub mod overlay_manager;
 pub mod peer;
