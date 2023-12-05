@@ -11,14 +11,14 @@ use crate::{
         local_node::{self, LocalNode},
         nomination_protocol::NominationProtocol,
         scp_driver::SCPDriver,
-    },
+    }, application::quorum::QuorumSet,
 };
 
 use super::{
     nomination_protocol::{HNominationProtocolState, NominationValue},
     scp::{NodeID, SCPEnvelope},
     scp_driver::{HSCPEnvelope, HashValue, SlotDriver},
-    statement::{SCPStatement, SCPStatementConfirm, SCPStatementExternalize, SCPStatementPrepare},
+    statement::{SCPStatement, SCPStatementConfirm, SCPStatementExternalize, SCPStatementPrepare, self},
 };
 
 pub trait ToBallot {
@@ -945,9 +945,9 @@ impl<T: HerderDriver + 'static> SlotDriver<T> {
             };
 
             if LocalNode::is_quorum(
-                &self.local_node.lock().unwrap().quorum_set,
+                Some((&self.local_node.lock().unwrap().quorum_set, &self.local_node.lock().unwrap().node_id)),
                 &state.latest_envelopes,
-                heard_predicate,
+                |st| {self.herder_driver.get_quorum_set(st)},
             ) {
                 let old_heard_from_quorum = state.heard_from_quorum;
                 state.heard_from_quorum = true;

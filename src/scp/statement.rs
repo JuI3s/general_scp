@@ -1,6 +1,10 @@
+use std::sync::{Arc, Mutex};
+
 use super::{
     ballot_protocol::SCPBallot, nomination_protocol::NominationValue, scp_driver::HashValue,
 };
+
+pub type HSCPStatement = Arc<Mutex<SCPStatement>>;
 
 pub enum SCPStatement {
     Prepare(SCPStatementPrepare),
@@ -64,5 +68,16 @@ impl SCPStatementNominate {
         }
 
         ret
+    }
+}
+
+impl SCPStatement {
+    pub fn hash_value(&self) -> HashValue {
+        match self {
+            SCPStatement::Prepare(st) => st.quorum_set_hash,
+            SCPStatement::Confirm(st) => st.quorum_set_hash,
+            SCPStatement::Externalize(st) => st.commit_quorum_set_hash,
+            SCPStatement::Nominate(st) => st.quorum_set_hash,
+        }
     }
 }

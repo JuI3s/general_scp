@@ -1,10 +1,10 @@
-use std::{ops::Deref, time::Duration};
+use std::{ops::Deref, time::Duration, collections::BTreeMap};
 
-use crate::scp::{
+use crate::{scp::{
     nomination_protocol::{HNominationValue, NominationValue, NominationValueSet},
-    scp::SCPEnvelope,
-    scp_driver::ValidationLevel,
-};
+    scp::{SCPEnvelope, NodeID},
+    scp_driver::{ValidationLevel, HashValue}, statement::SCPStatement,
+}, application::quorum::{QuorumSet, HQuorumSet}};
 
 pub trait HerderDriver {
     // Needs to be implemented by the specific consensus protocol for application level checks.
@@ -23,6 +23,8 @@ pub trait HerderDriver {
         Some(value.to_owned())
     }
 
+    fn get_quorum_set(&self, statement: &SCPStatement) -> Option<HQuorumSet>;
+
     fn compute_timeout(&self, round_number: u64) -> Duration {
         const MAX_TIMEOUT_SECONDS: u64 = 30 * 60;
 
@@ -34,7 +36,9 @@ pub trait HerderDriver {
     }
 }
 
-struct HerderSCPDriver {}
+struct HerderSCPDriver {
+    quorum_set_map: BTreeMap<HashValue, HQuorumSet>
+}
 
 impl HerderDriver for HerderSCPDriver {
     fn combine_candidates(&self, candidates: &NominationValueSet) -> Option<NominationValue> {
@@ -46,5 +50,9 @@ impl HerderDriver for HerderSCPDriver {
 
     fn emit_envelope(&self, envelope: &SCPEnvelope) {
         todo!()
+    }
+
+    fn get_quorum_set(&self, statement: &SCPStatement) -> Option<HQuorumSet> {
+        self.quorum_set_map.get(&statement.hash_value()).map(|val|{val.clone()})
     }
 }

@@ -2,7 +2,7 @@ use std::{
     collections::{btree_set, hash_map::DefaultHasher, BTreeSet},
     f32::consts::E,
     hash::{Hash, Hasher},
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4}, sync::{Mutex, Arc},
 };
 
 use serde::{Deserialize, Serialize};
@@ -11,6 +11,8 @@ use crate::scp::{scp::NodeID, scp_driver::HashValue};
 
 // pub type QuorumSet = HashSet<SocketAddr>;
 // pub type Quorum = HashSet<QuorumSet>;
+
+pub type HQuorumSet = Arc<Mutex<QuorumSet>>;
 
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize)]
 pub struct QuorumNode {

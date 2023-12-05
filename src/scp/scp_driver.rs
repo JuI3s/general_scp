@@ -63,7 +63,7 @@ pub struct SCPEnvelope {
 
 impl SCPEnvelope {
     pub fn get_statement(&self) -> &SCPStatement {
-        todo!()
+        &self.statement
     }
 
     // Used only for testing
@@ -164,9 +164,10 @@ impl<T: HerderDriver + 'static> SlotDriver<T> {
         } else {
             let ratify_filter =
                 move |st: &SCPStatement| accepted_predicate(st) && voted_predicate(st);
-            if LocalNode::is_quorum(
-                self.get_local_node().get_quorum_set(),
+            if LocalNode::is_quorum_with_node_filter(
+                Some((self.get_local_node().get_quorum_set(), &self.get_local_node().node_id)),
                 envelopes,
+                |st| {self.herder_driver.get_quorum_set(st)},
                 ratify_filter,
             ) {
                 return true;
@@ -182,9 +183,10 @@ impl<T: HerderDriver + 'static> SlotDriver<T> {
         voted_predicate: impl Fn(&SCPStatement) -> bool,
         envelopes: &BTreeMap<NodeID, HSCPEnvelope>,
     ) -> bool {
-        LocalNode::is_quorum(
-            self.get_local_node().get_quorum_set(),
+        LocalNode::is_quorum_with_node_filter(
+            Some((self.get_local_node().get_quorum_set(), &self.get_local_node().node_id)), 
             envelopes,
+            |st| {self.herder_driver.get_quorum_set(st)},
             voted_predicate,
         )
     }
