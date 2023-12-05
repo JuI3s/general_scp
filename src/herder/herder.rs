@@ -11,8 +11,8 @@ pub trait HerderDriver {
     fn validate_value(&self, value: &NominationValue, nomination: bool) -> ValidationLevel {
         // TODO: evaluates to true for every value for now.
         ValidationLevel::FullyValidated
-    } 
-    
+    }
+
     fn combine_candidates(&self, candidates: &NominationValueSet) -> Option<NominationValue>;
     fn emit_envelope(&self, envelope: &SCPEnvelope);
 

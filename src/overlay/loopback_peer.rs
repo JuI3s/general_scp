@@ -25,7 +25,6 @@ impl LoopbackPeer {
     }
 
     fn process_in_queue(this: Arc<Mutex<Self>>) {
-
         let mut peer = this.lock().unwrap();
 
         if let Some(message) = peer.in_queue.pop_front() {
@@ -49,7 +48,6 @@ impl LoopbackPeer {
 
 impl SCPPeer for LoopbackPeer {
     fn send_message(&mut self, envelope: &super::overlay_manager::HSCPMessage) {
-
         print!("Sending a message");
 
         if let Some(remote) = self.remote.upgrade() {
@@ -86,7 +84,6 @@ impl LoopbackPeerConnection {
         let acceptor_handle = Arc::new(Mutex::new(acceptor));
         initiator_handle.lock().unwrap().remote = Arc::downgrade(&acceptor_handle);
         acceptor_handle.lock().unwrap().remote = Arc::downgrade(&initiator_handle);
-;
         LoopbackPeerConnection {
             initiator: initiator_handle,
             acceptor: acceptor_handle,
@@ -104,11 +101,11 @@ mod tests {
     fn send_hello_message() {
         let work_scheduler = Arc::new(Mutex::new(WorkScheduler::default()));
         let connection = LoopbackPeerConnection::new(&work_scheduler);
-        let msg = Arc::new(Mutex::new(SCPMessage{}));
-        
+        let msg = Arc::new(Mutex::new(SCPMessage {}));
+
         connection.initiator.lock().unwrap().send_message(&msg);
         assert_eq!(connection.acceptor.lock().unwrap().in_queue.len(), 1);
-        let num_tasks_done =  work_scheduler.lock().unwrap().excecute_main_thread_tasks();    
+        let num_tasks_done = work_scheduler.lock().unwrap().excecute_main_thread_tasks();
         assert_eq!(connection.acceptor.lock().unwrap().in_queue.len(), 0);
         assert_eq!(num_tasks_done, 1);
     }

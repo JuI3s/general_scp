@@ -73,3 +73,11 @@ impl Default for LocalNode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn heard_from_quorum() {}
+}

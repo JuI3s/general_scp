@@ -75,7 +75,7 @@ pub struct NominationProtocolState {
     pub candidates: NominationValueSet,
     pub latest_nominations: BTreeMap<String, HSCPEnvelope>,
 
-    pub latest_envelope: HSCPEnvelope,
+    pub latest_envelope: Option<HSCPEnvelope>,
     pub round_leaders: BTreeSet<String>,
 
     pub nomination_started: bool,
@@ -94,7 +94,7 @@ impl Default for NominationProtocolState {
             accepted: Default::default(),
             candidates: Default::default(),
             latest_nominations: Default::default(),
-            latest_envelope: Arc::new(Mutex::new(Default::default())),
+            latest_envelope: Default::default(),
             round_leaders: Default::default(),
             nomination_started: Default::default(),
             latest_composite_candidate: Default::default(),
@@ -295,7 +295,7 @@ impl NominationProtocolState {
                 self.votes.insert(Arc::new(statement));
             });
 
-        self.latest_envelope = envelope.clone();
+        self.latest_envelope = Some(envelope.clone());
     }
 }
 
@@ -528,4 +528,9 @@ where
         }
         EnvelopeState::Valid
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
 }

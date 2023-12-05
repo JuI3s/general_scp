@@ -95,3 +95,40 @@ impl<const N: usize> From<[QuorumNode; N]> for QuorumSlice {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_quorum_set() {
+        let sock1 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080);
+        let sock2 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8081);
+        let sock3 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8082);
+
+        let node_id1 = "node1";
+        let node_id2 = "node2";
+        let node_id3 = "node3";
+
+        let node1 = QuorumNode {
+            node_id: node_id1.into(),
+            addr: sock1,
+        };
+        let node2 = QuorumNode {
+            node_id: node_id2.into(),
+            addr: sock2,
+        };
+        let node3 = QuorumNode {
+            node_id: node_id3.into(),
+            addr: sock3,
+        };
+
+        let quorum_slice1 = QuorumSlice::from([node1.to_owned(), node2.to_owned()]);
+        let quorum_slice2 = QuorumSlice::from([node1.to_owned(), node3.to_owned()]);
+        assert_eq!(quorum_slice1.data.len(), 2);
+        assert_eq!(quorum_slice2.data.len(), 2);
+
+        let quorum_set = QuorumSet::from([quorum_slice1, quorum_slice2]);
+        assert_eq!(quorum_set.slices.len(), 2);
+    }
+}

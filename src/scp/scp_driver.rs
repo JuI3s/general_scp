@@ -6,6 +6,7 @@ use std::{
 
 pub type HashValue = u64;
 
+use syn::token::Mut;
 use weak_self_derive::WeakSelf;
 
 use crate::{
@@ -64,13 +65,28 @@ impl SCPEnvelope {
     pub fn get_statement(&self) -> &SCPStatement {
         todo!()
     }
-}
 
-impl Default for SCPEnvelope {
-    fn default() -> Self {
-        Self {
-            ..Default::default()
+    // Used only for testing
+    // TODO: is there any way I can enable the functions below only during testing?
+    pub fn test_make_scp_envelope(node_id: NodeID) -> Self {
+        SCPEnvelope {
+            statement: SCPStatement::Prepare(super::statement::SCPStatementPrepare {
+                quorum_set_hash: 0,
+                ballot: SCPBallot::default(),
+                prepared: Some(SCPBallot::default()),
+                prepared_prime: Some(SCPBallot::default()),
+                num_commit: 0,
+                num_high: 0,
+                from_self: true,
+            }),
+            node_id: node_id,
+            slot_index: 0,
+            signature: 0,
         }
+    }
+
+    pub fn test_make_scp_envelope_handle(node_id: NodeID) -> HSCPEnvelope {
+        Arc::new(Mutex::new(SCPEnvelope::test_make_scp_envelope(node_id)))
     }
 }
 
