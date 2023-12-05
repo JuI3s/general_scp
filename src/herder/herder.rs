@@ -7,13 +7,14 @@ use crate::scp::{
 };
 
 pub trait HerderDriver {
-    fn combine_candidates(&self, candidates: &NominationValueSet) -> Option<NominationValue>;
-    fn emit_envelope(&self, envelope: &SCPEnvelope);
-
+    // Needs to be implemented by the specific consensus protocol for application level checks.
     fn validate_value(&self, value: &NominationValue, nomination: bool) -> ValidationLevel {
         // TODO: evaluates to true for every value for now.
         ValidationLevel::FullyValidated
-    }
+    } 
+    
+    fn combine_candidates(&self, candidates: &NominationValueSet) -> Option<NominationValue>;
+    fn emit_envelope(&self, envelope: &SCPEnvelope);
 
     fn nominating_value(&self, value: &NominationValue, slot_index: &u64) {}
 

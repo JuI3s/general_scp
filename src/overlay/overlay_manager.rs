@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::{Arc, Mutex}, fmt::Display,
+    fmt::Display,
+    sync::{Arc, Mutex},
 };
 
 use crate::{

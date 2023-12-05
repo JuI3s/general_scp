@@ -82,6 +82,7 @@ impl MainWorkQueue {
         let mut num_tasks_executed = 0;
 
         while let Some(top) = self.tasks.pop_front() {
+            println!("Executing task... {}", num_tasks_executed);
             top();
             num_tasks_executed += 1;
         }
@@ -128,5 +129,54 @@ impl WorkQueue {
                 None => break,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::application::work_queue::WorkScheduler;
+
+    use super::*;
+
+    #[test]
+    fn add_one_task_to_work_schedular() {
+        let mut work_scheduler = WorkScheduler::default();
+        let x = 0;
+        let pt = Arc::new(Mutex::new(x));
+        let pt_copy = pt.clone();
+        let func = move || { *pt_copy.lock().unwrap() += 1;};
+
+        assert_eq!(work_scheduler.main_thread_queue.tasks.len(), 0);
+
+        // Adding a task
+        work_scheduler.post_on_main_thread(Box::new(func));
+        assert_eq!(work_scheduler.main_thread_queue.tasks.len(), 1);
+        
+        work_scheduler.execute_one_main_thread_task();
+        assert_eq!(*pt.lock().unwrap(), 1);
+        assert_eq!(work_scheduler.main_thread_queue.tasks.len(), 0);
+    }
+
+    #[test]
+    fn add_two_tasks_and_execute_both() {
+        let mut work_scheduler = WorkScheduler::default();
+        let x = 0;
+        let pt = Arc::new(Mutex::new(x));
+        let pt_copy_1 = pt.clone();
+        let pt_copy_2 = pt.clone(); 
+    
+        let func1 = move || { *pt_copy_1.lock().unwrap() += 1;};
+        let func2 = move || {*pt_copy_2.lock().unwrap() += 1;}; 
+ 
+        assert_eq!(work_scheduler.main_thread_queue.tasks.len(), 0);
+ 
+        // Adding a task
+        work_scheduler.post_on_main_thread(Box::new(func1));
+        work_scheduler.post_on_main_thread(Box::new(func2));
+        assert_eq!(work_scheduler.main_thread_queue.tasks.len(), 2);
+        
+        work_scheduler.excecute_main_thread_tasks();
+        assert_eq!(*pt.lock().unwrap(), 2);
+        assert_eq!(work_scheduler.main_thread_queue.tasks.len(), 0);
     }
 }
