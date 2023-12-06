@@ -23,7 +23,7 @@ use crate::{
 };
 
 use super::{
-    scp::{EnvelopeState, NodeID, SCPEnvelope},
+    scp::{EnvelopeState, NodeID},
     scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver, ValidationLevel},
     slot::Slot,
     statement::{SCPStatement, SCPStatementNominate},

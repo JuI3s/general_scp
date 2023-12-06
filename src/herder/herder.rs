@@ -1,10 +1,13 @@
-use std::{ops::Deref, time::Duration, collections::BTreeMap};
+use std::{collections::BTreeMap, ops::Deref, time::Duration};
 
-use crate::{scp::{
-    nomination_protocol::{HNominationValue, NominationValue, NominationValueSet},
-    scp::{SCPEnvelope, NodeID},
-    scp_driver::{ValidationLevel, HashValue}, statement::SCPStatement,
-}, application::quorum::{QuorumSet, HQuorumSet}};
+use crate::{
+    application::quorum::HQuorumSet,
+    scp::{
+        nomination_protocol::{NominationValue, NominationValueSet},
+        scp_driver::{HashValue, SCPEnvelope, ValidationLevel},
+        statement::SCPStatement,
+    },
+};
 
 pub trait HerderDriver {
     // Needs to be implemented by the specific consensus protocol for application level checks.
@@ -37,7 +40,7 @@ pub trait HerderDriver {
 }
 
 struct HerderSCPDriver {
-    quorum_set_map: BTreeMap<HashValue, HQuorumSet>
+    quorum_set_map: BTreeMap<HashValue, HQuorumSet>,
 }
 
 impl HerderDriver for HerderSCPDriver {
@@ -53,6 +56,8 @@ impl HerderDriver for HerderSCPDriver {
     }
 
     fn get_quorum_set(&self, statement: &SCPStatement) -> Option<HQuorumSet> {
-        self.quorum_set_map.get(&statement.hash_value()).map(|val|{val.clone()})
+        self.quorum_set_map
+            .get(&statement.quorum_set_hash_value())
+            .map(|val| val.clone())
     }
 }

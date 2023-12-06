@@ -10,7 +10,7 @@ use crate::overlay::peer::PeerID;
 
 use super::{
     ballot_protocol::BallotProtocolState, nomination_protocol::NominationProtocolState,
-    scp::SCPEnvelope, scp_driver::SlotDriver,
+    scp_driver::SlotDriver,
 };
 
 pub type SlotIndex = u64;

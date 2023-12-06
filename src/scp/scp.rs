@@ -15,15 +15,15 @@ use super::{
 
 pub type NodeID = String;
 
-pub struct SCPEnvelope {
-    pub node_id: NodeID,
-    pub slot_index: SlotIndex,
-    pub statement: SCPStatement,
-}
+// pub struct SCPEnvelope {
+//     pub node_id: NodeID,
+//     pub slot_index: SlotIndex,
+//     pub statement: SCPStatement,
+// }
 
-impl SCPEnvelope {
-    pub fn name(&'_ self) {}
-}
+// impl SCPEnvelope {
+//     pub fn name(&'_ self) {}
+// }
 
 pub enum EnvelopeState {
     Valid,

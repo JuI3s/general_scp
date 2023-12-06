@@ -72,7 +72,7 @@ impl SCPStatementNominate {
 }
 
 impl SCPStatement {
-    pub fn hash_value(&self) -> HashValue {
+    pub fn quorum_set_hash_value(&self) -> HashValue {
         match self {
             SCPStatement::Prepare(st) => st.quorum_set_hash,
             SCPStatement::Confirm(st) => st.quorum_set_hash,

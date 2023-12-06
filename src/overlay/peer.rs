@@ -5,10 +5,7 @@ use std::{
 
 use crate::{
     application::work_queue::{ClockEvent, WorkQueue},
-    scp::{
-        scp::{NodeID, SCPEnvelope},
-        scp_driver::HSCPEnvelope,
-    },
+    scp::{scp::NodeID, scp_driver::HSCPEnvelope},
 };
 
 use super::overlay_manager::{HSCPMessage, SCPMessage};

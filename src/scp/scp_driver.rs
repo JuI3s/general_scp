@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
+    env,
     os::fd::RawFd,
     sync::{Arc, Mutex, Weak},
 };
@@ -10,7 +11,10 @@ use syn::token::Mut;
 use weak_self_derive::WeakSelf;
 
 use crate::{
-    application::work_queue::{ClockEvent, HWorkQueue},
+    application::{
+        quorum::QuorumSet,
+        work_queue::{ClockEvent, HWorkQueue},
+    },
     herder::herder::HerderDriver,
     scp::ballot_protocol::SCPPhase,
     utils::weak_self::WeakSelf,
@@ -72,6 +76,23 @@ impl SCPEnvelope {
         SCPEnvelope {
             statement: SCPStatement::Prepare(super::statement::SCPStatementPrepare {
                 quorum_set_hash: 0,
+                ballot: SCPBallot::default(),
+                prepared: Some(SCPBallot::default()),
+                prepared_prime: Some(SCPBallot::default()),
+                num_commit: 0,
+                num_high: 0,
+                from_self: true,
+            }),
+            node_id: node_id,
+            slot_index: 0,
+            signature: 0,
+        }
+    }
+
+    pub fn test_make_scp_envelope_from_quorum(node_id: NodeID, quorum_set: &QuorumSet) -> Self {
+        SCPEnvelope {
+            statement: SCPStatement::Prepare(super::statement::SCPStatementPrepare {
+                quorum_set_hash: quorum_set.hash_value(),
                 ballot: SCPBallot::default(),
                 prepared: Some(SCPBallot::default()),
                 prepared_prime: Some(SCPBallot::default()),
@@ -165,9 +186,12 @@ impl<T: HerderDriver + 'static> SlotDriver<T> {
             let ratify_filter =
                 move |st: &SCPStatement| accepted_predicate(st) && voted_predicate(st);
             if LocalNode::is_quorum_with_node_filter(
-                Some((self.get_local_node().get_quorum_set(), &self.get_local_node().node_id)),
+                Some((
+                    self.get_local_node().get_quorum_set(),
+                    &self.get_local_node().node_id,
+                )),
                 envelopes,
-                |st| {self.herder_driver.get_quorum_set(st)},
+                |st| self.herder_driver.get_quorum_set(st),
                 ratify_filter,
             ) {
                 return true;
@@ -184,9 +208,12 @@ impl<T: HerderDriver + 'static> SlotDriver<T> {
         envelopes: &BTreeMap<NodeID, HSCPEnvelope>,
     ) -> bool {
         LocalNode::is_quorum_with_node_filter(
-            Some((self.get_local_node().get_quorum_set(), &self.get_local_node().node_id)), 
+            Some((
+                self.get_local_node().get_quorum_set(),
+                &self.get_local_node().node_id,
+            )),
             envelopes,
-            |st| {self.herder_driver.get_quorum_set(st)},
+            |st| self.herder_driver.get_quorum_set(st),
             voted_predicate,
         )
     }

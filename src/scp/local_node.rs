@@ -6,7 +6,7 @@ use std::{
 
 use syn::token::Mut;
 
-use crate::application::quorum::{QuorumSet, QuorumSlice, HQuorumSet};
+use crate::application::quorum::{HQuorumSet, QuorumSet, QuorumSlice};
 
 use super::{
     scp::NodeID,
@@ -57,24 +57,30 @@ impl LocalNode {
     }
 
     fn nodes_fill_quorum_slice(quorum_slice: &QuorumSlice, nodes: &Vec<NodeID>) -> bool {
-        quorum_slice.data.iter().all(|node| {nodes.contains(&node.node_id)})
+        quorum_slice
+            .data
+            .iter()
+            .all(|node| nodes.contains(&node.node_id))
     }
 
-    fn nodes_fill_one_quorum_slice_in_quorum_set(quorum_set: &QuorumSet, nodes: &Vec<NodeID>) -> bool {
-        quorum_set.slices.iter().any(|slice|{
-            LocalNode::nodes_fill_quorum_slice(slice, nodes)
-        })
+    fn nodes_fill_one_quorum_slice_in_quorum_set(
+        quorum_set: &QuorumSet,
+        nodes: &Vec<NodeID>,
+    ) -> bool {
+        quorum_set
+            .slices
+            .iter()
+            .any(|slice| LocalNode::nodes_fill_quorum_slice(slice, nodes))
     }
-
 
     // `is_quorum_with_node_filter` tests if the filtered nodes V form a quorum
     // (meaning for each v \in V there is q \in Q(v)
     // isQuorumincluded in V and we have quorum on V for qSetHash). `qfun` extracts the
     // SCPQuorumSetPtr from the SCPStatement for its associated node in map
     // (required for transitivity)
- 
+
     pub fn is_quorum_with_node_filter(
-        local_quorum: Option<(&QuorumSet, &NodeID)>, 
+        local_quorum: Option<(&QuorumSet, &NodeID)>,
         envelopes: &BTreeMap<NodeID, HSCPEnvelope>,
         get_quorum_set_predicate: impl Fn(&SCPStatement) -> Option<HQuorumSet>,
         node_filter: impl Fn(&SCPStatement) -> bool,
@@ -85,7 +91,7 @@ impl LocalNode {
             .iter()
             .map(|entry| {
                 let envelope = entry.1.lock().unwrap();
-                
+
                 if node_filter(&envelope.statement) {
                     Some(entry.0.to_owned())
                 } else {
@@ -99,14 +105,19 @@ impl LocalNode {
         if let Some((_, local_node_id)) = local_quorum {
             nodes.push(local_node_id.to_owned());
         }
-        
+
         // Definition (quorum). A set of nodes 𝑈 ⊆ 𝐕 in FBAS ⟨𝐕,𝐐⟩ is a quorum iff 𝑈 ≠ ∅ and 𝑈 contains a slice for each member—i.e., ∀𝑣 ∈ 𝑈 , ∃𝑞 ∈ 𝐐(𝑣) such that 𝑞 ⊆ 𝑈 .
         let mut ret = if nodes.is_empty() {
             false
         } else {
             nodes.iter().all(|node| {
-                if let Some(quorum_set) = get_quorum_set_predicate(envelopes.get(node).unwrap().lock().unwrap().get_statement()) {
-                    LocalNode::nodes_fill_one_quorum_slice_in_quorum_set(&quorum_set.lock().unwrap(), &nodes)
+                if let Some(quorum_set) = get_quorum_set_predicate(
+                    envelopes.get(node).unwrap().lock().unwrap().get_statement(),
+                ) {
+                    LocalNode::nodes_fill_one_quorum_slice_in_quorum_set(
+                        &quorum_set.lock().unwrap(),
+                        &nodes,
+                    )
                 } else {
                     false
                 }
@@ -115,19 +126,24 @@ impl LocalNode {
 
         // Check for local node.
         if let Some((local_quorum_set, _)) = local_quorum {
-            ret = ret && LocalNode::nodes_fill_one_quorum_slice_in_quorum_set(local_quorum_set, &nodes);
+            ret = ret
+                && LocalNode::nodes_fill_one_quorum_slice_in_quorum_set(local_quorum_set, &nodes);
         }
 
         ret
-
     }
 
     pub fn is_quorum(
-        local_quorum: Option<(&QuorumSet, &NodeID)>, 
+        local_quorum: Option<(&QuorumSet, &NodeID)>,
         envelopes: &BTreeMap<NodeID, HSCPEnvelope>,
         get_quorum_set_predicate: impl Fn(&SCPStatement) -> Option<HQuorumSet>,
     ) -> bool {
-        LocalNode::is_quorum_with_node_filter( local_quorum, envelopes, get_quorum_set_predicate, |_| true)
+        LocalNode::is_quorum_with_node_filter(
+            local_quorum,
+            envelopes,
+            get_quorum_set_predicate,
+            |_| true,
+        )
     }
 }
 
@@ -143,8 +159,100 @@ impl Default for LocalNode {
 
 #[cfg(test)]
 mod tests {
+    use std::net::{Ipv4Addr, SocketAddrV4};
+
+    use crate::{
+        application::quorum::QuorumNode,
+        scp::scp_driver::{HashValue, SCPEnvelope},
+    };
+
     use super::*;
 
     #[test]
-    fn heard_from_quorum() {}
+    fn quorum_test_1() {
+        // V1's quorum slice is not a quorum without 'v4'.
+        //              ┌────┐
+        //     ┌───────▶│ 4  │◀──────────┐
+        //     │        └────┘           │
+        //     │                         │
+        //     │                         │
+        //     ▼                         ▼
+        //  ┌────┐                    ┌────┐
+        //  │ 2  │◀──────────────────▶│ 3  │
+        //  └────┘                    └────┘
+        //     ▲                         ▲
+        //     │                         │
+        //     │         ┌────┐          │
+        //     └─────────│ 1  │──────────┘
+        //               └────┘
+        
+        let sock1 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080);
+        let sock2 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8081);
+        let sock3 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8082);
+        let sock4 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8082);
+
+        let node_id1 = "node1";
+        let node_id2 = "node2";
+        let node_id3 = "node3";
+        let node_id4 = "node4";
+
+        let node1 = QuorumNode {
+            node_id: node_id1.into(),
+            addr: sock1,
+        };
+        let node2 = QuorumNode {
+            node_id: node_id2.into(),
+            addr: sock2,
+        };
+        let node3 = QuorumNode {
+            node_id: node_id3.into(),
+            addr: sock3,
+        };
+        let node4 = QuorumNode {
+            node_id: node_id4.into(),
+            addr: sock4,
+        };
+
+        let quorum_slice1 =
+            QuorumSlice::from([node1.to_owned(), node2.to_owned(), node3.to_owned()]);
+        let quorum_slice2 =
+            QuorumSlice::from([node2.to_owned(), node3.to_owned(), node4.to_owned()]);
+
+        let quorum1 = QuorumSet::from([quorum_slice1]);
+        let quorum2 = QuorumSet::from([quorum_slice2.clone()]);
+
+        let mut envelopes: BTreeMap<NodeID, HSCPEnvelope> = BTreeMap::new();
+        let env1 = SCPEnvelope::test_make_scp_envelope_from_quorum(node_id1.to_owned(), &quorum1);
+        let env2 = SCPEnvelope::test_make_scp_envelope_from_quorum(node_id2.to_owned(), &quorum2);
+        let env3 = SCPEnvelope::test_make_scp_envelope_from_quorum(node_id3.to_owned(), &quorum2);
+        let env4 = SCPEnvelope::test_make_scp_envelope_from_quorum(node_id4.to_owned(), &quorum2);
+
+        envelopes.insert(node_id1.to_owned(), Arc::new(Mutex::new(env1)));
+        envelopes.insert(node_id2.to_owned(), Arc::new(Mutex::new(env2)));
+        envelopes.insert(node_id3.to_owned(), Arc::new(Mutex::new(env3)));
+        envelopes.insert(node_id4.to_owned(), Arc::new(Mutex::new(env4)));
+
+        let mut quorum_map: BTreeMap<HashValue, HQuorumSet> = BTreeMap::new();
+        quorum_map.insert(quorum1.hash_value(), Arc::new(Mutex::new(quorum1.clone())));
+        quorum_map.insert(quorum2.hash_value(), Arc::new(Mutex::new(quorum2.clone())));
+
+        let get_quorum_set_predicate = |st: &SCPStatement| {
+            quorum_map
+                .get(&st.quorum_set_hash_value())
+                .map(|val| val.clone())
+        };
+
+        assert_eq!(
+            LocalNode::is_quorum(None, &envelopes, get_quorum_set_predicate),
+            true
+        );
+        envelopes.remove(node_id2);
+        envelopes.remove(node_id3);
+        envelopes.remove(node_id4);
+        assert_eq!(
+            LocalNode::is_quorum(None, &envelopes, get_quorum_set_predicate),
+            false
+        );
+    }
+
 }

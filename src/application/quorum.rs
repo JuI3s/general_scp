@@ -2,7 +2,8 @@ use std::{
     collections::{btree_set, hash_map::DefaultHasher, BTreeSet},
     f32::consts::E,
     hash::{Hash, Hasher},
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4}, sync::{Mutex, Arc},
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    sync::{Arc, Mutex},
 };
 
 use serde::{Deserialize, Serialize};
@@ -21,7 +22,7 @@ pub struct QuorumNode {
 }
 
 // Set of quorum slices for local node.
-#[derive(Debug, Serialize, Deserialize, Hash)]
+#[derive(Debug, Serialize, Deserialize, Hash, Clone)]
 pub struct QuorumSet {
     pub slices: BTreeSet<QuorumSlice>,
     pub threshold: usize,
