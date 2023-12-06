@@ -2,17 +2,40 @@ use core::time;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::{
-    ca_type::{PublicKey, Signature, Timestamp},
+    ca_type::{mock_public_key, PublicKey, Signature, Timestamp},
     operation::ReturnValueCell,
 };
 
-type CellOptResult<T> = std::result::Result<T, CellOpError>;
+type CellOpResult<T> = std::result::Result<T, CellOpError>;
 
 pub enum CellOpError {
     CommitmentNotExpires,
+    InvalidSignature,
     Unknown,
 }
 
+#[derive(PartialEq)]
+pub enum InnerCellType {
+    Value,
+    Delegate,
+}
+#[derive(Clone)]
+pub enum InnerCell<'a> {
+    ValueCell(ValueCell<'a>),
+    DelegateCell(DelegateCell<'a>),
+}
+
+// Delegate cells have a similar structure but different semantics.
+// Rather than resolving to an individual mapping, they authorize the
+// _delegee_ to create arbitrary value cells within a table mapped to
+// the assigned namespace.  This namespace must be a subset of the
+// _delegator_'s own namespace range.  Like the table authority, the
+// delegee is uniquely identified by their public key.  Each delegate
+// cell and subsequent updates to the cell are signed by the delegator -
+// this ensures that the delegee cannot unilaterally modify its
+// namespace, which limits the range of mappings they can create to
+// those legitimately assigned to them.
+#[derive(Clone)]
 pub struct DelegateCell<'a> {
     // opaque namespace<>
     name_space: &'a str,
@@ -22,18 +45,25 @@ pub struct DelegateCell<'a> {
     allowance: u32,
 }
 
-pub enum InnerCell<'a> {
-    ValueCell(ValueCell<'a>),
-    DelegateCell(DelegateCell<'a>),
-}
+// Value cells store individual mapping values.  They resolve a lookup
+// key to an arbitrary value, for example, an encryption key associated
+// with an email address or the zone files associated with a particular
+// domain.  The public key of the cell's owner (e.g. the email account
+// holder, the domain owner) is also included, as well as a signature
+// authenticating the current version of the cell.  Since the cell's
+// contents are controlled by the owner, its "value_sig" must be made by
+// the "owner_key".  The cell owner may rotate ptheir public key at any
+// time by signing the update with the old key.p
 
+#[derive(Clone)]
 pub struct ValueCell<'a> {
     // opaque value<>
     value: &'a str,
-    public_key: PublicKey,
+    owner_key: PublicKey,
     value_sig: Signature,
 }
 
+#[derive(Clone)]
 pub struct Cell<'a> {
     // 64-bit UNIX timestamps
     create_time: Timestamp,
@@ -49,20 +79,75 @@ fn timestamp_now() -> u64 {
 }
 
 impl<'a> Cell<'a> {
-    fn check_commitment_expires(&self, timestamp: Timestamp) -> CellOptResult<()> {
-        if self.commitment_time < timestamp {
-            Ok(())
-        } else {
-            CellOptResult::Err(CellOpError::CommitmentNotExpires)
+    pub fn new_delegate_cell(name_space: &'a str, allowance: u32) -> Self {
+        Cell {
+            create_time: timestamp_now(),
+            revision_time: timestamp_now(),
+            commitment_time: timestamp_now(),
+            authority_sig: Default::default(),
+            inner_cell: InnerCell::DelegateCell(DelegateCell {
+                name_space,
+                delegate: mock_public_key(),
+                delegatoin_sig: Default::default(),
+                allowance: allowance,
+            }),
         }
     }
 
-    fn modify(&self) -> CellOptResult<ReturnValueCell> {
+    pub fn new_value_cell(value: &'a str) -> Self {
+        Cell {
+            create_time: timestamp_now(),
+            revision_time: timestamp_now(),
+            commitment_time: timestamp_now(),
+            authority_sig: Default::default(),
+            inner_cell: InnerCell::ValueCell(ValueCell {
+                value: value,
+                owner_key: mock_public_key(),
+                value_sig: Default::default(),
+            }),
+        }
+    }
+
+    fn check_commitment_expires(&self, timestamp: Timestamp) -> CellOpResult<()> {
+        if self.commitment_time < timestamp {
+            Ok(())
+        } else {
+            CellOpResult::Err(CellOpError::CommitmentNotExpires)
+        }
+    }
+
+    fn modify(&mut self) -> CellOpResult<&'a Self> {
         if let Err(err) = self.check_commitment_expires(timestamp_now()) {
             Err(err)
         } else {
+            self.revision_time = timestamp_now();
+
             todo!()
         }
+    }
+
+    pub fn name_space_or_value(&self) -> &'a str {
+        match &self.inner_cell {
+            InnerCell::ValueCell(val) => val.value,
+            InnerCell::DelegateCell(del) => del.name_space,
+        }
+    }
+
+    pub fn inner_cell_type(&self) -> InnerCellType {
+        match self.inner_cell {
+            InnerCell::ValueCell(_) => InnerCellType::Value,
+            InnerCell::DelegateCell(_) => InnerCellType::Delegate,
+        }
+    }
+
+    pub fn is_prefix_of(&self, cell: &Cell) -> bool {
+        cell.name_space_or_value()
+            .starts_with(self.name_space_or_value())
+    }
+
+    pub fn contains_prefix(&self, cell: &Cell) -> bool {
+        self.name_space_or_value()
+            .starts_with(cell.name_space_or_value())
     }
 }
 
@@ -78,7 +163,7 @@ mod tests {
             authority_sig: Default::default(),
             inner_cell: InnerCell::ValueCell(ValueCell {
                 value: "",
-                public_key: [0; 64],
+                owner_key: [0; 64],
                 value_sig: Default::default(),
             }),
         }

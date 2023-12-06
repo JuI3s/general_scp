@@ -13,6 +13,7 @@ use super::peer::{HPeer, Peer, PeerID, SCPPeer};
 
 #[derive(Clone, Debug)]
 pub struct SCPMessage {}
+
 pub type HSCPMessage = Arc<Mutex<SCPMessage>>;
 
 impl SCPMessage {
