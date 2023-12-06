@@ -168,6 +168,16 @@ mod tests {
 
     use super::*;
 
+    fn create_test_node(index: u16) -> (NodeID, QuorumNode) {
+        let sock = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080 + index);
+        let node_id = "node".to_string() + &index.to_string();
+        let node = QuorumNode {
+            node_id: node_id.clone(),
+            addr: sock,
+        };
+        (node_id, node)
+    }
+
     #[test]
     fn quorum_test_1() {
         // V1's quorum slice is not a quorum without 'v4'.
@@ -185,33 +195,11 @@ mod tests {
         //     │         ┌────┐          │
         //     └─────────│ 1  │──────────┘
         //               └────┘
-        
-        let sock1 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080);
-        let sock2 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8081);
-        let sock3 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8082);
-        let sock4 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8082);
 
-        let node_id1 = "node1";
-        let node_id2 = "node2";
-        let node_id3 = "node3";
-        let node_id4 = "node4";
-
-        let node1 = QuorumNode {
-            node_id: node_id1.into(),
-            addr: sock1,
-        };
-        let node2 = QuorumNode {
-            node_id: node_id2.into(),
-            addr: sock2,
-        };
-        let node3 = QuorumNode {
-            node_id: node_id3.into(),
-            addr: sock3,
-        };
-        let node4 = QuorumNode {
-            node_id: node_id4.into(),
-            addr: sock4,
-        };
+        let (node_id1, node1) = create_test_node(1);
+        let (node_id2, node2) = create_test_node(2);
+        let (node_id3, node3) = create_test_node(3);
+        let (node_id4, node4) = create_test_node(4);
 
         let quorum_slice1 =
             QuorumSlice::from([node1.to_owned(), node2.to_owned(), node3.to_owned()]);
@@ -246,9 +234,9 @@ mod tests {
             LocalNode::is_quorum(None, &envelopes, get_quorum_set_predicate),
             true
         );
-        envelopes.remove(node_id2);
-        envelopes.remove(node_id3);
-        envelopes.remove(node_id4);
+        envelopes.remove(&node_id2);
+        envelopes.remove(&node_id3);
+        envelopes.remove(&node_id4);
         assert_eq!(
             LocalNode::is_quorum(None, &envelopes, get_quorum_set_predicate),
             false
