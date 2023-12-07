@@ -133,6 +133,13 @@ impl<'a> Cell<'a> {
         }
     }
 
+    pub fn allowance(&self) -> u32 {
+        match &self.inner_cell {
+            InnerCell::ValueCell(_) => 1,
+            InnerCell::DelegateCell(del) => del.allowance.to_owned(),
+        }
+    }
+
     pub fn inner_cell_type(&self) -> InnerCellType {
         match self.inner_cell {
             InnerCell::ValueCell(_) => InnerCellType::Value,

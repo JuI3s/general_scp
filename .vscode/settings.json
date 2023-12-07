@@ -1,6 +1,7 @@
 {
     "rust-analyzer.linkedProjects": [
         "./weak_self_derive/Cargo.toml",
+        "./Cargo.toml",
         "./Cargo.toml"
     ]
 }

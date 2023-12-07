@@ -13,6 +13,8 @@ type TableOpResult<T> = std::result::Result<T, TableOpError>;
 pub enum TableOpError {
     NamespaceError,
     CellAddressIsPrefix,
+    // NotEnoughAllowence(allowance_capacity, allowance_filled)
+    NotEnoughAllowence(u32, u32),
 }
 
 // Every cell is stored in a table, which groups all the mappings
@@ -39,6 +41,7 @@ pub struct TableEntry<'a> {
 }
 
 pub struct Table<'a> {
+    allowance: u32,
     table_entries: BTreeSet<TableEntry<'a>>,
 }
 
@@ -73,14 +76,6 @@ impl<'a> Ord for TableEntry<'a> {
     }
 }
 
-impl<'a> Default for Table<'a> {
-    fn default() -> Self {
-        Self {
-            table_entries: Default::default(),
-        }
-    }
-}
-
 impl<'a> TableEntry<'a> {
     //    Delegating the whole or part of a namespace requires adding a new
     //    lookup key for the namespace and a matching delegate cell.  Each
@@ -98,8 +93,27 @@ impl<'a> TableEntry<'a> {
     }
 }
 
+impl<'a> Default for Table<'a> {
+    fn default() -> Self {
+        Self {
+            allowance: Table::DEFAULT_ALLOWANCE,
+            table_entries: Default::default(),
+        }
+    }
+}
+
 impl<'a> Table<'a> {
+    const DEFAULT_ALLOWANCE: u32 = 100;
+
+    pub fn new(allowance: u32) -> Self {
+        Self {
+            allowance,
+            table_entries: Default::default(),
+        }
+    }
+
     pub fn add_entry(&mut self, cell: Cell<'a>) {
+        // Assume the cell hsa passed application level checks.
         self.table_entries.insert(TableEntry {
             lookup_key: cell.name_space_or_value(),
             cell,
@@ -136,13 +150,35 @@ impl<'a> Table<'a> {
             return Err(TableOpError::NamespaceError);
         }
 
-        // TODO: do not iterate over the whole thing.
+        // TODO: do not iterate over the whole thing for performance optimization.
         if self
             .table_entries
             .iter()
             .any(|table_entry| cell.is_prefix_of(&table_entry.cell))
         {
             return Err(TableOpError::CellAddressIsPrefix);
+        }
+
+        Ok(())
+    }
+
+    pub fn contains_enough_allowance(&self, allowance: u32) -> TableOpResult<()> {
+        if self.allowance == 0 {
+            return Ok(());
+        }
+
+        if let Some(current_allowance) = self
+            .table_entries
+            .iter()
+            .map(|entry| entry.cell.allowance())
+            .reduce(|acc, e| acc + e)
+        {
+            if current_allowance + allowance > self.allowance {
+                return Err(TableOpError::NotEnoughAllowence(
+                    self.allowance,
+                    current_allowance,
+                ));
+            }
         }
 
         Ok(())
@@ -171,14 +207,26 @@ mod tests {
             .is_err_and(|err| { err == TableOpError::CellAddressIsPrefix }));
 
         let cell2 = Cell::new_value_cell("home/");
-        let cell3 = Cell::new_value_cell("home/1");
-        let cell4 = Cell::new_value_cell("home/1/2");
+        let cell3 = Cell::new_value_cell("home/1/2");
+
         assert!(entries
             .check_cell_valid(&cell2)
             .is_err_and(|err| { err == TableOpError::CellAddressIsPrefix }));
         assert!(entries
-            .check_cell_valid(&cell3)
+            .check_cell_valid(&cell1)
             .is_err_and(|err| { err == TableOpError::CellAddressIsPrefix }));
-        assert!(entries.check_cell_valid(&cell4).is_ok());
+        assert!(entries.check_cell_valid(&cell3).is_ok());
+    }
+
+    #[test]
+    fn allowance() {
+        let mut table = Table::new(1);
+        assert!(table.contains_enough_allowance(1).is_ok());
+        
+        let home_cell = Cell::new_delegate_cell("home/", 1);
+        table.add_entry(home_cell);
+
+        assert!(table.contains_enough_allowance(1).is_err_and(|err| {err == TableOpError::NotEnoughAllowence(1, 1)}));
+
     }
 }
