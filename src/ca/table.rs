@@ -4,7 +4,7 @@ use crate::ca::table;
 
 use super::{
     ca_type::{PublicKey, Signature},
-    cell::{Cell, InnerCellType},
+    cell::{Cell, InnerCellType}, merkle::MerkleTree,
 };
 
 type TableOpResult<T> = std::result::Result<T, TableOpError>;
@@ -43,6 +43,7 @@ pub struct TableEntry<'a> {
 pub struct Table<'a> {
     allowance: u32,
     table_entries: BTreeSet<TableEntry<'a>>,
+    merkle_tree: MerkleTree,
 }
 
 pub struct RootEntry<'a> {
@@ -98,6 +99,7 @@ impl<'a> Default for Table<'a> {
         Self {
             allowance: Table::DEFAULT_ALLOWANCE,
             table_entries: Default::default(),
+            merkle_tree: Default::default(),
         }
     }
 }
@@ -109,6 +111,7 @@ impl<'a> Table<'a> {
         Self {
             allowance,
             table_entries: Default::default(),
+            merkle_tree: Default::default(),
         }
     }
 

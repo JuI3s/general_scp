@@ -13,7 +13,6 @@ pub type MerkleOpResult<T> = std::result::Result<T, MerkleOpError>;
 pub enum MerkleOpError {
     FailureGenerateInclusionProof,
     InvalidIndex,
-
     // From the ct-merkle crate.
 
     /// The proof is malformed, meaning it's either too big for the tree, or its length is not a

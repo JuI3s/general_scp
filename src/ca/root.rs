@@ -1,4 +1,4 @@
-use super::ca_type::{PublicKey, Signature};
+use super::{ca_type::{PublicKey, Signature}, merkle::MerkleTree};
 
 pub type RootOpResult<T> = std::result::Result<T, RootOpError>;
 pub enum RootOpError {
@@ -29,12 +29,14 @@ pub struct RootEntry<'a> {
 
 struct RootListings<'a> {
     roots: Vec<RootEntry<'a>>,
+    merkle_tree: MerkleTree,
 }
 
 impl<'a> Default for RootListings<'a> {
     fn default() -> Self {
         Self {
             roots: Default::default(),
+            merkle_tree: Default::default(), 
         }
     }
 }
