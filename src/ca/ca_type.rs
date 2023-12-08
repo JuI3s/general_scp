@@ -1,4 +1,16 @@
-pub type PublicKey = [u8; 64];
+// pub type PublicKey = [u8; 64];
+// pub type PublicKey = String;
+#[derive(Clone, PartialEq)]
+pub struct PublicKey {
+    key: String,
+}
+
+impl PublicKey {
+    pub fn to_text(&self) -> String {
+        self.key.to_owned()
+    }
+}
+
 pub type Timestamp = u64;
 
 #[derive(Clone)]
@@ -7,11 +19,11 @@ pub struct Signature {
 }
 
 pub fn mock_public_key() -> PublicKey {
-    [0; 64]
+   PublicKey{ key: "".into() }
 }
 
 impl Default for Signature {
     fn default() -> Self {
-        Self { pk: [0; 64] }
+        Self { pk: mock_public_key() }
     }
 }

@@ -170,7 +170,7 @@ mod tests {
             authority_sig: Default::default(),
             inner_cell: InnerCell::ValueCell(ValueCell {
                 value: "",
-                owner_key: [0; 64],
+                owner_key: mock_public_key(), 
                 value_sig: Default::default(),
             }),
         }
