@@ -8,7 +8,6 @@ use std::{
 pub type HashValue = u64;
 
 use syn::token::Mut;
-use weak_self_derive::WeakSelf;
 
 use crate::{
     application::{

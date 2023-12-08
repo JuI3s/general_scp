@@ -4,7 +4,6 @@ use std::{
     ops::Deref,
     sync::Weak,
 };
-use weak_self_derive::WeakSelf;
 
 use std::{
     borrow::BorrowMut,

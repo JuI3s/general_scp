@@ -63,6 +63,7 @@ pub struct ValueCell<'a> {
     value_sig: Signature,
 }
 
+// AsRef<[u8]>,
 #[derive(Clone)]
 pub struct Cell<'a> {
     // 64-bit UNIX timestamps
@@ -72,6 +73,7 @@ pub struct Cell<'a> {
     authority_sig: Signature,
     inner_cell: InnerCell<'a>,
 }
+
 
 fn timestamp_now() -> u64 {
     let now = SystemTime::now();

@@ -1,5 +1,3 @@
-#[macro_use]
-extern crate weak_self_derive;
 
 use std::{
     collections::HashSet,
