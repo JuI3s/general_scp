@@ -1,8 +1,6 @@
 {
+    "rust-analyzer.inlayHints.parameterHints": true,
     "rust-analyzer.linkedProjects": [
-        "./weak_self_derive/Cargo.toml",
         "./Cargo.toml",
-        "./Cargo.toml",
-        "./Cargo.toml"
     ]
 }

@@ -21,25 +21,34 @@ pub enum RootOpError {
 // TODO: my understanding is that each root entry represents a merkle tree?
 pub struct RootEntry<'a> {
     namespace_root_key: PublicKey,
-    application_identifier: &'a str,   
+    application_identifier: &'a str,
     listing_sig: Signature,
     allowance: u32,
     // TODO: This should point to some Merkle tree?
 }
 
 struct RootListings<'a> {
-    roots: Vec<RootEntry<'a>>,  
+    roots: Vec<RootEntry<'a>>,
 }
 
 impl<'a> Default for RootListings<'a> {
     fn default() -> Self {
-        Self { roots: Default::default() }
+        Self {
+            roots: Default::default(),
+        }
     }
 }
 
 impl<'a> RootListings<'a> {
-    pub fn get_entry(&mut self, namespace_root_key: &PublicKey, application_identifier: &'a str) ->  RootOpResult<&mut RootEntry<'a>> {
-        if let Some( entry) = self.roots.iter_mut().find(|entry| {entry.namespace_root_key == *namespace_root_key && entry.application_identifier == application_identifier}) {
+    pub fn get_entry(
+        &mut self,
+        namespace_root_key: &PublicKey,
+        application_identifier: &'a str,
+    ) -> RootOpResult<&mut RootEntry<'a>> {
+        if let Some(entry) = self.roots.iter_mut().find(|entry| {
+            entry.namespace_root_key == *namespace_root_key
+                && entry.application_identifier == application_identifier
+        }) {
             Ok(entry)
         } else {
             Err(RootOpError::RootEntryNotExists)
@@ -47,6 +56,4 @@ impl<'a> RootListings<'a> {
     }
 }
 
-impl<'a> RootEntry<'a> { 
-    
-}
+impl<'a> RootEntry<'a> {}

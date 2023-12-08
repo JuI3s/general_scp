@@ -1,6 +1,8 @@
 use core::time;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use syn::token::Or;
+
 use super::{
     ca_type::{mock_public_key, PublicKey, Signature, Timestamp},
     operation::ReturnValueCell,
@@ -19,10 +21,12 @@ pub enum InnerCellType {
     Value,
     Delegate,
 }
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub enum InnerCell<'a> {
     ValueCell(ValueCell<'a>),
     DelegateCell(DelegateCell<'a>),
+    // TODO: Needed for merkle tree library.
+    Empty,
 }
 
 // Delegate cells have a similar structure but different semantics.
@@ -35,7 +39,7 @@ pub enum InnerCell<'a> {
 // this ensures that the delegee cannot unilaterally modify its
 // namespace, which limits the range of mappings they can create to
 // those legitimately assigned to them.
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub struct DelegateCell<'a> {
     // opaque namespace<>
     name_space: &'a str,
@@ -55,7 +59,7 @@ pub struct DelegateCell<'a> {
 // the "owner_key".  The cell owner may rotate ptheir public key at any
 // time by signing the update with the old key.p
 
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub struct ValueCell<'a> {
     // opaque value<>
     value: &'a str,
@@ -64,7 +68,7 @@ pub struct ValueCell<'a> {
 }
 
 // AsRef<[u8]>,
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub struct Cell<'a> {
     // 64-bit UNIX timestamps
     create_time: Timestamp,
@@ -73,7 +77,6 @@ pub struct Cell<'a> {
     authority_sig: Signature,
     inner_cell: InnerCell<'a>,
 }
-
 
 fn timestamp_now() -> u64 {
     let now = SystemTime::now();
@@ -132,6 +135,7 @@ impl<'a> Cell<'a> {
         match &self.inner_cell {
             InnerCell::ValueCell(val) => val.value,
             InnerCell::DelegateCell(del) => del.name_space,
+            InnerCell::Empty => panic!("Inner cell is empty."),
         }
     }
 
@@ -139,6 +143,7 @@ impl<'a> Cell<'a> {
         match &self.inner_cell {
             InnerCell::ValueCell(_) => 1,
             InnerCell::DelegateCell(del) => del.allowance.to_owned(),
+            InnerCell::Empty => panic!("Inner cell is empty."),
         }
     }
 
@@ -146,6 +151,7 @@ impl<'a> Cell<'a> {
         match self.inner_cell {
             InnerCell::ValueCell(_) => InnerCellType::Value,
             InnerCell::DelegateCell(_) => InnerCellType::Delegate,
+            InnerCell::Empty => panic!("Inner cell is empty."),
         }
     }
 
@@ -172,7 +178,7 @@ mod tests {
             authority_sig: Default::default(),
             inner_cell: InnerCell::ValueCell(ValueCell {
                 value: "",
-                owner_key: mock_public_key(), 
+                owner_key: mock_public_key(),
                 value_sig: Default::default(),
             }),
         }
@@ -191,5 +197,38 @@ mod tests {
             .is_err_and(|err| { matches!(err, CellOpError::CommitmentNotExpires) }));
 
         assert!(cell.check_commitment_expires(2).is_ok())
+    }
+}
+
+impl<'a> PartialEq for Cell<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.name_space_or_value() == other.name_space_or_value()
+    }
+}
+
+impl<'a> Eq for Cell<'a> {}
+
+impl<'a> PartialOrd for Cell<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.name_space_or_value()
+            .partial_cmp(other.name_space_or_value())
+    }
+}
+
+impl<'a> Ord for Cell<'a> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.name_space_or_value().cmp(other.name_space_or_value())
+    }
+}
+
+impl<'a> Default for Cell<'a> {
+    fn default() -> Self {
+        Self {
+            create_time: Default::default(),
+            revision_time: Default::default(),
+            commitment_time: Default::default(),
+            authority_sig: Default::default(),
+            inner_cell: InnerCell::Empty,
+        }
     }
 }

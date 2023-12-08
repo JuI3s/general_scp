@@ -222,11 +222,12 @@ mod tests {
     fn allowance() {
         let mut table = Table::new(1);
         assert!(table.contains_enough_allowance(1).is_ok());
-        
+
         let home_cell = Cell::new_delegate_cell("home/", 1);
         table.add_entry(&home_cell);
 
-        assert!(table.contains_enough_allowance(1).is_err_and(|err| {err == TableOpError::NotEnoughAllowence(1, 1)}));
-
+        assert!(table
+            .contains_enough_allowance(1)
+            .is_err_and(|err| { err == TableOpError::NotEnoughAllowence(1, 1) }));
     }
 }
