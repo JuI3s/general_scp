@@ -37,7 +37,7 @@ pub enum TableOpError {
 pub struct TableEntry<'a> {
     // opaque lookup_key<>
     lookup_key: &'a str,
-    cell: Cell<'a>,
+    cell: &'a Cell<'a>,
 }
 
 pub struct Table<'a> {
@@ -112,7 +112,7 @@ impl<'a> Table<'a> {
         }
     }
 
-    pub fn add_entry(&mut self, cell: Cell<'a>) {
+    pub fn add_entry(&mut self, cell: &'a Cell<'a>) {
         // Assume the cell hsa passed application level checks.
         self.table_entries.insert(TableEntry {
             lookup_key: cell.name_space_or_value(),
@@ -198,10 +198,10 @@ mod tests {
         assert!(entries
             .check_cell_valid(&cell1)
             .is_err_and(|err| { err == TableOpError::NamespaceError }));
-        entries.add_entry(home_cell);
+        entries.add_entry(&home_cell);
         assert!(entries.check_cell_valid(&cell1).is_ok());
 
-        entries.add_entry(cell1.clone());
+        entries.add_entry(&cell1);
         assert!(entries
             .check_cell_valid(&cell1)
             .is_err_and(|err| { err == TableOpError::CellAddressIsPrefix }));
@@ -224,7 +224,7 @@ mod tests {
         assert!(table.contains_enough_allowance(1).is_ok());
         
         let home_cell = Cell::new_delegate_cell("home/", 1);
-        table.add_entry(home_cell);
+        table.add_entry(&home_cell);
 
         assert!(table.contains_enough_allowance(1).is_err_and(|err| {err == TableOpError::NotEnoughAllowence(1, 1)}));
 
