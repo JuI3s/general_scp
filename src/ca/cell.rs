@@ -136,7 +136,7 @@ impl<'a> Cell<'a> {
         match &self.inner_cell {
             InnerCell::ValueCell(val) => Some(val.value),
             InnerCell::DelegateCell(del) => Some(del.name_space),
-            InnerCell::Invalid => None, 
+            InnerCell::Invalid => None,
         }
     }
 
@@ -157,20 +157,17 @@ impl<'a> Cell<'a> {
     }
 
     pub fn is_prefix_of(&self, cell: &Cell) -> bool {
-
         cell.name_space_or_value().is_some_and(|val| {
-            self.name_space_or_value().is_some_and(|self_val| {val.starts_with(self_val)})
+            self.name_space_or_value()
+                .is_some_and(|self_val| val.starts_with(self_val))
         })
     }
 
     pub fn contains_prefix(&self, cell: &Cell) -> bool {
-
         self.name_space_or_value().is_some_and(|self_val| {
-            cell.name_space_or_value().is_some_and(|val| {
-                self_val.starts_with(val)
-            })
+            cell.name_space_or_value()
+                .is_some_and(|val| self_val.starts_with(val))
         })
-
     }
 }
 
@@ -218,13 +215,12 @@ impl<'a> Eq for Cell<'a> {}
 
 impl<'a> PartialOrd for Cell<'a> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-
         if let Some(self_val) = self.name_space_or_value() {
             if let Some(other_val) = other.name_space_or_value() {
                 return self_val.partial_cmp(other_val);
             }
         }
-        
+
         None
     }
 }

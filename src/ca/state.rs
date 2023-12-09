@@ -1,18 +1,31 @@
-use super::cell::Cell;
+use std::collections::{BTreeMap, BTreeSet};
 
-pub type PublicKey = [u8; 64];
-type Timestamp = u64;
-struct Signature {
-    pk: PublicKey,
+use super::{
+    merkle::MerkleTree,
+    root::RootListing,
+    table::{Table, TableEntry},
+};
+
+pub struct CAState<'a> {
+    table_tree: MerkleTree,
+    value_cell_trees: BTreeMap<TableEntry<'a>, MerkleTree>,
+    root_listing: RootListing<'a>,
+    tables: BTreeSet<Table<'a>>,
 }
 
-pub enum CellType {
-    Value,
-    Delegate,
+impl<'a> Default for CAState<'a> {
+    fn default() -> Self {
+        Self {
+            table_tree: Default::default(),
+            value_cell_trees: Default::default(),
+            root_listing: Default::default(),
+            tables: Default::default(),
+        }
+    }
 }
 
-pub struct Record<'a> {
-    title: &'a str,
+impl<'a> CAState<'a> {
+    
 }
 
 // Creating or updating a cell at a specified path requires once again
@@ -35,12 +48,4 @@ pub struct Record<'a> {
 mod tests {
 
     use super::*;
-
-    #[test]
-    fn prefix() {
-        let a = Record { title: "/sun/a" };
-        let b = Record { title: "/sun/b" };
-
-        assert!(!a.title.starts_with(b.title));
-    }
 }

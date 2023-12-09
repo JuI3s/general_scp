@@ -4,7 +4,8 @@ use crate::ca::table;
 
 use super::{
     ca_type::{PublicKey, Signature},
-    cell::{Cell, InnerCellType}, merkle::MerkleTree,
+    cell::{Cell, InnerCellType},
+    merkle::MerkleTree,
 };
 
 type TableOpResult<T> = std::result::Result<T, TableOpError>;
@@ -15,7 +16,7 @@ pub enum TableOpError {
     CellAddressIsPrefix,
     // NotEnoughAllowence(allowance_capacity, allowance_filled)
     NotEnoughAllowence(u32, u32),
-    InvalidCell,
+    EmptyCell,
 }
 
 // Every cell is stored in a table, which groups all the mappings
@@ -52,10 +53,6 @@ pub struct RootEntry<'a> {
     application_identifier: &'a str,
     listing_sig: Signature,
     allowance: u32,
-}
-
-pub struct RootListing<'a> {
-    root_entries: BTreeSet<RootEntry<'a>>,
 }
 
 impl<'a> Eq for TableEntry<'a> {}
@@ -95,7 +92,7 @@ impl<'a> TableEntry<'a> {
                 Ok(())
             }
         } else {
-            Err(TableOpError::InvalidCell)
+            Err(TableOpError::EmptyCell)
         }
     }
 }
@@ -123,17 +120,23 @@ impl<'a> Table<'a> {
 
     pub fn add_entry(&mut self, cell: &'a Cell<'a>) -> TableOpResult<()> {
         if let Some(val) = cell.name_space_or_value() {
-           self.table_entries.insert(TableEntry { lookup_key: val, cell: cell });
-           Ok(())
+            self.table_entries.insert(TableEntry {
+                lookup_key: val,
+                cell: cell,
+            });
+            Ok(())
         } else {
-            Err(TableOpError::InvalidCell)
+            Err(TableOpError::EmptyCell)
         }
     }
 
     pub fn remove_entry(&mut self, prompt: &str) {
-        
-        self.table_entries
-            .retain(|entry| !entry.cell.name_space_or_value().is_some_and(|val| {val == prompt}));
+        self.table_entries.retain(|entry| {
+            !entry
+                .cell
+                .name_space_or_value()
+                .is_some_and(|val| val == prompt)
+        });
     }
 
     //    2.3.  Prefix-based Delegation Correctness
