@@ -1,7 +1,7 @@
 use core::time;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use syn::token::Or;
+use syn::token::{Or, SelfValue};
 
 use super::{
     ca_type::{mock_public_key, PublicKey, Signature, Timestamp},
@@ -20,13 +20,14 @@ pub enum CellOpError {
 pub enum InnerCellType {
     Value,
     Delegate,
+    Invalid,
 }
 #[derive(Clone, Hash)]
 pub enum InnerCell<'a> {
     ValueCell(ValueCell<'a>),
     DelegateCell(DelegateCell<'a>),
     // TODO: Needed for merkle tree library.
-    Empty,
+    Invalid,
 }
 
 // Delegate cells have a similar structure but different semantics.
@@ -131,19 +132,19 @@ impl<'a> Cell<'a> {
         }
     }
 
-    pub fn name_space_or_value(&self) -> &'a str {
+    pub fn name_space_or_value(&self) -> Option<&'a str> {
         match &self.inner_cell {
-            InnerCell::ValueCell(val) => val.value,
-            InnerCell::DelegateCell(del) => del.name_space,
-            InnerCell::Empty => panic!("Inner cell is empty."),
+            InnerCell::ValueCell(val) => Some(val.value),
+            InnerCell::DelegateCell(del) => Some(del.name_space),
+            InnerCell::Invalid => None, 
         }
     }
 
-    pub fn allowance(&self) -> u32 {
+    pub fn allowance(&self) -> Option<u32> {
         match &self.inner_cell {
-            InnerCell::ValueCell(_) => 1,
-            InnerCell::DelegateCell(del) => del.allowance.to_owned(),
-            InnerCell::Empty => panic!("Inner cell is empty."),
+            InnerCell::ValueCell(_) => Some(1),
+            InnerCell::DelegateCell(del) => Some(del.allowance.to_owned()),
+            InnerCell::Invalid => None,
         }
     }
 
@@ -151,18 +152,25 @@ impl<'a> Cell<'a> {
         match self.inner_cell {
             InnerCell::ValueCell(_) => InnerCellType::Value,
             InnerCell::DelegateCell(_) => InnerCellType::Delegate,
-            InnerCell::Empty => panic!("Inner cell is empty."),
+            InnerCell::Invalid => InnerCellType::Invalid,
         }
     }
 
     pub fn is_prefix_of(&self, cell: &Cell) -> bool {
-        cell.name_space_or_value()
-            .starts_with(self.name_space_or_value())
+
+        cell.name_space_or_value().is_some_and(|val| {
+            self.name_space_or_value().is_some_and(|self_val| {val.starts_with(self_val)})
+        })
     }
 
     pub fn contains_prefix(&self, cell: &Cell) -> bool {
-        self.name_space_or_value()
-            .starts_with(cell.name_space_or_value())
+
+        self.name_space_or_value().is_some_and(|self_val| {
+            cell.name_space_or_value().is_some_and(|val| {
+                self_val.starts_with(val)
+            })
+        })
+
     }
 }
 
@@ -210,14 +218,14 @@ impl<'a> Eq for Cell<'a> {}
 
 impl<'a> PartialOrd for Cell<'a> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.name_space_or_value()
-            .partial_cmp(other.name_space_or_value())
-    }
-}
 
-impl<'a> Ord for Cell<'a> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.name_space_or_value().cmp(other.name_space_or_value())
+        if let Some(self_val) = self.name_space_or_value() {
+            if let Some(other_val) = other.name_space_or_value() {
+                return self_val.partial_cmp(other_val);
+            }
+        }
+        
+        None
     }
 }
 
@@ -228,7 +236,7 @@ impl<'a> Default for Cell<'a> {
             revision_time: Default::default(),
             commitment_time: Default::default(),
             authority_sig: Default::default(),
-            inner_cell: InnerCell::Empty,
+            inner_cell: InnerCell::Invalid,
         }
     }
 }

@@ -9,12 +9,13 @@ use super::{
 
 type TableOpResult<T> = std::result::Result<T, TableOpError>;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum TableOpError {
     NamespaceError,
     CellAddressIsPrefix,
     // NotEnoughAllowence(allowance_capacity, allowance_filled)
     NotEnoughAllowence(u32, u32),
+    InvalidCell,
 }
 
 // Every cell is stored in a table, which groups all the mappings
@@ -87,10 +88,15 @@ impl<'a> TableEntry<'a> {
     pub fn delegate(&mut self) {}
 
     pub fn check_cell_valid(&self, cell: &Cell) -> TableOpResult<()> {
-        if !cell.name_space_or_value().starts_with(self.lookup_key) {
-            return Err(TableOpError::NamespaceError);
+        if let Some(val) = cell.name_space_or_value() {
+            if !val.starts_with(self.lookup_key) {
+                Err(TableOpError::NamespaceError)
+            } else {
+                Ok(())
+            }
+        } else {
+            Err(TableOpError::InvalidCell)
         }
-        Ok(())
     }
 }
 
@@ -115,17 +121,19 @@ impl<'a> Table<'a> {
         }
     }
 
-    pub fn add_entry(&mut self, cell: &'a Cell<'a>) {
-        // Assume the cell hsa passed application level checks.
-        self.table_entries.insert(TableEntry {
-            lookup_key: cell.name_space_or_value(),
-            cell,
-        });
+    pub fn add_entry(&mut self, cell: &'a Cell<'a>) -> TableOpResult<()> {
+        if let Some(val) = cell.name_space_or_value() {
+           self.table_entries.insert(TableEntry { lookup_key: val, cell: cell });
+           Ok(())
+        } else {
+            Err(TableOpError::InvalidCell)
+        }
     }
 
     pub fn remove_entry(&mut self, prompt: &str) {
+        
         self.table_entries
-            .retain(|entry| entry.cell.name_space_or_value() != prompt);
+            .retain(|entry| !entry.cell.name_space_or_value().is_some_and(|val| {val == prompt}));
     }
 
     //    2.3.  Prefix-based Delegation Correctness
@@ -170,11 +178,18 @@ impl<'a> Table<'a> {
             return Ok(());
         }
 
-        if let Some(current_allowance) = self
+        if let Some(Some(current_allowance)) = self
             .table_entries
             .iter()
             .map(|entry| entry.cell.allowance())
-            .reduce(|acc, e| acc + e)
+            .reduce(|acc, e| {
+                if let Some(_acc) = acc {
+                    if let Some(_e) = e {
+                        return Some(_acc + _e);
+                    }
+                }
+                None
+            })
         {
             if current_allowance + allowance > self.allowance {
                 return Err(TableOpError::NotEnoughAllowence(
@@ -201,10 +216,10 @@ mod tests {
         assert!(entries
             .check_cell_valid(&cell1)
             .is_err_and(|err| { err == TableOpError::NamespaceError }));
-        entries.add_entry(&home_cell);
+        assert!(entries.add_entry(&home_cell).is_ok());
         assert!(entries.check_cell_valid(&cell1).is_ok());
 
-        entries.add_entry(&cell1);
+        assert!(entries.add_entry(&cell1).is_ok());
         assert!(entries
             .check_cell_valid(&cell1)
             .is_err_and(|err| { err == TableOpError::CellAddressIsPrefix }));
@@ -227,7 +242,7 @@ mod tests {
         assert!(table.contains_enough_allowance(1).is_ok());
 
         let home_cell = Cell::new_delegate_cell("home/", 1);
-        table.add_entry(&home_cell);
+        assert!(table.add_entry(&home_cell).is_ok());
 
         assert!(table
             .contains_enough_allowance(1)
