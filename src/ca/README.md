@@ -1,0 +1,1 @@
+Delegated Distributed Mappings implemened from the internet draft https://datatracker.ietf.org/doc/html/draft-watson-dinrg-delmap-02#ref-Trillian.
