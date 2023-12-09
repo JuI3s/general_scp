@@ -215,6 +215,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
+name = "general_scp"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "ct-merkle",
+ "log",
+ "paste",
+ "quote",
+ "serde",
+ "sha2",
+ "syn",
+ "tokio",
+ "toml",
+ "typenum",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -385,23 +402,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4722d768eff46b75989dd134e5c353f0d6296e5aaa3132e776cbdb56be7731aa"
 dependencies = [
  "bitflags",
-]
-
-[[package]]
-name = "rust_example"
-version = "0.1.0"
-dependencies = [
- "clap",
- "ct-merkle",
- "log",
- "paste",
- "quote",
- "serde",
- "sha2",
- "syn",
- "tokio",
- "toml",
- "typenum",
 ]
 
 [[package]]

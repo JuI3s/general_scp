@@ -7,7 +7,7 @@ use std::{
 };
 
 use clap::Parser;
-use rust_example::{
+use general_scp::{
     application::{
         app_config::AppConfig,
         application::Application,

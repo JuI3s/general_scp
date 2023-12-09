@@ -115,6 +115,8 @@ mod tests {
         let bytes: Vec<u8> = p2.as_bytes().into();
         let p_from_bytes = InclusionProof::<Sha256>::from_bytes(bytes);
         assert!(mktree.veritfy_inclusion_proof(&val2, 1, &p_from_bytes).is_ok());
+
+
     }
 
     #[test]
