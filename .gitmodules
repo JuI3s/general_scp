@@ -1,0 +1,3 @@
+[submodule "src/ct-merkle"]
+	path = src/ct-merkle
+	url = https://github.com/JuI3s/ct-merkle.git
