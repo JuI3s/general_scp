@@ -1,4 +1,4 @@
-use std::{collections::hash_map::DefaultHasher, fmt, hash::Hasher};
+use std::{collections::hash_map::DefaultHasher, fmt, hash::Hasher, process::id};
 
 use ct_merkle::{CtMerkleTree, inclusion::InclusionProof, error::InclusionVerifError};
 use sha2::{Digest, Sha256};
@@ -9,7 +9,7 @@ pub type MerkleHash = [u8; 32];
 
 pub type MerkleOpResult<T> = std::result::Result<T, MerkleOpError>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum MerkleOpError {
     FailureGenerateInclusionProof,
     InvalidIndex,
@@ -20,6 +20,7 @@ pub enum MerkleOpError {
     MalformedProof,
     /// This root hash does not match the proof's root hash w.r.t. the item
     VerificationFailure,    
+    InternalTreeError,
 
 }
 
@@ -37,6 +38,18 @@ impl Default for MerkleTree {
 impl MerkleTree {
     pub fn len(&self) -> usize {
         self.size
+    }
+
+    pub fn update(&mut self, val: MerkleHash, idx: usize) -> MerkleOpResult<()> {
+        if self.size <= idx {
+            return Err(MerkleOpError::InvalidIndex);
+        }
+
+        match self.mktree.update(val, idx) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(MerkleOpError::InternalTreeError)
+        }
+        
     }
 
     pub fn push(&mut self, val: MerkleHash) {
@@ -90,7 +103,7 @@ mod tests {
 
 
     #[test]
-    fn merkle_tree() {
+    fn merkle_tree_create_and_add() {
         let mut mktree = MerkleTree::default();
 
         let val1: [u8; 32] = [0; 32];
@@ -115,8 +128,25 @@ mod tests {
         let bytes: Vec<u8> = p2.as_bytes().into();
         let p_from_bytes = InclusionProof::<Sha256>::from_bytes(bytes);
         assert!(mktree.veritfy_inclusion_proof(&val2, 1, &p_from_bytes).is_ok());
+    }
 
+    #[test]
+    fn merkle_tree_modify_entry() {
+        let mut mktree = MerkleTree::default();
+        let val1: [u8; 32] = [0; 32];
+        let val2: [u8; 32] = [1; 32];
+        let val3: [u8; 32] = [2; 32];
+        mktree.push(val1);
+        mktree.push(val2);
 
+        let p1 = mktree.gen_inclusion_proof(1).unwrap();
+        assert!(mktree.veritfy_inclusion_proof(&val2, 1, &p1).is_ok());
+
+        assert!(mktree.update(val3, 1).is_ok());
+        assert!(mktree.veritfy_inclusion_proof(&val2, 1, &p1).is_err_and(|e|{e == MerkleOpError::VerificationFailure}));
+        
+        let p2 = mktree.gen_inclusion_proof(1).unwrap();
+        assert!(mktree.veritfy_inclusion_proof(&val3, 1, &p2).is_ok());
     }
 
     #[test]
