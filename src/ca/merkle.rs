@@ -115,7 +115,6 @@ mod tests {
         let bytes: Vec<u8> = p2.as_bytes().into();
         let p_from_bytes = InclusionProof::<Sha256>::from_bytes(bytes);
         assert!(mktree.veritfy_inclusion_proof(&val2, 1, &p_from_bytes).is_ok());
-
     }
 
     #[test]
@@ -143,35 +142,5 @@ mod tests {
         assert!(mktree.root().verify_inclusion(&val2, 1, &p_from_bytes).is_ok());
 
 
-    }
-    
-
-    #[test]
-    fn merkletree_lib() {
-        let cell1 = Cell::new_value_cell("value1");
-        let cell2 = Cell::new_value_cell("value2");
-        let cell3 = Cell::new_value_cell("value3");
-        let cell4 = Cell::new_value_cell("value4");
-        let cell5 = Cell::new_value_cell("value5");
-        let indices = vec![to_hash_value(cell4.to_owned())];
-        // let leaves: Vec<u64> = vec![cell1, cell2, cell3, cell4,cell5].iter().map(|cell|{to_hash_value(cell)}).collect();
-
-        // let tree = MerkleTree::new([[1;32], [2;32]]);
-        let val = [0; 32];
-        let val2 = [1; 32];
-
-
-        // match
-        //  MerkleTree::<E, Sha256Hasher, VecStore<E>>::new([val, val2]) {
-        // Ok(_) => {},
-        // Err(err) => {
-        // println!("Merkle Error.");
-        // println!("{}", err);
-        // assert!(false);
-        // },
-        // }
-
-        // let tree = MerkleTree::build_merkle_tree(&leaves);
-        // let proof = tree.build_proof(indices);
     }
 }
