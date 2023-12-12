@@ -1,5 +1,5 @@
 use super::{
-    ca_type::{PublicKey, Signature},
+    ca_type::{PublicKey, SCPSignature},
     merkle::MerkleTree,
 };
 
@@ -25,7 +25,7 @@ pub enum RootOpError {
 pub struct RootEntry<'a> {
     namespace_root_key: PublicKey,
     application_identifier: &'a str,
-    listing_sig: Signature,
+    listing_sig: SCPSignature,
     allowance: u32,
     // TODO: This should point to some Merkle tree?
 }

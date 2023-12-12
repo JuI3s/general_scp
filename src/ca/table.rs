@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use crate::ca::table;
 
 use super::{
-    ca_type::{PublicKey, Signature},
+    ca_type::{PublicKey, SCPSignature},
     cell::{Cell, InnerCellType},
     merkle::MerkleTree,
 };
@@ -51,7 +51,7 @@ pub struct Table<'a> {
 pub struct RootEntry<'a> {
     namespace_root_key: PublicKey,
     application_identifier: &'a str,
-    listing_sig: Signature,
+    listing_sig: SCPSignature,
     allowance: u32,
 }
 

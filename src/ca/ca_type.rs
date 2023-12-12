@@ -1,31 +1,63 @@
+use digest::Digest;
+use dsa::{Signature, SigningKey, VerifyingKey};
+use sha2::Sha256;
+use signature::{DigestVerifier, RandomizedDigestSigner};
+
 // pub type PublicKey = [u8; 64];
 // pub type PublicKey = String;
-#[derive(Clone, PartialEq, Hash)]
+#[derive(Clone, PartialEq)]
 pub struct PublicKey {
-    key: String,
+    // TODO: remove option
+    key: Option<VerifyingKey>,
 }
 
-impl PublicKey {
-    pub fn to_text(&self) -> String {
-        self.key.to_owned()
-    }
-}
+impl PublicKey {}
 
 pub type Timestamp = u64;
 
-#[derive(Clone, Hash)]
-pub struct Signature {
+#[derive(Clone)]
+pub struct SCPSignature {
     pk: PublicKey,
+    // TODO: remove the option
+    sig: Option<Signature>,
 }
 
 pub fn mock_public_key() -> PublicKey {
-    PublicKey { key: "".into() }
+    PublicKey { key: None }
 }
 
-impl Default for Signature {
+impl SCPSignature {
+    pub fn verify(&self) -> bool {
+        if let Some(key) = &self.pk.key {
+            if let Some(sig) = &self.sig {
+                return key
+                    .verify_digest(Sha256::new().chain_update(b"Ok"), sig)
+                    .is_ok();
+            }
+        }
+
+        false
+    }
+
+    pub fn from_signing_key(signing_key: &SigningKey) -> Self {
+        let sig = signing_key
+            .sign_digest_with_rng(&mut rand::thread_rng(), Sha256::new().chain_update(b"Ok"));
+        SCPSignature {
+            pk: PublicKey {
+                key: Some(signing_key.verifying_key().clone()),
+            },
+            sig: Some(sig),
+        }
+    }
+}
+
+impl Default for SCPSignature {
+    // TODO: this is only for dev and mock testing.
     fn default() -> Self {
         Self {
             pk: mock_public_key(),
+            sig: None,
+            // sig: Signature::from_der(include_str!("../../test_signature.der").as_bytes()).expect(""),
         }
     }
 }
@@ -69,7 +101,7 @@ mod tests {
         let signing_key = SigningKey::from_pkcs8_pem(OPENSSL_PEM_PRIVATE_KEY)
             .expect("Failed to decode PEM encoded OpenSSL signing key");
 
-        let signature = signing_key
+        let signature: Signature = signing_key
             .sign_digest_with_rng(&mut rand::thread_rng(), Sha256::new().chain_update(msg));
 
         let verifying_key = signing_key.verifying_key();
@@ -91,5 +123,14 @@ mod tests {
         assert!(verifying_key_from_bytes
             .verify_digest(Sha256::new().chain_update(msg), &signature)
             .is_ok());
+    }
+
+    #[test]
+    fn sign_scp_signature() {
+        let signing_key = SigningKey::from_pkcs8_pem(OPENSSL_PEM_PRIVATE_KEY)
+            .expect("Failed to decode PEM encoded OpenSSL signing key");
+
+        let signature = SCPSignature::from_signing_key(&signing_key);
+        assert!(signature.verify());
     }
 }

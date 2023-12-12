@@ -1,11 +1,11 @@
-use super::{ca_type::Signature, cell::Cell, merkle::MerkleHash, root::RootEntry, table::Table};
+use super::{ca_type::SCPSignature, cell::Cell, merkle::MerkleHash, root::RootEntry, table::Table};
 
 pub struct MerkleRootOperations {}
 
 pub struct MerkleProof<'a> {
     sibling_hashes: MerkleHash,
     entry_cell: Cell<'a>,
-    tree_sig: Signature,
+    tree_sig: SCPSignature,
     root_hash: MerkleHash,
 }
 

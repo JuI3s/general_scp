@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use syn::token::{Or, SelfValue};
 
 use super::{
-    ca_type::{mock_public_key, PublicKey, Signature, Timestamp},
+    ca_type::{mock_public_key, PublicKey, SCPSignature, Timestamp},
     operation::ReturnValueCell,
 };
 
@@ -22,7 +22,7 @@ pub enum InnerCellType {
     Delegate,
     Invalid,
 }
-#[derive(Clone, Hash)]
+#[derive(Clone)]
 pub enum InnerCell<'a> {
     ValueCell(ValueCell<'a>),
     DelegateCell(DelegateCell<'a>),
@@ -40,13 +40,13 @@ pub enum InnerCell<'a> {
 // this ensures that the delegee cannot unilaterally modify its
 // namespace, which limits the range of mappings they can create to
 // those legitimately assigned to them.
-#[derive(Clone, Hash)]
+#[derive(Clone)]
 pub struct DelegateCell<'a> {
     // opaque namespace<>
     name_space: &'a str,
     delegate: PublicKey,
     // Table authority controls delegations, not delegee
-    delegatoin_sig: Signature,
+    delegatoin_sig: SCPSignature,
     allowance: u32,
 }
 
@@ -60,22 +60,22 @@ pub struct DelegateCell<'a> {
 // the "owner_key".  The cell owner may rotate ptheir public key at any
 // time by signing the update with the old key.p
 
-#[derive(Clone, Hash)]
+#[derive(Clone)]
 pub struct ValueCell<'a> {
     // opaque value<>
     value: &'a str,
     owner_key: PublicKey,
-    value_sig: Signature,
+    value_sig: SCPSignature,
 }
 
 // AsRef<[u8]>,
-#[derive(Clone, Hash)]
+#[derive(Clone)]
 pub struct Cell<'a> {
     // 64-bit UNIX timestamps
     create_time: Timestamp,
     revision_time: Timestamp,
     commitment_time: Timestamp,
-    authority_sig: Signature,
+    authority_sig: SCPSignature,
     inner_cell: InnerCell<'a>,
 }
 
