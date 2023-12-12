@@ -1,16 +1,12 @@
-use super::{ca_type::Signature, cell::Cell, table::Table};
+use super::{ca_type::Signature, cell::Cell, merkle::MerkleHash, root::RootEntry, table::Table};
 
 pub struct MerkleRootOperations {}
 
 pub struct MerkleProof<'a> {
-    sibling_hashes: [u32; 32],
+    sibling_hashes: MerkleHash,
     entry_cell: Cell<'a>,
     tree_sig: Signature,
-}
-
-pub struct MerkleRootReturn {
-    root_hash: [u32; 32],
-    tree_sig: Signature,
+    root_hash: MerkleHash,
 }
 
 pub struct GetOperation<'a> {
@@ -18,7 +14,7 @@ pub struct GetOperation<'a> {
     full_lookup_key: &'a str,
 }
 
-pub enum ReturnValue<'a> {
+pub enum GetReturnValue<'a> {
     Cell(ReturnValueCell<'a>),
     Table(ReturnValueTable<'a>),
     Error(ReturnError<'a>),
@@ -36,4 +32,20 @@ pub struct ReturnValueTable<'a> {
 
 pub struct ReturnError<'a> {
     reason: &'a str,
+}
+
+pub struct SetOperation<'a> {
+    application_identifier: &'a str,
+    full_lookup_key: &'a str,
+    cell: Cell<'a>,
+}
+
+pub struct SetRootOperation<'a> {
+    entry: RootEntry<'a>,
+    remove: bool,
+}
+
+pub enum SetReturnValue<'a> {
+    Success,
+    Error(&'a str),
 }

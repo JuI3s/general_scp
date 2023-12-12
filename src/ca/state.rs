@@ -1,8 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
+    cell::Cell,
     merkle::MerkleTree,
-    root::RootListing,
+    operation::{MerkleProof, SetOperation},
+    root::{RootEntry, RootListing},
     table::{Table, TableEntry},
 };
 
@@ -25,7 +27,37 @@ impl<'a> Default for CAState<'a> {
 }
 
 impl<'a> CAState<'a> {
-    
+    pub fn validate_merkle_proof(&self, merkle_proof: &MerkleProof) {
+        todo!()
+    }
+
+    pub fn validate_set_operation(&self, set_opt: &SetOperation) -> bool {
+        todo!()
+    }
+
+    pub fn insert_cell(&mut self, cell: &Cell) {
+        todo!()
+    }
+
+    pub fn insert_root_entry(&mut self, root_entry: &RootEntry) {
+        todo!()
+    }
+
+    pub fn contains_cell(&self, cell: &Cell) -> bool {
+        todo!()
+    }
+
+    pub fn contains_root_entry(&self, root_entry: &RootEntry) -> bool {
+        todo!()
+    }
+
+    pub fn to_toml(&self) {
+        todo!()
+    }
+
+    pub fn from_toml(&self) {
+        todo!()
+    }
 }
 
 // Creating or updating a cell at a specified path requires once again
