@@ -223,6 +223,12 @@ mod tests {
     }
 
     #[test]
+    fn valid_cell() {
+        let cell = Cell::default();
+        assert!(cell.is_valid().is_ok());
+    }
+
+    #[test]
     fn invalid_cell() {
         let cell_invalid_sig = Cell {
             create_time: timestamp_now(),
