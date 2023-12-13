@@ -1,14 +1,20 @@
 use digest::Digest;
 use dsa::{Signature, SigningKey, VerifyingKey};
+use pkcs8::{
+    der::{Decode, Encode},
+    DecodePrivateKey,
+};
 use sha2::Sha256;
-use signature::{DigestVerifier, RandomizedDigestSigner};
+use signature::{DigestVerifier, RandomizedDigestSigner, SignatureEncoding};
+
+use crate::scp::scp::SCP;
 
 // pub type PublicKey = [u8; 64];
 // pub type PublicKey = String;
 #[derive(Clone, PartialEq)]
 pub struct PublicKey {
     // TODO: remove option
-    key: Option<VerifyingKey>,
+    key: VerifyingKey,
 }
 
 impl PublicKey {}
@@ -19,24 +25,34 @@ pub type Timestamp = u64;
 pub struct SCPSignature {
     pk: PublicKey,
     // TODO: remove the option
-    sig: Option<Signature>,
+    sig: Signature,
 }
 
 pub fn mock_public_key() -> PublicKey {
-    PublicKey { key: None }
+    let (verifying_key, _) = mock_public_key_sig();
+
+    PublicKey {
+        key: verifying_key.clone(),
+    }
+}
+
+fn mock_public_key_sig() -> (VerifyingKey, Signature) {
+    const OPENSSL_PEM_PRIVATE_KEY: &str = include_str!("../../test_private.pem");
+    let signing_key: SigningKey = SigningKey::from_pkcs8_pem(OPENSSL_PEM_PRIVATE_KEY)
+        .expect("Failed to decode PEM encoded OpenSSL signing key");
+    let verifying_key: &VerifyingKey = signing_key.verifying_key();
+    let sig = signing_key
+        .sign_digest_with_rng(&mut rand::thread_rng(), Sha256::new().chain_update(b"Ok"));
+
+    (verifying_key.clone(), sig)
 }
 
 impl SCPSignature {
     pub fn verify(&self) -> bool {
-        if let Some(key) = &self.pk.key {
-            if let Some(sig) = &self.sig {
-                return key
-                    .verify_digest(Sha256::new().chain_update(b"Ok"), sig)
-                    .is_ok();
-            }
-        }
-
-        false
+        self.pk
+            .key
+            .verify_digest(Sha256::new().chain_update(b"Ok"), &self.sig)
+            .is_ok()
     }
 
     pub fn from_signing_key(signing_key: &SigningKey) -> Self {
@@ -44,20 +60,38 @@ impl SCPSignature {
             .sign_digest_with_rng(&mut rand::thread_rng(), Sha256::new().chain_update(b"Ok"));
         SCPSignature {
             pk: PublicKey {
-                key: Some(signing_key.verifying_key().clone()),
+                key: signing_key.verifying_key().clone(),
             },
-            sig: Some(sig),
+            sig: sig,
         }
+    }
+
+    pub fn test_gen_fake_signature() -> SCPSignature {
+        const OPENSSL_PEM_PRIVATE_KEY: &str = include_str!("../../test_private.pem");
+        let signing_key: SigningKey = SigningKey::from_pkcs8_pem(OPENSSL_PEM_PRIVATE_KEY)
+            .expect("Failed to decode PEM encoded OpenSSL signing key");
+
+        let mut scp_sig = SCPSignature::default();
+
+        let sig = signing_key.sign_digest_with_rng(
+            &mut rand::thread_rng(),
+            Sha256::new().chain_update(b"Not ok"),
+        );
+        // bytes[0] = if bytes[0] == 0 {1} else {0};
+
+        scp_sig.sig = sig;
+        scp_sig
     }
 }
 
 impl Default for SCPSignature {
     // TODO: this is only for dev and mock testing.
     fn default() -> Self {
+        let (_, sig) = mock_public_key_sig();
+
         Self {
             pk: mock_public_key(),
-            sig: None,
-            // sig: Signature::from_der(include_str!("../../test_signature.der").as_bytes()).expect(""),
+            sig: sig,
         }
     }
 }
@@ -132,5 +166,17 @@ mod tests {
 
         let signature = SCPSignature::from_signing_key(&signing_key);
         assert!(signature.verify());
+    }
+
+    #[test]
+    fn verify_signature() {
+        let intact = SCPSignature::default();
+        assert!(intact.verify());
+    }
+
+    #[test]
+    fn corrupted_signature() {
+        let corrupted = SCPSignature::test_gen_fake_signature();
+        assert!(!corrupted.verify());
     }
 }
