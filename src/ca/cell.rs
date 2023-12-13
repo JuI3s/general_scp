@@ -10,6 +10,7 @@ use super::{
 
 type CellOpResult<T> = std::result::Result<T, CellOpError>;
 
+#[derive(PartialEq)]
 pub enum CellOpError {
     CommitmentNotExpires,
     InvalidSignature,
@@ -85,7 +86,24 @@ fn timestamp_now() -> u64 {
 }
 
 impl<'a> Cell<'a> {
-    pub fn new_delegate_cell(name_space: &'a str, allowance: u32) -> Self {
+    fn signature(&self) -> Option<&SCPSignature> {
+        match &self.inner_cell {
+            InnerCell::ValueCell(val) => Some(&val.value_sig),
+            InnerCell::DelegateCell(delegate) => Some(&delegate.delegatoin_sig),
+            InnerCell::Invalid => None,
+        }
+    }
+
+    pub fn is_valid(&self) -> CellOpResult<()> {
+        // TODO: for now, just check the signature is valid
+        if self.signature().is_some_and(|sig| !sig.verify()) {
+            return Err(CellOpError::InvalidSignature);
+        }
+
+        Ok(())
+    }
+
+    pub fn test_new_delegate_cell(name_space: &'a str, allowance: u32) -> Self {
         Cell {
             create_time: timestamp_now(),
             revision_time: timestamp_now(),
@@ -100,7 +118,7 @@ impl<'a> Cell<'a> {
         }
     }
 
-    pub fn new_value_cell(value: &'a str) -> Self {
+    pub fn test_new_value_cell(value: &'a str) -> Self {
         Cell {
             create_time: timestamp_now(),
             revision_time: timestamp_now(),
@@ -202,6 +220,25 @@ mod tests {
             .is_err_and(|err| { matches!(err, CellOpError::CommitmentNotExpires) }));
 
         assert!(cell.check_commitment_expires(2).is_ok())
+    }
+
+    #[test]
+    fn invalid_cell() {
+        let cell_invalid_sig = Cell {
+            create_time: timestamp_now(),
+            revision_time: timestamp_now(),
+            commitment_time: timestamp_now(),
+            authority_sig: Default::default(),
+            inner_cell: InnerCell::ValueCell(ValueCell {
+                value: "",
+                owner_key: mock_public_key(),
+                value_sig: SCPSignature::test_gen_fake_signature(),
+            }),
+        };
+
+        assert!(cell_invalid_sig
+            .is_valid()
+            .is_err_and(|err| { err == CellOpError::InvalidSignature }));
     }
 }
 

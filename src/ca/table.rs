@@ -213,8 +213,8 @@ mod tests {
     #[test]
     fn prefix_delegation_rule() {
         let mut entries: Table<'_> = Default::default();
-        let home_cell = Cell::new_delegate_cell("home/", 1);
-        let cell1 = Cell::new_value_cell("home/1");
+        let home_cell = Cell::test_new_delegate_cell("home/", 1);
+        let cell1 = Cell::test_new_value_cell("home/1");
 
         assert!(entries
             .check_cell_valid(&cell1)
@@ -227,8 +227,8 @@ mod tests {
             .check_cell_valid(&cell1)
             .is_err_and(|err| { err == TableOpError::CellAddressIsPrefix }));
 
-        let cell2 = Cell::new_value_cell("home/");
-        let cell3 = Cell::new_value_cell("home/1/2");
+        let cell2 = Cell::test_new_value_cell("home/");
+        let cell3 = Cell::test_new_value_cell("home/1/2");
 
         assert!(entries
             .check_cell_valid(&cell2)
@@ -244,7 +244,7 @@ mod tests {
         let mut table = Table::new(1);
         assert!(table.contains_enough_allowance(1).is_ok());
 
-        let home_cell = Cell::new_delegate_cell("home/", 1);
+        let home_cell = Cell::test_new_delegate_cell("home/", 1);
         assert!(table.add_entry(&home_cell).is_ok());
 
         assert!(table
