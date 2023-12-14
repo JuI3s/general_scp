@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::herder::herder::HerderDriver;
+
 use super::{
     cell::Cell,
     merkle::MerkleTree,
@@ -56,6 +58,20 @@ impl<'a> CAState<'a> {
     }
 
     pub fn from_toml(&self) {
+        todo!()
+    }
+}
+
+impl<'a> HerderDriver for CAState<'a> {
+    fn combine_candidates(&self, candidates: &crate::scp::nomination_protocol::NominationValueSet) -> Option<crate::scp::nomination_protocol::NominationValue> {
+        todo!()
+    }
+
+    fn emit_envelope(&self, envelope: &crate::scp::scp_driver::SCPEnvelope) {
+        todo!()
+    }
+
+    fn get_quorum_set(&self, statement: &crate::scp::statement::SCPStatement) -> Option<crate::application::quorum::HQuorumSet> {
         todo!()
     }
 }
