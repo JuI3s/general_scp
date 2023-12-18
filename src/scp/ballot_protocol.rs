@@ -2,6 +2,7 @@ use std::{
     borrow::{BorrowMut, Cow},
     collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
     hash::Hash,
+    marker::PhantomData,
     sync::{Arc, Mutex},
 };
 
@@ -17,10 +18,16 @@ use super::{
     statement::{SCPStatement, SCPStatementConfirm, SCPStatementExternalize, SCPStatementPrepare},
 };
 
-pub trait ToBallot {
-    fn to_ballot(&self) -> SCPBallot;
+pub trait ToBallot<N>
+where
+    N: NominationValue,
+{
+    fn to_ballot(&self) -> SCPBallot<N>;
 }
-impl SCPStatement {
+impl<N> SCPStatement<N>
+where
+    N: NominationValue,
+{
     fn ballot_counter(&self) -> u32 {
         match self {
             SCPStatement::Prepare(st) => st.ballot.counter,
@@ -81,29 +88,41 @@ impl SCPStatement {
 }
 
 // TODO: Probably make this generic using macros?
-impl ToBallot for SCPStatementPrepare {
-    fn to_ballot(&self) -> SCPBallot {
+impl<N> ToBallot<N> for SCPStatementPrepare<N>
+where
+    N: NominationValue,
+{
+    fn to_ballot(&self) -> SCPBallot<N> {
         SCPBallot {
             counter: self.num_high,
             value: self.ballot.value.clone(),
+            phantom: PhantomData,
         }
     }
 }
 
-impl ToBallot for SCPStatementConfirm {
-    fn to_ballot(&self) -> SCPBallot {
+impl<N> ToBallot<N> for SCPStatementConfirm<N>
+where
+    N: NominationValue,
+{
+    fn to_ballot(&self) -> SCPBallot<N> {
         SCPBallot {
             counter: self.num_high,
             value: self.ballot.value.clone(),
+            phantom: PhantomData,
         }
     }
 }
 
-impl ToBallot for SCPStatementExternalize {
-    fn to_ballot(&self) -> SCPBallot {
+impl<N> ToBallot<N> for SCPStatementExternalize<N>
+where
+    N: NominationValue,
+{
+    fn to_ballot(&self) -> SCPBallot<N> {
         SCPBallot {
             counter: self.num_high,
             value: self.commit.value.clone(),
+            phantom: PhantomData,
         }
     }
 }
@@ -111,37 +130,43 @@ impl ToBallot for SCPStatementExternalize {
 pub struct SPCStatementCommit {}
 
 #[derive(Eq, PartialEq, PartialOrd, Ord, Clone)]
-pub struct SCPBallot {
+pub struct SCPBallot<N>
+where
+    N: NominationValue,
+{
     counter: u32,
-    value: NominationValue,
+    value: N,
+    phantom: PhantomData<N>,
 }
 
-impl SCPBallot {
-    pub fn make_ballot(other: &SCPBallot) -> Self {
+impl<N: NominationValue> SCPBallot<N> {
+    pub fn make_ballot(other: &Self) -> Self {
         SCPBallot {
             counter: other.counter,
             value: other.value.clone(),
+            phantom: PhantomData,
         }
     }
 
-    pub fn compatible(&self, other: &SCPBallot) -> bool {
+    pub fn compatible(&self, other: &Self) -> bool {
         self.value == other.value
     }
 
-    pub fn less_and_incompatible(&self, other: &SCPBallot) -> bool {
+    pub fn less_and_incompatible(&self, other: &Self) -> bool {
         self <= other && !self.compatible(other)
     }
 
-    pub fn less_and_compatible(&self, other: &SCPBallot) -> bool {
+    pub fn less_and_compatible(&self, other: &Self) -> bool {
         self <= other && self.compatible(other)
     }
 }
 
-impl Default for SCPBallot {
+impl<N: NominationValue> Default for SCPBallot<N> {
     fn default() -> Self {
         Self {
             counter: Default::default(),
             value: Default::default(),
+            phantom: PhantomData,
         }
     }
 }
@@ -153,8 +178,11 @@ pub enum SCPPhase {
     PhaseExternalize,
 }
 
-pub trait BallotProtocol {
-    fn advance_slot(self: &Arc<Self>, state: &HNominationProtocolState, hint: &SCPStatement);
+pub trait BallotProtocol<N>
+where
+    N: NominationValue,
+{
+    fn advance_slot(self: &Arc<Self>, state: &HNominationProtocolState<N>, hint: &SCPStatement<N>);
 
     // `attempt*` methods are called by `advanceSlot` internally call the
     //  the `set*` methods.
@@ -172,94 +200,100 @@ pub trait BallotProtocol {
     // step 1 and 5 from the SCP paper
     fn attempt_accept_prepared(
         self: &Arc<Self>,
-        state_handle: &HBallotProtocolState,
-        hint: &SCPStatement,
+        state_handle: &HBallotProtocolState<N>,
+        hint: &SCPStatement<N>,
     ) -> bool;
     // prepared: ballot that should be prepared
     fn set_accept_prepared(
         self: &Arc<Self>,
-        state_handle: &HBallotProtocolState,
-        ballot: &SCPBallot,
+        state_handle: &HBallotProtocolState<N>,
+        ballot: &SCPBallot<N>,
     ) -> bool;
 
     // step 2+3+8 from the SCP paper
     // ballot is the candidate to record as 'confirmed prepared'
     fn attempt_confirm_prepared(
         self: &Arc<Self>,
-        state: &HBallotProtocolState,
-        hint: &SCPStatement,
+        state: &HBallotProtocolState<N>,
+        hint: &SCPStatement<N>,
     ) -> bool;
     // newC, newH : low/high bounds prepared confirmed
     fn set_confirm_prepared(
         self: &Arc<Self>,
-        state_handle: &HBallotProtocolState,
-        newC: &SCPBallot,
-        newH: &SCPBallot,
+        state_handle: &HBallotProtocolState<N>,
+        newC: &SCPBallot<N>,
+        newH: &SCPBallot<N>,
     ) -> bool;
 
     // step (4 and 6)+8 from the SCP paper
     fn attempt_accept_commit(
         self: &Arc<Self>,
-        state_handle: &HBallotProtocolState,
-        hint: &SCPStatement,
+        state_handle: &HBallotProtocolState<N>,
+        hint: &SCPStatement<N>,
     ) -> bool;
     // new values for c and h
     fn set_accept_commit(
         self: &Arc<Self>,
-        state_handle: &HBallotProtocolState,
-        c: &SCPBallot,
-        h: &SCPBallot,
+        state_handle: &HBallotProtocolState<N>,
+        c: &SCPBallot<N>,
+        h: &SCPBallot<N>,
     ) -> bool;
 
     // step 7+8 from the SCP paper
     fn attempt_confirm_commit(
         self: &Arc<Self>,
-        nomination_state_handle: &HNominationProtocolState,
-        state_handle: &HBallotProtocolState,
-        hint: &SCPStatement,
+        nomination_state_handle: &HNominationProtocolState<N>,
+        state_handle: &HBallotProtocolState<N>,
+        hint: &SCPStatement<N>,
     ) -> bool;
     fn set_confirm_commit(
         self: &Arc<Self>,
-        ballot_state_handle: &HBallotProtocolState,
-        nomination_state_handle: &HNominationProtocolState,
-        acceptCommitLow: &SCPBallot,
-        acceptCommitHigh: &SCPBallot,
+        ballot_state_handle: &HBallotProtocolState<N>,
+        nomination_state_handle: &HNominationProtocolState<N>,
+        acceptCommitLow: &SCPBallot<N>,
+        acceptCommitHigh: &SCPBallot<N>,
     ) -> bool;
 
     // step 9 from the SCP paper
-    fn attempt_bump(self: &Arc<Self>, state_handle: &HBallotProtocolState) -> bool;
+    fn attempt_bump(self: &Arc<Self>, state_handle: &HBallotProtocolState<N>) -> bool;
 }
 
-pub type HBallot = Arc<Mutex<Option<SCPBallot>>>;
+pub type HBallot<N> = Arc<Mutex<Option<SCPBallot<N>>>>;
 
-pub type HBallotProtocolState = Arc<Mutex<BallotProtocolState>>;
-pub struct BallotProtocolState {
+pub type HBallotProtocolState<N> = Arc<Mutex<BallotProtocolState<N>>>;
+pub struct BallotProtocolState<N>
+where
+    N: NominationValue,
+{
     pub heard_from_quorum: bool,
 
-    pub current_ballot: HBallot,
-    pub prepared: HBallot,
-    pub prepared_prime: HBallot,
-    pub high_ballot: HBallot,
-    pub commit: HBallot,
+    pub current_ballot: HBallot<N>,
+    pub prepared: HBallot<N>,
+    pub prepared_prime: HBallot<N>,
+    pub high_ballot: HBallot<N>,
+    pub commit: HBallot<N>,
 
-    pub latest_envelopes: BTreeMap<NodeID, HSCPEnvelope>,
+    pub latest_envelopes: BTreeMap<NodeID, HSCPEnvelope<N>>,
     pub phase: SCPPhase,
-    pub value_override: Arc<Mutex<Option<NominationValue>>>,
+    pub value_override: Arc<Mutex<Option<N>>>,
 
     pub current_message_level: usize,
 
     // last envelope generated by this node
-    pub last_envelope: Option<HSCPEnvelope>,
+    pub last_envelope: Option<HSCPEnvelope<N>>,
 
     // last envelope emitted by this node
-    pub last_envelope_emitted: Option<HSCPEnvelope>,
+    pub last_envelope_emitted: Option<HSCPEnvelope<N>>,
 
     pub message_level: u32,
 }
 
 type Interval = (u32, u32);
 
-impl BallotProtocolState {
+impl<N> BallotProtocolState<N>
+where
+    N: NominationValue,
+{
     // TODO: needs to figure out how it works....
     fn find_extended_interval(
         boundaries: &BTreeSet<u32>,
@@ -287,7 +321,7 @@ impl BallotProtocolState {
         }
     }
 
-    fn get_commit_boundaries_from_statements(&self, ballot: &SCPBallot) -> BTreeSet<u32> {
+    fn get_commit_boundaries_from_statements(&self, ballot: &SCPBallot<N>) -> BTreeSet<u32> {
         let mut ret = BTreeSet::new();
         self.latest_envelopes
             .values()
@@ -322,7 +356,7 @@ impl BallotProtocolState {
     }
 
     // This function gives a set of ballots containing candidate values that we can accept based on current state and the hint SCP statement.
-    fn get_prepare_candidates(&self, hint: &SCPStatement) -> BTreeSet<SCPBallot> {
+    fn get_prepare_candidates(&self, hint: &SCPStatement<N>) -> BTreeSet<SCPBallot<N>> {
         let mut hint_ballots = BTreeSet::new();
 
         // Get ballots
@@ -342,16 +376,19 @@ impl BallotProtocolState {
                 hint_ballots.insert(SCPBallot {
                     counter: st.num_prepared,
                     value: st.ballot.value.clone(),
+                    phantom: PhantomData,
                 });
                 hint_ballots.insert(SCPBallot {
                     counter: std::u32::MAX,
                     value: st.ballot.value.clone(),
+                    phantom: PhantomData,
                 });
             }
             SCPStatement::Externalize(st) => {
                 hint_ballots.insert(SCPBallot {
                     counter: std::u32::MAX,
                     value: st.commit.value.clone(),
+                    phantom: PhantomData,
                 });
             }
             SCPStatement::Nominate(_) => {
@@ -391,6 +428,7 @@ impl BallotProtocolState {
                                 candidates.insert(SCPBallot {
                                     counter: st.num_prepared,
                                     value: top_vote.value.clone(),
+                                    phantom: PhantomData,
                                 });
                             }
                         }
@@ -409,7 +447,7 @@ impl BallotProtocolState {
         candidates
     }
 
-    fn set_prepared(&mut self, ballot: &SCPBallot) -> bool {
+    fn set_prepared(&mut self, ballot: &SCPBallot<N>) -> bool {
         let mut did_work = false;
 
         match self.prepared.lock().unwrap().as_ref() {
@@ -518,7 +556,7 @@ impl BallotProtocolState {
     }
 
     // This update current ballot and other related fields according to the new high ballot.
-    fn update_current_if_needed(&mut self, high_ballot: &SCPBallot) -> bool {
+    fn update_current_if_needed(&mut self, high_ballot: &SCPBallot<N>) -> bool {
         if self
             .current_ballot
             .lock()
@@ -533,7 +571,7 @@ impl BallotProtocolState {
         }
     }
 
-    fn bump_to_ballot(&mut self, require_monotone: bool, ballot: &SCPBallot) {
+    fn bump_to_ballot(&mut self, require_monotone: bool, ballot: &SCPBallot<N>) {
         assert!(self.phase != SCPPhase::PhaseExternalize);
 
         if require_monotone {
@@ -575,7 +613,7 @@ impl BallotProtocolState {
         }
     }
 
-    fn create_statement(&self, local_quorum_set_hash: HashValue) -> SCPStatement {
+    fn create_statement(&self, local_quorum_set_hash: HashValue) -> SCPStatement<N> {
         self.check_invariants();
 
         match self.phase {
@@ -663,7 +701,10 @@ impl BallotProtocolState {
     }
 }
 
-impl Default for BallotProtocolState {
+impl<N> Default for BallotProtocolState<N>
+where
+    N: NominationValue,
+{
     fn default() -> Self {
         Self {
             heard_from_quorum: Default::default(),
@@ -683,10 +724,22 @@ impl Default for BallotProtocolState {
     }
 }
 
-struct BallotProtocolUtils {}
+struct BallotProtocolUtils<N>
+where
+    N: NominationValue,
+{
+    phantom: PhantomData<N>,
+}
 
-impl BallotProtocolUtils {
-    fn commit_predicate(ballot: &SCPBallot, check: &Interval, statement: &SCPStatement) -> bool {
+impl<N> BallotProtocolUtils<N>
+where
+    N: NominationValue,
+{
+    fn commit_predicate(
+        ballot: &SCPBallot<N>,
+        check: &Interval,
+        statement: &SCPStatement<N>,
+    ) -> bool {
         match statement {
             SCPStatement::Prepare(st) => false,
             SCPStatement::Confirm(st) => {
@@ -709,7 +762,7 @@ impl BallotProtocolUtils {
         }
     }
 
-    fn has_prepared_ballot(ballot: &SCPBallot, statement: &SCPStatement) -> bool {
+    fn has_prepared_ballot(ballot: &SCPBallot<N>, statement: &SCPStatement<N>) -> bool {
         match statement {
             SCPStatement::Prepare(st) => {
                 st.prepared
@@ -723,6 +776,7 @@ impl BallotProtocolUtils {
             SCPStatement::Confirm(st) => ballot.less_and_compatible(&SCPBallot {
                 counter: st.num_prepared,
                 value: st.ballot.value.clone(),
+                phantom: PhantomData,
             }),
             SCPStatement::Externalize(st) => ballot.compatible(&st.commit),
             SCPStatement::Nominate(_) => {
@@ -732,18 +786,21 @@ impl BallotProtocolUtils {
     }
 }
 
-impl<T: HerderDriver + 'static> SlotDriver<T> {
+impl<N> SlotDriver<N>
+where
+    N: NominationValue + 'static,
+{
     const MAXIMUM_ADVANCE_SLOT_RECURSION: u32 = 50;
 
     fn advance_slot(
         self: &Arc<Self>,
-        ballot_state_handle: &HBallotProtocolState,
-        nomination_state_handle: &HNominationProtocolState,
-        hint: &SCPStatement,
+        ballot_state_handle: &HBallotProtocolState<N>,
+        nomination_state_handle: &HNominationProtocolState<N>,
+        hint: &SCPStatement<N>,
     ) {
         ballot_state_handle.lock().unwrap().message_level -= 1;
         if ballot_state_handle.lock().unwrap().message_level
-            >= SlotDriver::<T>::MAXIMUM_ADVANCE_SLOT_RECURSION
+            >= SlotDriver::<N>::MAXIMUM_ADVANCE_SLOT_RECURSION
         {
             panic!("maximum number of transitions reached in advance_slot");
         }
@@ -773,7 +830,7 @@ impl<T: HerderDriver + 'static> SlotDriver<T> {
         if did_work {}
     }
 
-    fn emit_current_state_statement(self: &Arc<Self>, state: &mut BallotProtocolState) {
+    fn emit_current_state_statement(self: &Arc<Self>, state: &mut BallotProtocolState<N>) {
         let statement = state.create_statement(
             self.local_node
                 .lock()
@@ -800,17 +857,17 @@ impl<T: HerderDriver + 'static> SlotDriver<T> {
     fn has_v_blocking_subset_strictly_ahead_of(
         self: &Arc<Self>,
 
-        envelopes: &BTreeMap<NodeID, HSCPEnvelope>,
+        envelopes: &BTreeMap<NodeID, HSCPEnvelope<N>>,
         counter: u32,
     ) -> bool {
         let local_node = self.local_node.lock().unwrap();
-        LocalNode::is_v_blocking(&local_node.quorum_set, envelopes, &|st: &SCPStatement| {
+        LocalNode::is_v_blocking(&local_node.quorum_set, envelopes, &|st| {
             st.ballot_counter() > counter
         })
     }
 
     // This method abandons the current ballot and sets the state according to state counter n.
-    fn abandon_ballot(self: &Arc<Self>, state: &mut BallotProtocolState, n: u32) -> bool {
+    fn abandon_ballot(self: &Arc<Self>, state: &mut BallotProtocolState<N>, n: u32) -> bool {
         match self.get_latest_composite_value().lock().unwrap().as_ref() {
             Some(value) => {
                 if n == 0 {
@@ -825,8 +882,8 @@ impl<T: HerderDriver + 'static> SlotDriver<T> {
 
     pub fn bump_state(
         self: &Arc<Self>,
-        state: &mut BallotProtocolState,
-        nomination_value: &NominationValue,
+        state: &mut BallotProtocolState<N>,
+        nomination_value: &N,
         force: bool,
     ) -> bool {
         if !force && state.current_ballot.lock().unwrap().is_none() {
@@ -843,8 +900,8 @@ impl<T: HerderDriver + 'static> SlotDriver<T> {
 
     fn bump_state_with_counter(
         self: &Arc<Self>,
-        state: &mut BallotProtocolState,
-        nomination_value: &NominationValue,
+        state: &mut BallotProtocolState<N>,
+        nomination_value: &N,
         n: u32,
     ) -> bool {
         if state.phase == SCPPhase::PhaseExternalize {
@@ -859,6 +916,7 @@ impl<T: HerderDriver + 'static> SlotDriver<T> {
         let mut new_ballot = SCPBallot {
             counter: n,
             value: value,
+            phantom: PhantomData,
         };
 
         let mut updated = self.update_current_value(state, &new_ballot);
@@ -875,8 +933,8 @@ impl<T: HerderDriver + 'static> SlotDriver<T> {
     // (that could be a prepared ballot) enforcing invariants
     fn update_current_value(
         self: &Arc<Self>,
-        state: &mut BallotProtocolState,
-        ballot: &SCPBallot,
+        state: &mut BallotProtocolState<N>,
+        ballot: &SCPBallot<N>,
     ) -> bool {
         if state.phase == SCPPhase::PhaseExternalize {
             return false;
@@ -920,18 +978,22 @@ impl<T: HerderDriver + 'static> SlotDriver<T> {
         updated
     }
 
-    fn process_envelope(self: &Arc<Self>, state: &mut BallotProtocolState, envelope: &SCPEnvelope) {
+    fn process_envelope(
+        self: &Arc<Self>,
+        state: &mut BallotProtocolState<N>,
+        envelope: &SCPEnvelope<N>,
+    ) {
         assert!(envelope.slot_index == self.slot_index);
     }
 
-    fn check_heard_from_quorum(self: &Arc<Self>, state: &mut BallotProtocolState) {
+    fn check_heard_from_quorum(self: &Arc<Self>, state: &mut BallotProtocolState<N>) {
         // this method is safe to call regardless of the transitions of the
         // other nodes on the network: we guarantee that other nodes can only
         // transition to higher counters (messages are ignored upstream)
         // therefore the local node will not flip flop between "seen" and "not
         // seen" for a given counter on the local node
         if let Some(current_ballot) = state.current_ballot.lock().unwrap().as_ref() {
-            let heard_predicate = |statement: &SCPStatement| match statement {
+            let heard_predicate = |statement: &SCPStatement<N>| match statement {
                 SCPStatement::Prepare(st) => current_ballot.counter <= st.ballot.counter,
                 SCPStatement::Confirm(_) => true,
                 SCPStatement::Externalize(_) => true,
@@ -962,11 +1024,14 @@ impl<T: HerderDriver + 'static> SlotDriver<T> {
     }
 }
 
-impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
+impl<N> BallotProtocol<N> for SlotDriver<N>
+where
+    N: NominationValue,
+{
     fn attempt_accept_prepared(
         self: &Arc<Self>,
-        state_handle: &HBallotProtocolState,
-        hint: &SCPStatement,
+        state_handle: &HBallotProtocolState<N>,
+        hint: &SCPStatement<N>,
     ) -> bool {
         let state = state_handle.lock().unwrap();
         if state.phase != SCPPhase::PhasePrepare && state.phase != SCPPhase::PhaseConfirm {
@@ -1039,8 +1104,8 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
 
     fn set_accept_prepared(
         self: &Arc<Self>,
-        state_handle: &HBallotProtocolState,
-        ballot: &SCPBallot,
+        state_handle: &HBallotProtocolState<N>,
+        ballot: &SCPBallot<N>,
     ) -> bool {
         let mut state = state_handle.lock().unwrap();
         let mut did_work = state.set_prepared(ballot);
@@ -1066,8 +1131,8 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
 
     fn attempt_confirm_prepared(
         self: &Arc<Self>,
-        state_handle: &HBallotProtocolState,
-        hint: &SCPStatement,
+        state_handle: &HBallotProtocolState<N>,
+        hint: &SCPStatement<N>,
     ) -> bool {
         let state = state_handle.lock().unwrap();
         if state.phase != SCPPhase::PhasePrepare {
@@ -1089,8 +1154,9 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
                 {
                     false
                 } else {
-                    let ratified =
-                        |st: &SCPStatement| BallotProtocolUtils::has_prepared_ballot(candidate, st);
+                    let ratified = |st: &SCPStatement<N>| {
+                        BallotProtocolUtils::has_prepared_ballot(candidate, st)
+                    };
                     self.federated_ratify(ratified, &state.latest_envelopes)
                 }
             }) {
@@ -1123,7 +1189,7 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
                             continue;
                         }
 
-                        let voted_predicate = |st: &SCPStatement| {
+                        let voted_predicate = |st: &SCPStatement<N>| {
                             BallotProtocolUtils::has_prepared_ballot(candidate, st)
                         };
 
@@ -1144,9 +1210,9 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
 
     fn set_confirm_prepared(
         self: &Arc<Self>,
-        state_handle: &HBallotProtocolState,
-        new_commit: &SCPBallot,
-        new_high: &SCPBallot,
+        state_handle: &HBallotProtocolState<N>,
+        new_commit: &SCPBallot<N>,
+        new_high: &SCPBallot<N>,
     ) -> bool {
         let mut state = state_handle.lock().unwrap();
         *state.value_override.lock().unwrap() = Some(new_high.value.clone());
@@ -1187,8 +1253,8 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
 
     fn attempt_accept_commit(
         self: &Arc<Self>,
-        state_handle: &HBallotProtocolState,
-        hint: &SCPStatement,
+        state_handle: &HBallotProtocolState<N>,
+        hint: &SCPStatement<N>,
     ) -> bool {
         let mut state = state_handle.lock().unwrap();
         if state.phase != SCPPhase::PhasePrepare && state.phase != SCPPhase::PhaseConfirm {
@@ -1223,7 +1289,7 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
 
         let predicate = |cur: &Interval| -> bool {
             self.federated_accept(
-                |_st: &SCPStatement| match _st {
+                |_st| match _st {
                     SCPStatement::Prepare(st) => {
                         if ballot.compatible(&st.ballot) && st.num_commit != 0 {
                             st.num_commit <= cur.0 && cur.1 <= st.num_high
@@ -1249,7 +1315,7 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
                         panic!("Nomination statement encountered in ballot protocol.")
                     }
                 },
-                |st: &SCPStatement| BallotProtocolUtils::commit_predicate(&ballot, cur, st),
+                |st| BallotProtocolUtils::commit_predicate(&ballot, cur, st),
                 &state.latest_envelopes,
             )
         };
@@ -1261,7 +1327,7 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
 
         let mut candidate: Interval = (0, 0);
 
-        BallotProtocolState::find_extended_interval(&boundaries, &mut candidate, predicate);
+        BallotProtocolState::<N>::find_extended_interval(&boundaries, &mut candidate, predicate);
 
         // TODO: I didn't quite follow this part.
         if candidate.0 != 0 {
@@ -1278,10 +1344,12 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
                 let commit_ballot = SCPBallot {
                     counter: candidate.0,
                     value: ballot.value.clone(),
+                    phantom: PhantomData,
                 };
                 let high_ballot = SCPBallot {
                     counter: candidate.1,
                     value: ballot.value.clone(),
+                    phantom: PhantomData,
                 };
                 self.set_accept_commit(state_handle, &commit_ballot, &high_ballot)
             } else {
@@ -1294,9 +1362,9 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
 
     fn set_accept_commit(
         self: &Arc<Self>,
-        state_handle: &HBallotProtocolState,
-        commit: &SCPBallot,
-        high: &SCPBallot,
+        state_handle: &HBallotProtocolState<N>,
+        commit: &SCPBallot<N>,
+        high: &SCPBallot<N>,
     ) -> bool {
         let mut state = state_handle.lock().unwrap();
         let mut did_work = false;
@@ -1349,9 +1417,9 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
 
     fn attempt_confirm_commit(
         self: &Arc<Self>,
-        nomination_state_handle: &HNominationProtocolState,
-        ballot_state_handle: &HBallotProtocolState,
-        hint: &SCPStatement,
+        nomination_state_handle: &HNominationProtocolState<N>,
+        ballot_state_handle: &HBallotProtocolState<N>,
+        hint: &SCPStatement<N>,
     ) -> bool {
         let mut state = ballot_state_handle.lock().unwrap();
         if state.phase != SCPPhase::PhaseConfirm {
@@ -1388,9 +1456,7 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
         let mut candidate: Interval = (0, 0);
         let predicate = |cur: &Interval| {
             self.federated_ratify(
-                |statement: &SCPStatement| {
-                    BallotProtocolUtils::commit_predicate(&ballot, cur, statement)
-                },
+                |statement| BallotProtocolUtils::commit_predicate(&ballot, cur, statement),
                 &state.latest_envelopes,
             )
         };
@@ -1399,10 +1465,12 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
             let commit_ballot = SCPBallot {
                 counter: candidate.0,
                 value: ballot.value.clone(),
+                phantom: PhantomData,
             };
             let high_ballot = SCPBallot {
                 counter: candidate.1,
                 value: ballot.value.clone(),
+                phantom: PhantomData,
             };
             self.set_confirm_commit(
                 ballot_state_handle,
@@ -1417,10 +1485,10 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
 
     fn set_confirm_commit(
         self: &Arc<Self>,
-        ballot_state_handle: &HBallotProtocolState,
-        nomination_state_handle: &HNominationProtocolState,
-        accept_commit_low: &SCPBallot,
-        accept_commit_high: &SCPBallot,
+        ballot_state_handle: &HBallotProtocolState<N>,
+        nomination_state_handle: &HNominationProtocolState<N>,
+        accept_commit_low: &SCPBallot<N>,
+        accept_commit_high: &SCPBallot<N>,
     ) -> bool {
         let mut state = ballot_state_handle.lock().unwrap();
 
@@ -1459,7 +1527,7 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
     //   threshold may include ballots from SCPCommit messages as well as
     //   SCPExternalize messages, which implicitly have an infinite ballot
     //   counter.
-    fn attempt_bump(self: &Arc<Self>, state_handle: &HBallotProtocolState) -> bool {
+    fn attempt_bump(self: &Arc<Self>, state_handle: &HBallotProtocolState<N>) -> bool {
         let mut state = state_handle.lock().unwrap();
         if state.phase == SCPPhase::PhasePrepare || state.phase == SCPPhase::PhaseConfirm {
             let local_counter = match state.current_ballot.lock().unwrap().as_ref() {
@@ -1502,8 +1570,8 @@ impl<T: HerderDriver + 'static> BallotProtocol for SlotDriver<T> {
 
     fn advance_slot(
         self: &Arc<Self>,
-        state_handle: &HNominationProtocolState,
-        hint: &SCPStatement,
+        state_handle: &HNominationProtocolState<N>,
+        hint: &SCPStatement<N>,
     ) {
     }
 }

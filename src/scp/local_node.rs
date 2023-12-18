@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeMap,
     f32::consts::E,
+    marker::PhantomData,
     sync::{Arc, Mutex},
 };
 
@@ -9,19 +10,27 @@ use syn::token::Mut;
 use crate::application::quorum::{HQuorumSet, QuorumSet, QuorumSlice};
 
 use super::{
+    nomination_protocol::NominationValue,
     scp::NodeID,
     scp_driver::HSCPEnvelope,
     statement::{HSCPStatement, SCPStatement},
 };
 
-pub type HLocalNode = Arc<Mutex<LocalNode>>;
-pub struct LocalNode {
+pub type HLocalNode<N> = Arc<Mutex<LocalNode<N>>>;
+pub struct LocalNode<N>
+where
+    N: NominationValue + 'static,
+{
     pub is_validator: bool,
     pub quorum_set: QuorumSet,
     pub node_id: NodeID,
+    phantom: PhantomData<N>,
 }
 
-impl LocalNode {
+impl<N> LocalNode<N>
+where
+    N: NominationValue,
+{
     pub fn get_quorum_set(&self) -> &QuorumSet {
         todo!();
     }
@@ -44,8 +53,8 @@ impl LocalNode {
 
     pub fn is_v_blocking(
         quorum_set: &QuorumSet,
-        envelope_map: &BTreeMap<NodeID, HSCPEnvelope>,
-        filter: &impl Fn(&SCPStatement) -> bool,
+        envelope_map: &BTreeMap<NodeID, HSCPEnvelope<N>>,
+        filter: &impl Fn(&SCPStatement<N>) -> bool,
     ) -> bool {
         let mut nodes: Vec<NodeID> = vec![];
         envelope_map.iter().for_each(|entry| {
@@ -53,7 +62,7 @@ impl LocalNode {
                 nodes.push(entry.0.clone());
             }
         });
-        LocalNode::is_v_blocking_internal(quorum_set, &nodes)
+        LocalNode::<N>::is_v_blocking_internal(quorum_set, &nodes)
     }
 
     fn nodes_fill_quorum_slice(quorum_slice: &QuorumSlice, nodes: &Vec<NodeID>) -> bool {
@@ -70,7 +79,7 @@ impl LocalNode {
         quorum_set
             .slices
             .iter()
-            .any(|slice| LocalNode::nodes_fill_quorum_slice(slice, nodes))
+            .any(|slice| LocalNode::<N>::nodes_fill_quorum_slice(slice, nodes))
     }
 
     // `is_quorum_with_node_filter` tests if the filtered nodes V form a quorum
@@ -81,9 +90,9 @@ impl LocalNode {
 
     pub fn is_quorum_with_node_filter(
         local_quorum: Option<(&QuorumSet, &NodeID)>,
-        envelopes: &BTreeMap<NodeID, HSCPEnvelope>,
-        get_quorum_set_predicate: impl Fn(&SCPStatement) -> Option<HQuorumSet>,
-        node_filter: impl Fn(&SCPStatement) -> bool,
+        envelopes: &BTreeMap<NodeID, HSCPEnvelope<N>>,
+        get_quorum_set_predicate: impl Fn(&SCPStatement<N>) -> Option<HQuorumSet>,
+        node_filter: impl Fn(&SCPStatement<N>) -> bool,
     ) -> bool {
         // let mut nodes: Vec<NodeID> = vec![];
 
@@ -114,7 +123,7 @@ impl LocalNode {
                 if let Some(quorum_set) = get_quorum_set_predicate(
                     envelopes.get(node).unwrap().lock().unwrap().get_statement(),
                 ) {
-                    LocalNode::nodes_fill_one_quorum_slice_in_quorum_set(
+                    LocalNode::<N>::nodes_fill_one_quorum_slice_in_quorum_set(
                         &quorum_set.lock().unwrap(),
                         &nodes,
                     )
@@ -127,7 +136,10 @@ impl LocalNode {
         // Check for local node.
         if let Some((local_quorum_set, _)) = local_quorum {
             ret = ret
-                && LocalNode::nodes_fill_one_quorum_slice_in_quorum_set(local_quorum_set, &nodes);
+                && LocalNode::<N>::nodes_fill_one_quorum_slice_in_quorum_set(
+                    local_quorum_set,
+                    &nodes,
+                );
         }
 
         ret
@@ -135,8 +147,8 @@ impl LocalNode {
 
     pub fn is_quorum(
         local_quorum: Option<(&QuorumSet, &NodeID)>,
-        envelopes: &BTreeMap<NodeID, HSCPEnvelope>,
-        get_quorum_set_predicate: impl Fn(&SCPStatement) -> Option<HQuorumSet>,
+        envelopes: &BTreeMap<NodeID, HSCPEnvelope<N>>,
+        get_quorum_set_predicate: impl Fn(&SCPStatement<N>) -> Option<HQuorumSet>,
     ) -> bool {
         LocalNode::is_quorum_with_node_filter(
             local_quorum,
@@ -147,12 +159,16 @@ impl LocalNode {
     }
 }
 
-impl Default for LocalNode {
+impl<N> Default for LocalNode<N>
+where
+    N: NominationValue,
+{
     fn default() -> Self {
         Self {
             is_validator: Default::default(),
             quorum_set: Default::default(),
             node_id: Default::default(),
+            phantom: PhantomData,
         }
     }
 }
@@ -163,7 +179,10 @@ mod tests {
 
     use crate::{
         application::quorum::QuorumNode,
-        scp::scp_driver::{HashValue, SCPEnvelope},
+        scp::{
+            nomination_protocol::SCPNominationValue,
+            scp_driver::{HashValue, SCPEnvelope},
+        },
     };
 
     use super::*;
@@ -209,7 +228,7 @@ mod tests {
         let quorum1 = QuorumSet::from([quorum_slice1]);
         let quorum2 = QuorumSet::from([quorum_slice2.clone()]);
 
-        let mut envelopes: BTreeMap<NodeID, HSCPEnvelope> = BTreeMap::new();
+        let mut envelopes: BTreeMap<NodeID, HSCPEnvelope<SCPNominationValue>> = BTreeMap::new();
         let env1 = SCPEnvelope::test_make_scp_envelope_from_quorum(node_id1.to_owned(), &quorum1);
         let env2 = SCPEnvelope::test_make_scp_envelope_from_quorum(node_id2.to_owned(), &quorum2);
         let env3 = SCPEnvelope::test_make_scp_envelope_from_quorum(node_id3.to_owned(), &quorum2);
@@ -224,7 +243,7 @@ mod tests {
         quorum_map.insert(quorum1.hash_value(), Arc::new(Mutex::new(quorum1.clone())));
         quorum_map.insert(quorum2.hash_value(), Arc::new(Mutex::new(quorum2.clone())));
 
-        let get_quorum_set_predicate = |st: &SCPStatement| {
+        let get_quorum_set_predicate = |st: &SCPStatement<SCPNominationValue>| {
             quorum_map
                 .get(&st.quorum_set_hash_value())
                 .map(|val| val.clone())

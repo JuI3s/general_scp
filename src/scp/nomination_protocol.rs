@@ -28,14 +28,17 @@ use super::{
     statement::{SCPStatement, SCPStatementNominate},
 };
 
-pub trait NominationProtocol {
+pub trait NominationProtocol<N>
+where
+    N: NominationValue,
+{
     fn nominate(
         self: &Arc<Self>,
-        state: HNominationProtocolState,
-        value: HNominationValue,
-        previous_value: &NominationValue,
+        state: HNominationProtocolState<N>,
+        value: HSCPNominationValue<N>,
+        previous_value: &N,
     ) -> bool;
-    fn stop_nomination(self: &Arc<Self>, state: &mut NominationProtocolState);
+    fn stop_nomination(self: &Arc<Self>, state: &mut NominationProtocolState<N>);
 
     fn update_round_learders(&mut self);
 
@@ -43,49 +46,56 @@ pub trait NominationProtocol {
 
     fn process_envelope(
         self: &Arc<Self>,
-        state_handle: &HNominationProtocolState,
-        envelope: &HSCPEnvelope,
+        state_handle: &HNominationProtocolState<N>,
+        envelope: &HSCPEnvelope<N>,
     ) -> EnvelopeState;
 }
 
 type HNominationEnvelope = Arc<Mutex<NominationEnvelope>>;
 struct NominationEnvelope {}
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub struct NominationValue {}
-
-impl Default for NominationValue {
-    fn default() -> Self {
-        Self {}
-    }
+pub trait NominationValue:
+    Clone + PartialEq + PartialOrd + Eq + Ord + Hash + Default + 'static
+{
 }
 
-pub type HNominationValue = Arc<NominationValue>;
-pub type HLatestCompositeCandidateValue = Arc<Mutex<Option<NominationValue>>>;
-pub type NominationValueSet = BTreeSet<HNominationValue>;
+#[derive(Default, Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
+pub struct SCPNominationValue {}
 
-pub type HNominationProtocolState = Arc<Mutex<NominationProtocolState>>;
+impl NominationValue for SCPNominationValue {}
+
+pub type HSCPNominationValue<N> = Arc<N>;
+pub type HLatestCompositeCandidateValue<N> = Arc<Mutex<Option<N>>>;
+pub type SCPNominationValueSet<N> = BTreeSet<HSCPNominationValue<N>>;
+
+pub type HNominationProtocolState<N> = Arc<Mutex<NominationProtocolState<N>>>;
 // TODO: double check these fields are correct
 // #[derive(WeakSelf)]
-pub struct NominationProtocolState {
+pub struct NominationProtocolState<N>
+where
+    N: NominationValue,
+{
     pub round_number: u64,
-    pub votes: NominationValueSet,
-    pub accepted: NominationValueSet,
-    pub candidates: NominationValueSet,
-    pub latest_nominations: BTreeMap<String, HSCPEnvelope>,
+    pub votes: SCPNominationValueSet<N>,
+    pub accepted: SCPNominationValueSet<N>,
+    pub candidates: SCPNominationValueSet<N>,
+    pub latest_nominations: BTreeMap<String, HSCPEnvelope<N>>,
 
-    pub latest_envelope: Option<HSCPEnvelope>,
+    pub latest_envelope: Option<HSCPEnvelope<N>>,
     pub round_leaders: BTreeSet<String>,
 
     pub nomination_started: bool,
-    pub latest_composite_candidate: HLatestCompositeCandidateValue,
-    pub previous_value: NominationValue,
+    pub latest_composite_candidate: HLatestCompositeCandidateValue<N>,
+    pub previous_value: N,
 
     pub num_timeouts: usize,
     pub timed_out: bool,
 }
 
-impl Default for NominationProtocolState {
+impl<N> Default for NominationProtocolState<N>
+where
+    N: NominationValue,
+{
     fn default() -> Self {
         Self {
             round_number: Default::default(),
@@ -104,22 +114,25 @@ impl Default for NominationProtocolState {
     }
 }
 
-impl SCPStatement {
-    fn as_nomination_statement(&self) -> &SCPStatementNominate {
+impl<N> SCPStatement<N>
+where
+    N: NominationValue,
+{
+    fn as_nomination_statement(&self) -> &SCPStatementNominate<N> {
         match self {
             SCPStatement::Nominate(st) => st,
             _ => panic!("Not a nomination statement."),
         }
     }
 
-    fn get_accepted(&self) -> Vec<NominationValue> {
+    fn get_accepted(&self) -> Vec<N> {
         match self {
             SCPStatement::Nominate(st) => st.accepted.clone(),
             _ => panic!("Not a nomination statement."),
         }
     }
 
-    fn get_votes(&self) -> Vec<NominationValue> {
+    fn get_votes(&self) -> Vec<N> {
         match self {
             SCPStatement::Nominate(st) => st.votes.clone(),
             _ => panic!("Not a nomination statement."),
@@ -127,15 +140,18 @@ impl SCPStatement {
     }
 }
 
-impl NominationProtocolState {
+impl<N> NominationProtocolState<N>
+where
+    N: NominationValue,
+{
     // TODO: I really need to make local_id a part of nomination state.
     fn gather_votes_from_round_leaders(
         &mut self,
         slot_index: &u64,
         local_id: &NodeID,
-        extract_valid_value_predicate: &impl Fn(&NominationValue) -> Option<NominationValue>,
-        validate_value_predicate: &impl Fn(&NominationValue) -> ValidationLevel,
-        nominating_value_predicate: &impl Fn(&NominationValue),
+        extract_valid_value_predicate: &impl Fn(&N) -> Option<N>,
+        validate_value_predicate: &impl Fn(&N) -> ValidationLevel,
+        nominating_value_predicate: &impl Fn(&N),
     ) -> bool {
         let mut updated = false;
 
@@ -160,13 +176,13 @@ impl NominationProtocolState {
         updated
     }
 
-    fn get_statement_values(&self, statement: &SCPStatementNominate) -> Vec<NominationValue> {
+    fn get_statement_values(&self, statement: &SCPStatementNominate<N>) -> Vec<N> {
         let mut ret = Vec::new();
-        apply_all(statement, |value: &NominationValue| ret.push(value.clone()));
+        SlotDriver::apply_all(statement, |value: &N| ret.push(value.clone()));
         ret
     }
 
-    fn is_newer_statement(&self, node_id: &NodeID, statement: &SCPStatementNominate) -> bool {
+    fn is_newer_statement(&self, node_id: &NodeID, statement: &SCPStatementNominate<N>) -> bool {
         if let Some(envelope) = self.latest_nominations.get(node_id) {
             envelope
                 .lock()
@@ -183,7 +199,7 @@ impl NominationProtocolState {
     fn processed_newer_statement(
         &self,
         node_id: &NodeID,
-        statement: &SCPStatementNominate,
+        statement: &SCPStatementNominate<N>,
     ) -> bool {
         if let Some(envelope) = self.latest_nominations.get(node_id) {
             statement.is_older_than(
@@ -198,7 +214,7 @@ impl NominationProtocolState {
         }
     }
 
-    fn is_sane(&self, statement: &SCPStatementNominate) -> bool {
+    fn is_sane(&self, statement: &SCPStatementNominate<N>) -> bool {
         (statement.votes.len() + statement.accepted.len() != 0)
             && statement.votes.windows(2).all(|win| win[0] < win[1])
             && statement.accepted.windows(2).all(|win| win[0] < win[1])
@@ -206,22 +222,22 @@ impl NominationProtocolState {
 
     fn get_new_value_form_nomination(
         &self,
-        statement: &SCPStatementNominate,
-        extract_valid_value_predicate: impl Fn(&NominationValue) -> Option<NominationValue>,
-        validate_value_predicate: impl Fn(&NominationValue) -> ValidationLevel,
-    ) -> Option<NominationValue> {
+        statement: &SCPStatementNominate<N>,
+        extract_valid_value_predicate: impl Fn(&N) -> Option<N>,
+        validate_value_predicate: impl Fn(&N) -> ValidationLevel,
+    ) -> Option<N> {
         let mut cur_hash: u64 = 0;
-        let mut cur_value: Option<NominationValue> = None;
+        let mut cur_value: Option<N> = None;
 
         // TODO: Can we avoid copying?
-        let mut pick_value = |value: &NominationValue| {
+        let mut pick_value = |value: &N| {
             if let Some(value_to_nominate) = match validate_value_predicate(value) {
                 ValidationLevel::VoteToNominate => Some(value.to_owned()),
                 ValidationLevel::FullyValidated => Some(value.to_owned()),
                 _ => extract_valid_value_predicate(value),
             } {
                 if !self.votes.contains(&value_to_nominate) {
-                    let new_hash = hash_value(&value_to_nominate);
+                    let new_hash = SlotDriver::<N>::hash_value(&value_to_nominate);
                     if new_hash > cur_hash {
                         cur_hash = new_hash;
                         cur_value = Some(value_to_nominate);
@@ -260,7 +276,7 @@ impl NominationProtocolState {
     // }
 
     // only called after a call to isNewerStatement so safe to replace the mLatestNomination
-    fn record_envelope(&mut self, envelope: &HSCPEnvelope) {
+    fn record_envelope(&mut self, envelope: &HSCPEnvelope<N>) {
         let nomination_env = envelope.lock().unwrap();
         let node_id = &nomination_env.node_id;
         if let Some(old_nomination) = self.latest_nominations.get(node_id).borrow_mut() {
@@ -273,7 +289,7 @@ impl NominationProtocolState {
         // TODO: record statement
     }
 
-    fn set_state_from_envelope(&mut self, envelope: &HSCPEnvelope) {
+    fn set_state_from_envelope(&mut self, envelope: &HSCPEnvelope<N>) {
         if self.nomination_started {
             panic!("Cannot set state after nomination is started.")
         }
@@ -298,40 +314,43 @@ impl NominationProtocolState {
     }
 }
 
-fn accept_predicat(value: &NominationValue, statement: &SCPStatement) -> bool {
-    statement.as_nomination_statement().accepted.contains(value)
-}
-
-fn apply_all(statement: &SCPStatementNominate, mut function: impl FnMut(&NominationValue)) {
-    statement.votes.iter().for_each(|vote| function(vote));
-    // Accepted should be a subset of votes.
-    statement
-        .accepted
-        .iter()
-        .for_each(|accepted| function(accepted));
-}
-
-fn hash_value(value: &NominationValue) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
-}
-
-impl<T: HerderDriver> SlotDriver<T> {
-    fn emit_nomination(self: &Arc<Self>, state: &mut NominationProtocolState) {
+impl<N> SlotDriver<N>
+where
+    N: NominationValue,
+{
+    fn emit_nomination(self: &Arc<Self>, state: &mut NominationProtocolState<N>) {
         todo!()
+    }
+
+    fn accept_predicat(value: &N, statement: &SCPStatement<N>) -> bool {
+        statement.as_nomination_statement().accepted.contains(value)
+    }
+
+    fn apply_all(statement: &SCPStatementNominate<N>, mut function: impl FnMut(&N)) {
+        statement.votes.iter().for_each(|vote| function(vote));
+        // Accepted should be a subset of votes.
+        statement
+            .accepted
+            .iter()
+            .for_each(|accepted| function(accepted));
+    }
+
+    fn hash_value(value: &N) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        value.hash(&mut hasher);
+        hasher.finish()
     }
 }
 
-impl<T> NominationProtocol for SlotDriver<T>
+impl<N> NominationProtocol<N> for SlotDriver<N>
 where
-    T: HerderDriver + 'static,
+    N: NominationValue + 'static,
 {
     fn nominate(
         self: &Arc<Self>,
-        state_handle: HNominationProtocolState,
-        value: HNominationValue,
-        previous_value: &NominationValue,
+        state_handle: HNominationProtocolState<N>,
+        value: HSCPNominationValue<N>,
+        previous_value: &N,
     ) -> bool {
         let mut state = state_handle.lock().unwrap();
         if !state.candidates.is_empty() {
@@ -419,7 +438,7 @@ where
         updated
     }
 
-    fn stop_nomination(self: &Arc<Self>, state: &mut NominationProtocolState) {
+    fn stop_nomination(self: &Arc<Self>, state: &mut NominationProtocolState<N>) {
         state.nomination_started = false;
     }
 
@@ -437,8 +456,8 @@ where
 
     fn process_envelope(
         self: &Arc<Self>,
-        state_handle: &HNominationProtocolState,
-        envelope: &HSCPEnvelope,
+        state_handle: &HNominationProtocolState<N>,
+        envelope: &HSCPEnvelope<N>,
     ) -> EnvelopeState {
         let env = envelope.lock().unwrap();
         let node_id = &env.node_id;
@@ -467,8 +486,8 @@ where
                     return false;
                 }
                 if self.federated_accept(
-                    |st: &SCPStatement| st.as_nomination_statement().votes.contains(vote),
-                    |st: &SCPStatement| accept_predicat(vote, st),
+                    |st| st.as_nomination_statement().votes.contains(vote),
+                    |st| SlotDriver::accept_predicat(vote, st),
                     &state.latest_nominations,
                 ) {
                     match self.herder_driver.validate_value(vote, true) {
@@ -495,7 +514,7 @@ where
                     return false;
                 }
                 if self.federated_ratify(
-                    |st: &SCPStatement| accept_predicat(value, st),
+                    |st| SlotDriver::accept_predicat(value, st),
                     &state.latest_nominations,
                 ) {
                     state.candidates.insert(Arc::new(value.clone()));

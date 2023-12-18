@@ -7,7 +7,9 @@ use crate::overlay::peer::PeerID;
 
 use super::{
     ballot_protocol::BallotProtocol,
-    nomination_protocol::{HNominationValue, NominationProtocol, NominationValue},
+    nomination_protocol::{
+        HSCPNominationValue, NominationProtocol, NominationValue, SCPNominationValue,
+    },
     scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver},
     slot::{HSlot, Slot, SlotIndex},
     statement::SCPStatement,
@@ -31,14 +33,16 @@ pub enum EnvelopeState {
 }
 
 pub trait SCP {
-    fn recv_envelope(&mut self, envelope: HSCPEnvelope) -> EnvelopeState;
-    fn set_state_from_envelope(&mut self, slot_index: SlotIndex, envelope: HSCPEnvelope);
+    type N: NominationValue;
+
+    fn recv_envelope(&mut self, envelope: HSCPEnvelope<Self::N>) -> EnvelopeState;
+    fn set_state_from_envelope(&mut self, slot_index: SlotIndex, envelope: HSCPEnvelope<Self::N>);
 
     fn nominate(
         &mut self,
         slot_index: SlotIndex,
-        value: HNominationValue,
-        prev_value: &NominationValue,
+        value: HSCPNominationValue<Self::N>,
+        prev_value: &SCPNominationValue,
     ) -> bool;
     fn stop_nomination(&mut self) -> bool;
 
@@ -50,13 +54,13 @@ pub trait SCP {
     fn got_v_blocking(&self, slot_index: u64) -> bool;
 }
 
-pub struct SCPimpl<Driver>
-where
-    Driver: NominationProtocol + BallotProtocol + SCPDriver,
-{
-    driver: Driver,
-    known_slots: BTreeMap<SlotIndex, HSlot>,
-}
+// pub struct SCPimpl<Driver>
+// where
+//     Driver: NominationProtocol + BallotProtocol + SCPDriver,
+// {
+//     driver: Driver,
+//     known_slots: BTreeMap<SlotIndex, HSlot>,
+// }
 
 // impl SCPimpl<SlotDriver> {
 //     pub fn get_slot(&mut self, index: SlotIndex, create_if_not_exists: bool) -> Option<HSlot> {

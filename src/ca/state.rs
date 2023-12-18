@@ -1,6 +1,9 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::{Arc, Mutex},
+};
 
-use crate::herder::herder::HerderDriver;
+use crate::{herder::herder::HerderDriver, scp::nomination_protocol::NominationValue};
 
 use super::{
     cell::Cell,
@@ -16,6 +19,11 @@ pub struct CAState<'a> {
     root_listing: RootListing<'a>,
     tables: BTreeSet<Table<'a>>,
 }
+
+#[derive(Hash, Default, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct CANominationValue {}
+
+impl NominationValue for CANominationValue {}
 
 impl<'a> Default for CAState<'a> {
     fn default() -> Self {
@@ -58,20 +66,6 @@ impl<'a> CAState<'a> {
     }
 
     pub fn from_toml(&self) {
-        todo!()
-    }
-}
-
-impl<'a> HerderDriver for CAState<'a> {
-    fn combine_candidates(&self, candidates: &crate::scp::nomination_protocol::NominationValueSet) -> Option<crate::scp::nomination_protocol::NominationValue> {
-        todo!()
-    }
-
-    fn emit_envelope(&self, envelope: &crate::scp::scp_driver::SCPEnvelope) {
-        todo!()
-    }
-
-    fn get_quorum_set(&self, statement: &crate::scp::statement::SCPStatement) -> Option<crate::application::quorum::HQuorumSet> {
         todo!()
     }
 }

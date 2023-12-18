@@ -9,20 +9,29 @@ use log::debug;
 use crate::overlay::peer::PeerID;
 
 use super::{
-    ballot_protocol::BallotProtocolState, nomination_protocol::NominationProtocolState,
+    ballot_protocol::BallotProtocolState,
+    nomination_protocol::{NominationProtocolState, NominationValue},
     scp_driver::SlotDriver,
 };
 
 pub type SlotIndex = u64;
 
-pub struct Slot {
+pub struct Slot<N>
+where
+    N: NominationValue,
+{
     pub index: u64,
-    pub nomination_state: NominationProtocolState,
-    pub ballot_state: BallotProtocolState,
+    pub nomination_state: NominationProtocolState<N>,
+    pub ballot_state: BallotProtocolState<N>,
 }
-pub type HSlot = Arc<Mutex<Slot>>;
+pub type HSlot<N> = Arc<Mutex<Slot<N>>>;
 
-impl Slot {
+impl<N> Slot<N>
+where
+    N: NominationValue,
+{
+    const MAX_TIMEOUT_SECONDS: u64 = (30 * 60);
+
     pub fn new(index: u64) -> Self {
         Slot {
             index: index,
@@ -30,16 +39,12 @@ impl Slot {
             ballot_state: BallotProtocolState::default(),
         }
     }
-}
 
-impl Slot {
     pub fn compute_timeout(round_number: u64) -> Duration {
-        if round_number > Slot::MAX_TIMEOUT_SECONDS {
-            Duration::from_secs(Slot::MAX_TIMEOUT_SECONDS)
+        if round_number > Slot::<N>::MAX_TIMEOUT_SECONDS {
+            Duration::from_secs(Slot::<N>::MAX_TIMEOUT_SECONDS)
         } else {
             Duration::from_secs(round_number)
         }
     }
-
-    const MAX_TIMEOUT_SECONDS: u64 = (30 * 60);
 }
