@@ -1,0 +1,1 @@
+Mock nomination value used for implementing a simple replicated state machine over SCP.
