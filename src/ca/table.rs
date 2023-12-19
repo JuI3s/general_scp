@@ -43,9 +43,9 @@ pub struct TableEntry<'a> {
 }
 
 pub struct Table<'a> {
-    allowance: u32,
-    table_entries: BTreeSet<TableEntry<'a>>,
-    merkle_tree: MerkleTree,
+    pub allowance: u32,
+    pub table_entries: BTreeSet<TableEntry<'a>>,
+    pub merkle_tree: Box<MerkleTree>,
 }
 
 pub struct RootEntry<'a> {

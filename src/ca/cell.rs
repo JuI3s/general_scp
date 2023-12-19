@@ -1,10 +1,12 @@
 use core::time;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde::Serialize;
 use syn::token::{Or, SelfValue};
 
 use super::{
     ca_type::{mock_public_key, PublicKey, SCPSignature, Timestamp},
+    merkle::MerkleHash,
     operation::ReturnValueCell,
 };
 
@@ -76,8 +78,8 @@ pub struct Cell<'a> {
     create_time: Timestamp,
     revision_time: Timestamp,
     commitment_time: Timestamp,
-    authority_sig: SCPSignature,
     inner_cell: InnerCell<'a>,
+    authority_sig: SCPSignature,
 }
 
 fn timestamp_now() -> u64 {
@@ -277,5 +279,11 @@ impl<'a> Default for Cell<'a> {
             authority_sig: Default::default(),
             inner_cell: InnerCell::Invalid,
         }
+    }
+}
+
+impl<'a> Cell<'a> {
+    pub fn to_merkle_hash(&self) -> Option<MerkleHash> {
+        todo!()
     }
 }

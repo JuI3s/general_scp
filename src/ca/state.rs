@@ -1,7 +1,11 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
+    os::unix::ffi::OsStrExt,
     sync::{Arc, Mutex},
 };
+
+use ct_merkle::inclusion::InclusionProof;
+use sha2::Sha256;
 
 use crate::{herder::herder::HerderDriver, scp::nomination_protocol::NominationValue};
 
@@ -10,18 +14,25 @@ use super::{
     merkle::MerkleTree,
     operation::{MerkleProof, SetOperation},
     root::{RootEntry, RootListing},
-    table::{Table, TableEntry},
+    table::{self, Table, TableEntry},
 };
 
 pub struct CAState<'a> {
     table_tree: MerkleTree,
-    value_cell_trees: BTreeMap<TableEntry<'a>, MerkleTree>,
     root_listing: RootListing<'a>,
-    tables: BTreeSet<Table<'a>>,
+    tables: BTreeMap<&'static str, Table<'a>>,
 }
 
 #[derive(Hash, Default, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct CANominationValue {}
+
+pub type CAStateOpResult<T> = std::result::Result<T, CAStateOpError>;
+pub enum CAStateOpError {
+    MerkleTreeNotPresent,
+    MerkleTreeChanged,
+    MerkleProofInvalid,
+    InvalidProof,
+}
 
 impl NominationValue for CANominationValue {}
 
@@ -29,7 +40,6 @@ impl<'a> Default for CAState<'a> {
     fn default() -> Self {
         Self {
             table_tree: Default::default(),
-            value_cell_trees: Default::default(),
             root_listing: Default::default(),
             tables: Default::default(),
         }
@@ -37,8 +47,35 @@ impl<'a> Default for CAState<'a> {
 }
 
 impl<'a> CAState<'a> {
-    pub fn validate_merkle_proof(&self, merkle_proof: &MerkleProof) {
-        todo!()
+    pub fn validate_merkle_proof(&self, merkle_proof: &MerkleProof) -> CAStateOpResult<()> {
+        if let Some(table) = self.tables.get(merkle_proof.key) {
+            // Check tree root has not changed.
+            if table.merkle_tree.root() != merkle_proof.root {
+                return Err(CAStateOpError::MerkleTreeChanged);
+            }
+
+            // Check inclusion proof
+            if merkle_proof
+                .entry_cell
+                .to_merkle_hash()
+                .is_some_and(|hash| {
+                    table
+                        .merkle_tree
+                        .veritfy_inclusion_proof(
+                            &hash,
+                            merkle_proof.idx,
+                            &merkle_proof.sibling_hashes,
+                        )
+                        .is_ok()
+                })
+            {
+                Ok(())
+            } else {
+                Err(CAStateOpError::InvalidProof)
+            }
+        } else {
+            Err(CAStateOpError::MerkleTreeNotPresent)
+        }
     }
 
     pub fn validate_set_operation(&self, set_opt: &SetOperation) -> bool {

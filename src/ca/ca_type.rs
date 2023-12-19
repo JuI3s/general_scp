@@ -4,6 +4,7 @@ use pkcs8::{
     der::{Decode, Encode},
     DecodePrivateKey,
 };
+use serde::Serialize;
 use sha2::Sha256;
 use signature::{DigestVerifier, RandomizedDigestSigner, SignatureEncoding};
 

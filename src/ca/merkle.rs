@@ -1,11 +1,13 @@
 use std::{collections::hash_map::DefaultHasher, fmt, hash::Hasher, process::id};
 
-use ct_merkle::{error::InclusionVerifError, inclusion::InclusionProof, CtMerkleTree};
+use ct_merkle::{error::InclusionVerifError, inclusion::InclusionProof, CtMerkleTree, RootHash};
 use sha2::{Digest, Sha256};
 
-use super::cell::Cell;
+use super::{cell::Cell, operation::MerkleRootOperations};
 
 pub type MerkleHash = [u8; 32];
+pub type MerkleRoot = RootHash<Sha256>;
+pub type MerkleSiblingHashes = Vec<u8>;
 
 pub type MerkleOpResult<T> = std::result::Result<T, MerkleOpError>;
 
@@ -55,6 +57,10 @@ impl MerkleTree {
     pub fn push(&mut self, val: MerkleHash) {
         self.size += 1;
         self.mktree.push(val)
+    }
+
+    pub fn root(&self) -> MerkleRoot {
+        self.mktree.root()
     }
 
     pub fn gen_inclusion_proof(&self, idx: usize) -> MerkleOpResult<InclusionProof<Sha256>> {

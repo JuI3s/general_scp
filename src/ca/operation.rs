@@ -1,12 +1,23 @@
-use super::{ca_type::SCPSignature, cell::Cell, merkle::MerkleHash, root::RootEntry, table::Table};
+use ct_merkle::inclusion::InclusionProof;
+use sha2::Sha256;
+
+use super::{
+    ca_type::SCPSignature,
+    cell::Cell,
+    merkle::{MerkleHash, MerkleRoot, MerkleSiblingHashes},
+    root::RootEntry,
+    table::Table,
+};
 
 pub struct MerkleRootOperations {}
 
 pub struct MerkleProof<'a> {
-    sibling_hashes: MerkleHash,
-    entry_cell: Cell<'a>,
-    tree_sig: SCPSignature,
-    root_hash: MerkleHash,
+    pub key: &'static str,
+    pub idx: usize,
+    pub sibling_hashes: InclusionProof<Sha256>,
+    pub entry_cell: Cell<'a>,
+    pub tree_sig: SCPSignature,
+    pub root: MerkleRoot,
 }
 
 pub struct GetOperation<'a> {
@@ -49,3 +60,5 @@ pub enum SetReturnValue<'a> {
     Success,
     Error(&'a str),
 }
+
+impl<'a> MerkleProof<'a> {}
