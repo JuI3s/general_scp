@@ -10,17 +10,18 @@ use sha2::Sha256;
 use crate::{herder::herder::HerderDriver, scp::nomination_protocol::NominationValue};
 
 use super::{
+    ca_type::PublicKey,
     cell::Cell,
     merkle::MerkleTree,
-    operation::{MerkleProof, SetOperation},
-    root::{RootEntry, RootListing},
-    table::{self, Table, TableEntry},
+    operation::{CellMerkleProof, SetOperation, TableMerkleProof},
+    root::{RootEntry, RootEntryKey, RootListing},
+    table::Table,
 };
 
 pub struct CAState<'a> {
     table_tree: MerkleTree,
     root_listing: RootListing<'a>,
-    tables: BTreeMap<&'static str, Table<'a>>,
+    tables: BTreeMap<(RootEntryKey<'a>, &'static str), Table<'a>>,
 }
 
 #[derive(Hash, Default, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -32,6 +33,7 @@ pub enum CAStateOpError {
     MerkleTreeChanged,
     MerkleProofInvalid,
     InvalidProof,
+    InvalidCell,
 }
 
 impl NominationValue for CANominationValue {}
@@ -47,8 +49,34 @@ impl<'a> Default for CAState<'a> {
 }
 
 impl<'a> CAState<'a> {
-    pub fn validate_merkle_proof(&self, merkle_proof: &MerkleProof) -> CAStateOpResult<()> {
-        if let Some(table) = self.tables.get(merkle_proof.key) {
+    pub fn validate_merkle_proof_for_table(
+        &self,
+        merkle_proof: &TableMerkleProof,
+    ) -> CAStateOpResult<()> {
+        if let Some(hash) = merkle_proof.table.to_merkle_hash() {
+            if merkle_proof.root != self.table_tree.root() {
+                return Err(CAStateOpError::MerkleTreeChanged);
+            }
+
+            match self.table_tree.veritfy_inclusion_proof(
+                &hash,
+                merkle_proof.idx,
+                &merkle_proof.sibling_hashes,
+            ) {
+                Ok(_) => Ok(()),
+                Err(_) => Err(CAStateOpError::InvalidProof),
+            }
+        } else {
+            Err(CAStateOpError::InvalidProof)
+        }
+    }
+
+    pub fn validate_merkle_proof_for_cell(
+        &self,
+        root_key: RootEntryKey,
+        merkle_proof: &CellMerkleProof,
+    ) -> CAStateOpResult<()> {
+        if let Some(table) = self.tables.get(&(root_key, merkle_proof.key)) {
             // Check tree root has not changed.
             if table.merkle_tree.root() != merkle_proof.root {
                 return Err(CAStateOpError::MerkleTreeChanged);
@@ -90,12 +118,24 @@ impl<'a> CAState<'a> {
         todo!()
     }
 
-    pub fn contains_cell(&self, cell: &Cell) -> bool {
-        todo!()
+    pub fn get_cell_mut(&mut self, cell: &Cell) -> CAStateOpResult<Option<&mut Cell<'a>>> {
+        if let Some(key) = cell.name_space_or_value() {
+            // if let Some(root_entry) = self.root_listing.
+            todo!()
+            // Ok(())
+        } else {
+            Err(CAStateOpError::InvalidCell)
+        }
     }
 
-    pub fn contains_root_entry(&self, root_entry: &RootEntry) -> bool {
-        todo!()
+    pub fn contains_root_entry(
+        &self,
+        namespace_root_key: &PublicKey,
+        application_identifier: &'a str,
+    ) -> bool {
+        self.root_listing
+            .get_entry(namespace_root_key, application_identifier)
+            .is_some()
     }
 
     pub fn to_toml(&self) {

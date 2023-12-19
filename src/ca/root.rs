@@ -5,7 +5,6 @@ use super::{
 
 pub type RootOpResult<T> = std::result::Result<T, RootOpError>;
 pub enum RootOpError {
-    RootEntryNotExists,
     Unknown,
 }
 
@@ -21,6 +20,7 @@ pub enum RootOpError {
 // additional real-world information, if applicable) determine whether
 // or not to accept the change.
 
+pub type RootEntryKey<'a> = (Vec<u8>, &'a str);
 // TODO: my understanding is that each root entry represents a merkle tree?
 pub struct RootEntry<'a> {
     namespace_root_key: PublicKey,
@@ -32,7 +32,7 @@ pub struct RootEntry<'a> {
 
 pub struct RootListing<'a> {
     roots: Vec<RootEntry<'a>>,
-    merkle_tree: MerkleTree,
+    merkle_tree: Box<MerkleTree>,
 }
 
 impl<'a> Default for RootListing<'a> {
@@ -45,18 +45,33 @@ impl<'a> Default for RootListing<'a> {
 }
 
 impl<'a> RootListing<'a> {
-    pub fn get_entry(
+    pub fn get_entry_mut(
         &mut self,
         namespace_root_key: &PublicKey,
         application_identifier: &'a str,
-    ) -> RootOpResult<&mut RootEntry<'a>> {
+    ) -> Option<&mut RootEntry<'a>> {
         if let Some(entry) = self.roots.iter_mut().find(|entry| {
             entry.namespace_root_key == *namespace_root_key
                 && entry.application_identifier == application_identifier
         }) {
-            Ok(entry)
+            Some(entry)
         } else {
-            Err(RootOpError::RootEntryNotExists)
+            None
+        }
+    }
+
+    pub fn get_entry(
+        &self,
+        namespace_root_key: &PublicKey,
+        application_identifier: &'a str,
+    ) -> Option<&RootEntry<'a>> {
+        if let Some(entry) = self.roots.iter().find(|entry| {
+            entry.namespace_root_key == *namespace_root_key
+                && entry.application_identifier == application_identifier
+        }) {
+            Some(entry)
+        } else {
+            None
         }
     }
 }

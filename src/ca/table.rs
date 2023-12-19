@@ -5,7 +5,7 @@ use crate::ca::table;
 use super::{
     ca_type::{PublicKey, SCPSignature},
     cell::{Cell, InnerCellType},
-    merkle::MerkleTree,
+    merkle::{MerkleHash, MerkleTree},
 };
 
 type TableOpResult<T> = std::result::Result<T, TableOpError>;
@@ -40,6 +40,11 @@ pub struct TableEntry<'a> {
     // opaque lookup_key<>
     lookup_key: &'a str,
     cell: &'a Cell<'a>,
+}
+
+pub struct TableMeta<'a> {
+    pub allowance: u32,
+    lookup_key: &'a str,
 }
 
 pub struct Table<'a> {
@@ -203,6 +208,12 @@ impl<'a> Table<'a> {
         }
 
         Ok(())
+    }
+}
+
+impl<'a> TableMeta<'a> {
+    pub fn to_merkle_hash(&self) -> Option<MerkleHash> {
+        todo!()
     }
 }
 

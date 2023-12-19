@@ -285,5 +285,6 @@ impl<'a> Default for Cell<'a> {
 impl<'a> Cell<'a> {
     pub fn to_merkle_hash(&self) -> Option<MerkleHash> {
         todo!()
+        // Implement serialization for cell.
     }
 }

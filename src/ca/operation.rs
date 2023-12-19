@@ -6,12 +6,19 @@ use super::{
     cell::Cell,
     merkle::{MerkleHash, MerkleRoot, MerkleSiblingHashes},
     root::RootEntry,
-    table::Table,
+    table::{Table, TableMeta},
 };
 
 pub struct MerkleRootOperations {}
 
-pub struct MerkleProof<'a> {
+pub struct TableMerkleProof<'a> {
+    pub idx: usize,
+    pub sibling_hashes: InclusionProof<Sha256>,
+    pub table: TableMeta<'a>,
+    pub root: MerkleRoot,
+}
+
+pub struct CellMerkleProof<'a> {
     pub key: &'static str,
     pub idx: usize,
     pub sibling_hashes: InclusionProof<Sha256>,
@@ -33,12 +40,12 @@ pub enum GetReturnValue<'a> {
 
 pub struct ReturnValueCell<'a> {
     cell: Cell<'a>,
-    proof: MerkleProof<'a>,
+    proof: CellMerkleProof<'a>,
 }
 
 pub struct ReturnValueTable<'a> {
     table: Table<'a>,
-    proof: MerkleProof<'a>,
+    proof: CellMerkleProof<'a>,
 }
 
 pub struct ReturnError<'a> {
@@ -61,4 +68,4 @@ pub enum SetReturnValue<'a> {
     Error(&'a str),
 }
 
-impl<'a> MerkleProof<'a> {}
+impl<'a> CellMerkleProof<'a> {}
