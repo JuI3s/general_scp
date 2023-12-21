@@ -11,18 +11,18 @@ use super::{
 
 pub struct MerkleRootOperations {}
 
-pub struct TableMerkleProof<'a> {
+pub struct TableMerkleProof {
     pub idx: usize,
     pub sibling_hashes: InclusionProof<Sha256>,
-    pub table: TableMeta<'a>,
+    pub table: TableMeta,
     pub root: MerkleRoot,
 }
 
 pub struct CellMerkleProof<'a> {
-    pub key: &'static str,
+    pub key: &'a str,
     pub idx: usize,
     pub sibling_hashes: InclusionProof<Sha256>,
-    pub entry_cell: Cell<'a>,
+    pub entry_cell: Cell,
     pub tree_sig: SCPSignature,
     pub root: MerkleRoot,
 }
@@ -39,12 +39,12 @@ pub enum GetReturnValue<'a> {
 }
 
 pub struct ReturnValueCell<'a> {
-    cell: Cell<'a>,
+    cell: Cell,
     proof: CellMerkleProof<'a>,
 }
 
 pub struct ReturnValueTable<'a> {
-    table: Table<'a>,
+    table: Table,
     proof: CellMerkleProof<'a>,
 }
 
@@ -55,11 +55,11 @@ pub struct ReturnError<'a> {
 pub struct SetOperation<'a> {
     application_identifier: &'a str,
     full_lookup_key: &'a str,
-    cell: Cell<'a>,
+    cell: Cell,
 }
 
-pub struct SetRootOperation<'a> {
-    entry: RootEntry<'a>,
+pub struct SetRootOperation {
+    entry: RootEntry,
     remove: bool,
 }
 

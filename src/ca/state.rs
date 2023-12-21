@@ -1,11 +1,16 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    ascii::AsciiExt,
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    marker::PhantomData,
     os::unix::ffi::OsStrExt,
     sync::{Arc, Mutex},
 };
 
 use ct_merkle::inclusion::InclusionProof;
+use digest::Key;
+use log::Log;
 use sha2::Sha256;
+use syn::braced;
 
 use crate::{herder::herder::HerderDriver, scp::nomination_protocol::NominationValue};
 
@@ -15,14 +20,15 @@ use super::{
     merkle::MerkleTree,
     operation::{CellMerkleProof, SetOperation, TableMerkleProof},
     root::{RootEntry, RootEntryKey, RootListing},
-    table::Table,
+    table::{Table, TableEntry},
 };
 
-pub struct CAState<'a> {
+pub struct CAState {
     table_tree: MerkleTree,
-    root_listing: RootListing<'a>,
-    tables: BTreeMap<(RootEntryKey<'a>, &'static str), Table<'a>>,
+    root_listing: RootListing,
 }
+
+pub struct Tables(BTreeMap<RootEntryKey, BTreeMap<String, Table>>);
 
 #[derive(Hash, Default, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct CANominationValue {}
@@ -34,21 +40,21 @@ pub enum CAStateOpError {
     MerkleProofInvalid,
     InvalidProof,
     InvalidCell,
+    RootTableNotFound,
 }
 
 impl NominationValue for CANominationValue {}
 
-impl<'a> Default for CAState<'a> {
+impl Default for CAState {
     fn default() -> Self {
         Self {
             table_tree: Default::default(),
             root_listing: Default::default(),
-            tables: Default::default(),
         }
     }
 }
 
-impl<'a> CAState<'a> {
+impl CAState {
     pub fn validate_merkle_proof_for_table(
         &self,
         merkle_proof: &TableMerkleProof,
@@ -71,12 +77,13 @@ impl<'a> CAState<'a> {
         }
     }
 
-    pub fn validate_merkle_proof_for_cell(
+    pub fn validate_merkle_proof_for_cell<'a>(
         &self,
-        root_key: RootEntryKey,
+        root_key: &RootEntryKey,
         merkle_proof: &CellMerkleProof,
+        tables: &Tables,
     ) -> CAStateOpResult<()> {
-        if let Some(table) = self.tables.get(&(root_key, merkle_proof.key)) {
+        if let Some(table) = self.get_table(root_key, merkle_proof.key, tables) {
             // Check tree root has not changed.
             if table.merkle_tree.root() != merkle_proof.root {
                 return Err(CAStateOpError::MerkleTreeChanged);
@@ -118,9 +125,110 @@ impl<'a> CAState<'a> {
         todo!()
     }
 
-    pub fn get_cell_mut(&mut self, cell: &Cell) -> CAStateOpResult<Option<&mut Cell<'a>>> {
+    fn get_table<'a>(
+        &self,
+        root_entry: &'a RootEntryKey,
+        table_key: &'a str,
+        tables: &'a Tables,
+    ) -> Option<&'a Table> {
+        if let Some(root_table) = tables.0.get(root_entry) {
+            root_table.get(table_key)
+        } else {
+            None
+        }
+    }
+
+    fn get_table_mut<'a>(
+        &self,
+        root_entry: &RootEntryKey,
+        table_key: &String,
+        tables: &'a mut Tables,
+    ) -> Option<&'a mut Table> {
+        if let Some(root_table) = tables.0.get_mut(root_entry) {
+            root_table.get_mut(table_key)
+        } else {
+            None
+        }
+    }
+
+    fn find_cell<'b>(
+        &self,
+        root_entry: &RootEntryKey,
+        table_key: &String,
+        cell: &Cell,
+        tables: &'b mut Tables,
+    ) -> Option<&'b mut Cell> {
+        // This implementation suffers from problem case 3 in here
+        // https://github.com/rust-lang/rfcs/blob/master/text/2094-nll.md#problem-case-3-conditional-control-flow-across-functions
+
+        // Assume self is well formed.
+        let mut next_key = String::new();
+
+        if let Some(current_table) = self.get_table_mut(root_entry, &table_key, tables) {
+            if let Some(cell_key) = cell.name_space_or_value() {
+                let res = match current_table
+                    .table_entries
+                    .iter_mut()
+                    .find(|e| e.cell.is_prefix_of(cell))
+                {
+                    Some(_entry) => Some(&mut _entry.cell),
+                    None => None,
+                };
+
+                if let Some(_cell) = res {
+                    next_key = _cell.name_space_or_value().unwrap().clone();
+                    {
+                        if _cell.is_value_cell() {
+                            if _cell.name_space_or_value().unwrap() == cell_key {
+                                // return Some(_cell);
+                            } else {
+                                return None;
+                            }
+                        } else {
+                            return self.find_cell(root_entry, &next_key, cell, tables);
+                        }
+                    }
+                } else {
+                    return None;
+                }
+
+                // return None;
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        }
+
+        let current_table = self.get_table_mut(root_entry, &table_key, tables).unwrap();
+        match current_table
+            .table_entries
+            .iter_mut()
+            .find(|e| e.cell.is_prefix_of(cell))
+        {
+            Some(entry) => Some(&mut entry.cell),
+            None => unreachable!(),
+        }
+
+        // return self.find_cell(root_entry, &next_key, cell,  tables);
+    }
+
+    fn get_root_table_mut<'a>(
+        &mut self,
+        root_key: &RootEntryKey,
+        tables: &'a mut Tables,
+    ) -> Option<&'a mut Table> {
+        self.get_table_mut(root_key, &String::from(""), tables)
+    }
+
+    pub fn get_cell_mut(
+        &mut self,
+        root_key: RootEntryKey,
+        cell: &Cell,
+    ) -> CAStateOpResult<Option<&mut Cell>> {
         if let Some(key) = cell.name_space_or_value() {
             // if let Some(root_entry) = self.root_listing.
+
             todo!()
             // Ok(())
         } else {
@@ -131,7 +239,7 @@ impl<'a> CAState<'a> {
     pub fn contains_root_entry(
         &self,
         namespace_root_key: &PublicKey,
-        application_identifier: &'a str,
+        application_identifier: String,
     ) -> bool {
         self.root_listing
             .get_entry(namespace_root_key, application_identifier)
@@ -167,4 +275,13 @@ impl<'a> CAState<'a> {
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn box_value() {
+        let a = Box::new(1);
+        let mut b = a.clone();
+        let y = &mut b;
+        *y = Box::new(2);
+        assert_eq!(*a, 1);
+    }
 }

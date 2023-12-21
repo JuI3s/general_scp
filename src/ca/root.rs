@@ -20,22 +20,22 @@ pub enum RootOpError {
 // additional real-world information, if applicable) determine whether
 // or not to accept the change.
 
-pub type RootEntryKey<'a> = (Vec<u8>, &'a str);
+pub type RootEntryKey = (Vec<u8>, String);
 // TODO: my understanding is that each root entry represents a merkle tree?
-pub struct RootEntry<'a> {
+pub struct RootEntry {
     namespace_root_key: PublicKey,
-    application_identifier: &'a str,
+    application_identifier: String,
     listing_sig: SCPSignature,
     allowance: u32,
     // TODO: This should point to some Merkle tree?
 }
 
-pub struct RootListing<'a> {
-    roots: Vec<RootEntry<'a>>,
+pub struct RootListing {
+    roots: Vec<RootEntry>,
     merkle_tree: Box<MerkleTree>,
 }
 
-impl<'a> Default for RootListing<'a> {
+impl Default for RootListing {
     fn default() -> Self {
         Self {
             roots: Default::default(),
@@ -44,12 +44,12 @@ impl<'a> Default for RootListing<'a> {
     }
 }
 
-impl<'a> RootListing<'a> {
+impl RootListing {
     pub fn get_entry_mut(
         &mut self,
         namespace_root_key: &PublicKey,
-        application_identifier: &'a str,
-    ) -> Option<&mut RootEntry<'a>> {
+        application_identifier: String,
+    ) -> Option<&mut RootEntry> {
         if let Some(entry) = self.roots.iter_mut().find(|entry| {
             entry.namespace_root_key == *namespace_root_key
                 && entry.application_identifier == application_identifier
@@ -63,8 +63,8 @@ impl<'a> RootListing<'a> {
     pub fn get_entry(
         &self,
         namespace_root_key: &PublicKey,
-        application_identifier: &'a str,
-    ) -> Option<&RootEntry<'a>> {
+        application_identifier: String,
+    ) -> Option<&RootEntry> {
         if let Some(entry) = self.roots.iter().find(|entry| {
             entry.namespace_root_key == *namespace_root_key
                 && entry.application_identifier == application_identifier
@@ -76,4 +76,4 @@ impl<'a> RootListing<'a> {
     }
 }
 
-impl<'a> RootEntry<'a> {}
+impl RootEntry {}

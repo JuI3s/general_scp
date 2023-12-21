@@ -36,20 +36,20 @@ pub enum TableOpError {
 // entries and the table itself.  For example, the owner of a table
 // delegated an /8 IPv4 block must not to delegate the same /16 block to
 // two different tables.
-pub struct TableEntry<'a> {
+pub struct TableEntry {
     // opaque lookup_key<>
-    lookup_key: &'a str,
-    cell: &'a Cell<'a>,
+    pub cell: Cell,
 }
 
-pub struct TableMeta<'a> {
+pub struct TableMeta {
     pub allowance: u32,
-    lookup_key: &'a str,
+    lookup_key: String,
 }
 
-pub struct Table<'a> {
+pub struct Table {
     pub allowance: u32,
-    pub table_entries: BTreeSet<TableEntry<'a>>,
+    // Need to change this to a map
+    pub table_entries: Vec<TableEntry>,
     pub merkle_tree: Box<MerkleTree>,
 }
 
@@ -60,27 +60,7 @@ pub struct RootEntry<'a> {
     allowance: u32,
 }
 
-impl<'a> Eq for TableEntry<'a> {}
-
-impl<'a> PartialEq for TableEntry<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        self.lookup_key == other.lookup_key
-    }
-}
-
-impl<'a> PartialOrd for TableEntry<'a> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.lookup_key.partial_cmp(other.lookup_key)
-    }
-}
-
-impl<'a> Ord for TableEntry<'a> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.lookup_key.cmp(other.lookup_key)
-    }
-}
-
-impl<'a> TableEntry<'a> {
+impl TableEntry {
     //    Delegating the whole or part of a namespace requires adding a new
     //    lookup key for the namespace and a matching delegate cell.  Each
     //    delegation must be validated in the context of the other table
@@ -88,21 +68,9 @@ impl<'a> TableEntry<'a> {
     //    delegated an /8 IPv4 block must not to delegate the same /16 block to
     //    two different tables.
     pub fn delegate(&mut self) {}
-
-    pub fn check_cell_valid(&self, cell: &Cell) -> TableOpResult<()> {
-        if let Some(val) = cell.name_space_or_value() {
-            if !val.starts_with(self.lookup_key) {
-                Err(TableOpError::NamespaceError)
-            } else {
-                Ok(())
-            }
-        } else {
-            Err(TableOpError::EmptyCell)
-        }
-    }
 }
 
-impl<'a> Default for Table<'a> {
+impl Default for Table {
     fn default() -> Self {
         Self {
             allowance: Table::DEFAULT_ALLOWANCE,
@@ -112,7 +80,7 @@ impl<'a> Default for Table<'a> {
     }
 }
 
-impl<'a> Table<'a> {
+impl Table {
     const DEFAULT_ALLOWANCE: u32 = 100;
 
     pub fn new(allowance: u32) -> Self {
@@ -123,12 +91,9 @@ impl<'a> Table<'a> {
         }
     }
 
-    pub fn add_entry(&mut self, cell: &'a Cell<'a>) -> TableOpResult<()> {
+    pub fn add_entry(&mut self, cell: Cell) -> TableOpResult<()> {
         if let Some(val) = cell.name_space_or_value() {
-            self.table_entries.insert(TableEntry {
-                lookup_key: val,
-                cell: cell,
-            });
+            self.table_entries.push(TableEntry { cell: cell });
             Ok(())
         } else {
             Err(TableOpError::EmptyCell)
@@ -211,7 +176,7 @@ impl<'a> Table<'a> {
     }
 }
 
-impl<'a> TableMeta<'a> {
+impl TableMeta {
     pub fn to_merkle_hash(&self) -> Option<MerkleHash> {
         todo!()
     }
@@ -223,23 +188,23 @@ mod tests {
 
     #[test]
     fn prefix_delegation_rule() {
-        let mut entries: Table<'_> = Default::default();
-        let home_cell = Cell::test_new_delegate_cell("home/", 1);
-        let cell1 = Cell::test_new_value_cell("home/1");
+        let mut entries = Table::default();
+        let home_cell = Cell::test_new_delegate_cell(String::from("home/"), 1);
+        let cell1 = Cell::test_new_value_cell(String::from("home/1"));
 
         assert!(entries
             .check_cell_valid(&cell1)
             .is_err_and(|err| { err == TableOpError::NamespaceError }));
-        assert!(entries.add_entry(&home_cell).is_ok());
+        assert!(entries.add_entry(home_cell).is_ok());
         assert!(entries.check_cell_valid(&cell1).is_ok());
 
-        assert!(entries.add_entry(&cell1).is_ok());
+        assert!(entries.add_entry(cell1.clone()).is_ok());
         assert!(entries
             .check_cell_valid(&cell1)
             .is_err_and(|err| { err == TableOpError::CellAddressIsPrefix }));
 
-        let cell2 = Cell::test_new_value_cell("home/");
-        let cell3 = Cell::test_new_value_cell("home/1/2");
+        let cell2 = Cell::test_new_value_cell(String::from("home/"));
+        let cell3 = Cell::test_new_value_cell(String::from("home/1/2"));
 
         assert!(entries
             .check_cell_valid(&cell2)
@@ -255,8 +220,8 @@ mod tests {
         let mut table = Table::new(1);
         assert!(table.contains_enough_allowance(1).is_ok());
 
-        let home_cell = Cell::test_new_delegate_cell("home/", 1);
-        assert!(table.add_entry(&home_cell).is_ok());
+        let home_cell = Cell::test_new_delegate_cell(String::from("home/"), 1);
+        assert!(table.add_entry(home_cell).is_ok());
 
         assert!(table
             .contains_enough_allowance(1)

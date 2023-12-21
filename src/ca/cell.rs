@@ -26,9 +26,9 @@ pub enum InnerCellType {
     Invalid,
 }
 #[derive(Clone)]
-pub enum InnerCell<'a> {
-    ValueCell(ValueCell<'a>),
-    DelegateCell(DelegateCell<'a>),
+pub enum InnerCell {
+    ValueCell(ValueCell),
+    DelegateCell(DelegateCell),
     // TODO: Needed for merkle tree library.
     Invalid,
 }
@@ -44,9 +44,9 @@ pub enum InnerCell<'a> {
 // namespace, which limits the range of mappings they can create to
 // those legitimately assigned to them.
 #[derive(Clone)]
-pub struct DelegateCell<'a> {
+pub struct DelegateCell {
     // opaque namespace<>
-    name_space: &'a str,
+    name_space: String,
     delegate: PublicKey,
     // Table authority controls delegations, not delegee
     delegatoin_sig: SCPSignature,
@@ -64,21 +64,21 @@ pub struct DelegateCell<'a> {
 // time by signing the update with the old key.p
 
 #[derive(Clone)]
-pub struct ValueCell<'a> {
+pub struct ValueCell {
     // opaque value<>
-    value: &'a str,
+    value: String,
     owner_key: PublicKey,
     value_sig: SCPSignature,
 }
 
 // AsRef<[u8]>,
 #[derive(Clone)]
-pub struct Cell<'a> {
+pub struct Cell {
     // 64-bit UNIX timestamps
     create_time: Timestamp,
     revision_time: Timestamp,
     commitment_time: Timestamp,
-    inner_cell: InnerCell<'a>,
+    inner_cell: InnerCell,
     authority_sig: SCPSignature,
 }
 
@@ -87,7 +87,7 @@ fn timestamp_now() -> u64 {
     now.duration_since(UNIX_EPOCH).unwrap().as_secs()
 }
 
-impl<'a> Cell<'a> {
+impl Cell {
     fn signature(&self) -> Option<&SCPSignature> {
         match &self.inner_cell {
             InnerCell::ValueCell(val) => Some(&val.value_sig),
@@ -105,7 +105,14 @@ impl<'a> Cell<'a> {
         Ok(())
     }
 
-    pub fn test_new_delegate_cell(name_space: &'a str, allowance: u32) -> Self {
+    pub fn is_value_cell(&self) -> bool {
+        match self.inner_cell {
+            InnerCell::ValueCell(_) => true,
+            InnerCell::DelegateCell(_) | InnerCell::Invalid => false,
+        }
+    }
+
+    pub fn test_new_delegate_cell(name_space: String, allowance: u32) -> Self {
         Cell {
             create_time: timestamp_now(),
             revision_time: timestamp_now(),
@@ -120,7 +127,7 @@ impl<'a> Cell<'a> {
         }
     }
 
-    pub fn test_new_value_cell(value: &'a str) -> Self {
+    pub fn test_new_value_cell(value: String) -> Self {
         Cell {
             create_time: timestamp_now(),
             revision_time: timestamp_now(),
@@ -142,7 +149,7 @@ impl<'a> Cell<'a> {
         }
     }
 
-    fn modify(&mut self) -> CellOpResult<&'a Self> {
+    fn modify(&mut self) -> CellOpResult<&Self> {
         if let Err(err) = self.check_commitment_expires(timestamp_now()) {
             Err(err)
         } else {
@@ -152,10 +159,10 @@ impl<'a> Cell<'a> {
         }
     }
 
-    pub fn name_space_or_value(&self) -> Option<&'a str> {
+    pub fn name_space_or_value<'a>(&'a self) -> Option<&'a String> {
         match &self.inner_cell {
-            InnerCell::ValueCell(val) => Some(val.value),
-            InnerCell::DelegateCell(del) => Some(del.name_space),
+            InnerCell::ValueCell(val) => Some(&val.value),
+            InnerCell::DelegateCell(del) => Some(&del.name_space),
             InnerCell::Invalid => None,
         }
     }
@@ -195,14 +202,14 @@ impl<'a> Cell<'a> {
 mod tests {
     use super::*;
 
-    fn make_test_value_cell<'a>(commitment_timestamp: Timestamp) -> Cell<'a> {
+    fn make_test_value_cell<'a>(commitment_timestamp: Timestamp) -> Cell {
         Cell {
             create_time: 0,
             revision_time: 0,
             commitment_time: commitment_timestamp,
             authority_sig: Default::default(),
             inner_cell: InnerCell::ValueCell(ValueCell {
-                value: "",
+                value: "".into(),
                 owner_key: mock_public_key(),
                 value_sig: Default::default(),
             }),
@@ -238,7 +245,7 @@ mod tests {
             commitment_time: timestamp_now(),
             authority_sig: Default::default(),
             inner_cell: InnerCell::ValueCell(ValueCell {
-                value: "",
+                value: "".into(),
                 owner_key: mock_public_key(),
                 value_sig: SCPSignature::test_gen_fake_signature(),
             }),
@@ -250,15 +257,15 @@ mod tests {
     }
 }
 
-impl<'a> PartialEq for Cell<'a> {
+impl<'a> PartialEq for Cell {
     fn eq(&self, other: &Self) -> bool {
         self.name_space_or_value() == other.name_space_or_value()
     }
 }
 
-impl<'a> Eq for Cell<'a> {}
+impl<'a> Eq for Cell {}
 
-impl<'a> PartialOrd for Cell<'a> {
+impl<'a> PartialOrd for Cell {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         if let Some(self_val) = self.name_space_or_value() {
             if let Some(other_val) = other.name_space_or_value() {
@@ -270,7 +277,7 @@ impl<'a> PartialOrd for Cell<'a> {
     }
 }
 
-impl<'a> Default for Cell<'a> {
+impl<'a> Default for Cell {
     fn default() -> Self {
         Self {
             create_time: Default::default(),
@@ -282,7 +289,7 @@ impl<'a> Default for Cell<'a> {
     }
 }
 
-impl<'a> Cell<'a> {
+impl Cell {
     pub fn to_merkle_hash(&self) -> Option<MerkleHash> {
         todo!()
         // Implement serialization for cell.
