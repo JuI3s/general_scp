@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 
 use crate::ca::table;
 
@@ -41,10 +41,12 @@ pub enum TableEntry {
     Delegate(DelegateEntry),
 }
 
+pub type HValueEntry = Rc<RefCell<ValueEntry>>;
 pub struct ValueEntry {
     pub cell: ValueCell,
 }
 
+pub type HDelegateEntry = Rc<RefCell<DelegateEntry>>;
 pub struct DelegateEntry {
     pub cell: DelegateCell,
 }
@@ -54,12 +56,13 @@ pub struct TableMeta {
     lookup_key: String,
 }
 
+pub type HTable = Rc<RefCell<Table>>;
 pub struct Table {
     pub allowance: u32,
     pub name_space: String,
     // Need to change this to a map
-    pub value_entries: Vec<ValueEntry>,
-    pub delegate_entries: Vec<DelegateEntry>,
+    pub value_entries: Vec<HValueEntry>,
+    pub delegate_entries: Vec<HDelegateEntry>,
     pub merkle_tree: Box<MerkleTree>,
 }
 
@@ -109,8 +112,8 @@ impl Table {
         // TODO: should we check if the cell contains a non-empty inner cell?
 
         match cell {
-            Cell::Value(cell) => Ok(self.value_entries.push(ValueEntry { cell: cell })),
-            Cell::Delegate(cell) => Ok(self.delegate_entries.push(DelegateEntry { cell: cell })),
+            Cell::Value(cell) => Ok(self.value_entries.push(ValueEntry::new_handle(cell))),
+            Cell::Delegate(cell) => Ok(self.delegate_entries.push(DelegateEntry::new_handle(cell))),
         }
     }
 
@@ -152,7 +155,7 @@ impl Table {
         if self
             .value_entries
             .iter()
-            .any(|table_entry| table_entry.cell.contains_prefix_from_cell(cell))
+            .any(|table_entry| table_entry.borrow().cell.contains_prefix_from_cell(cell))
         {
             return Err(TableOpError::CellAddressIsPrefix);
         }
@@ -160,7 +163,7 @@ impl Table {
         if self
             .delegate_entries
             .iter()
-            .any(|table_entry| table_entry.cell.contains_prefix_from_cell(cell))
+            .any(|table_entry| table_entry.borrow().cell.contains_prefix_from_cell(cell))
         {
             return Err(TableOpError::CellAddressIsPrefix);
         }
@@ -175,13 +178,13 @@ impl Table {
 
         let mut cur: u32 = 0;
         self.value_entries.iter().for_each(|e| {
-            if e.cell.inner_cell.is_some() {
+            if e.borrow().cell.inner_cell.is_some() {
                 cur += 1;
             }
         });
 
         self.delegate_entries.iter().for_each(|e| {
-            if let Some(val) = e.cell.allowance() {
+            if let Some(val) = e.borrow().cell.allowance() {
                 cur += val;
             }
         });
@@ -191,6 +194,44 @@ impl Table {
         } else {
             Ok(())
         }
+    }
+
+    pub fn find_value_cell<'a>(table: &Rc<RefCell<Self>>, key: &String) -> Option<HValueEntry> {
+        if let Some(val) = table
+            .borrow()
+            .value_entries
+            .iter()
+            .find(|e| e.borrow().cell.equals_prefix(key))
+        {
+            return Some(val.clone());
+        }
+
+        if let Some(del_entry) = table
+            .borrow_mut()
+            .delegate_entries
+            .iter_mut()
+            .find(|e| e.borrow().cell.is_prefix_of(key))
+        {
+            match &del_entry.borrow().cell.table {
+                Some(new_table) => return Self::find_value_cell(new_table, key),
+                None => {
+                    return None;
+                }
+            }
+        }
+        None
+    }
+}
+
+impl ValueEntry {
+    pub fn new_handle(cell: ValueCell) -> HValueEntry {
+        Rc::new(RefCell::new(Self { cell: cell }))
+    }
+}
+
+impl DelegateEntry {
+    pub fn new_handle(cell: DelegateCell) -> HDelegateEntry {
+        Rc::new(RefCell::new(Self { cell: cell }))
     }
 }
 

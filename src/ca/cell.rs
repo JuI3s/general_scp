@@ -9,6 +9,7 @@ use super::{
     ca_type::{mock_public_key, PublicKey, SCPSignature, Timestamp},
     merkle::MerkleHash,
     operation::ReturnValueCell,
+    table::HTable,
 };
 
 type CellOpResult<T> = std::result::Result<T, CellOpError>;
@@ -88,6 +89,7 @@ pub struct DelegateCell {
     pub commitment_time: Timestamp,
     pub inner_cell: Option<InnerDelegateCell>,
     pub authority_sig: SCPSignature,
+    pub table: Option<HTable>,
 }
 
 // AsRef<[u8]>,
@@ -95,6 +97,11 @@ pub struct DelegateCell {
 pub enum Cell {
     Value(ValueCell),
     Delegate(DelegateCell),
+}
+
+pub enum CellRef<'a> {
+    Value(&'a mut ValueCell),
+    Delegate(&'a mut DelegateCell),
 }
 
 fn timestamp_now() -> u64 {
@@ -108,6 +115,12 @@ impl ValueCell {
             cell.name_space_or_value()
                 .is_some_and(|str| str.starts_with(&inner.value))
         })
+    }
+
+    pub fn equals_prefix(&self, prefix: &String) -> bool {
+        self.inner_cell
+            .as_ref()
+            .is_some_and(|inner| inner.value.eq(prefix))
     }
 
     pub fn contains_prefix_from_cell(&self, cell: &Cell) -> bool {
@@ -125,6 +138,10 @@ impl ValueCell {
 }
 
 impl DelegateCell {
+    pub fn namespace<'a>(&'a self) -> Option<&'a String> {
+        self.inner_cell.as_ref().map(|v| &v.name_space)
+    }
+
     pub fn allowance(&self) -> Option<u32> {
         match &self.inner_cell {
             Some(inner) => Some(inner.allowance),
@@ -144,6 +161,12 @@ impl DelegateCell {
             cell.name_space_or_value()
                 .is_some_and(|prefix| inner.name_space.starts_with(prefix))
         })
+    }
+
+    pub fn is_prefix_of(&self, prefix: &String) -> bool {
+        self.inner_cell
+            .as_ref()
+            .is_some_and(|inner| prefix.starts_with(&inner.name_space))
     }
 
     pub fn contains_prefix(&self, prefix: &String) -> bool {
@@ -216,6 +239,7 @@ impl Cell {
                 delegatoin_sig: Default::default(),
                 allowance: allowance,
             }),
+            table: None,
         })
     }
 

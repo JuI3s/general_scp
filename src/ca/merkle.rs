@@ -1,4 +1,6 @@
-use std::{collections::hash_map::DefaultHasher, fmt, hash::Hasher, process::id};
+use std::{
+    cell::RefCell, collections::hash_map::DefaultHasher, fmt, hash::Hasher, process::id, rc::Rc,
+};
 
 use ct_merkle::{error::InclusionVerifError, inclusion::InclusionProof, CtMerkleTree, RootHash};
 use sha2::{Digest, Sha256};
@@ -24,6 +26,7 @@ pub enum MerkleOpError {
     InternalTreeError,
 }
 
+pub type HMerkleTree = Rc<RefCell<MerkleTree>>;
 pub struct MerkleTree {
     mktree: CtMerkleTree<Sha256, MerkleHash>,
     size: usize,
