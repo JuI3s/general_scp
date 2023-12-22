@@ -158,57 +158,60 @@ impl CAState {
         cell: &Cell,
         tables: &'b mut Tables,
     ) -> Option<&'b mut Cell> {
+        todo!()
+
         // This implementation suffers from problem case 3 in here
         // https://github.com/rust-lang/rfcs/blob/master/text/2094-nll.md#problem-case-3-conditional-control-flow-across-functions
 
         // Assume self is well formed.
-        let mut next_key = String::new();
 
-        if let Some(current_table) = self.get_table_mut(root_entry, &table_key, tables) {
-            if let Some(cell_key) = cell.name_space_or_value() {
-                let res = match current_table
-                    .table_entries
-                    .iter_mut()
-                    .find(|e| e.cell.is_prefix_of(cell))
-                {
-                    Some(_entry) => Some(&mut _entry.cell),
-                    None => None,
-                };
+        // let mut next_key = String::new();
 
-                if let Some(_cell) = res {
-                    next_key = _cell.name_space_or_value().unwrap().clone();
-                    {
-                        if _cell.is_value_cell() {
-                            if _cell.name_space_or_value().unwrap() == cell_key {
-                                // return Some(_cell);
-                            } else {
-                                return None;
-                            }
-                        } else {
-                            return self.find_cell(root_entry, &next_key, cell, tables);
-                        }
-                    }
-                } else {
-                    return None;
-                }
+        // if let Some(current_table) = self.get_table_mut(root_entry, &table_key, tables) {
+        //     if let Some(cell_key) = cell.name_space_or_value() {
+        //         let res = match current_table
+        //             .value_entries
+        //             .iter_mut()
+        //             .find(|e| e.cell.is_prefix_of(cell))
+        //         {
+        //             Some(_entry) => Some(&mut _entry.cell),
+        //             None => None,
+        //         };
 
-                // return None;
-            } else {
-                return None;
-            }
-        } else {
-            return None;
-        }
+        //         if let Some(_cell) = res {
+        //             next_key = _cell.name_space_or_value().unwrap().clone();
+        //             {
+        //                 if _cell.is_value_cell() {
+        //                     if _cell.name_space_or_value().unwrap() == cell_key {
+        //                         // return Some(_cell);
+        //                     } else {
+        //                         return None;
+        //                     }
+        //                 } else {
+        //                     return self.find_cell(root_entry, &next_key, cell, tables);
+        //                 }
+        //             }
+        //         } else {
+        //             return None;
+        //         }
 
-        let current_table = self.get_table_mut(root_entry, &table_key, tables).unwrap();
-        match current_table
-            .table_entries
-            .iter_mut()
-            .find(|e| e.cell.is_prefix_of(cell))
-        {
-            Some(entry) => Some(&mut entry.cell),
-            None => unreachable!(),
-        }
+        //         // return None;
+        //     } else {
+        //         return None;
+        //     }
+        // } else {
+        //     return None;
+        // }
+
+        // let current_table = self.get_table_mut(root_entry, &table_key, tables).unwrap();
+        // match current_table
+        //     .value_entries
+        //     .iter_mut()
+        //     .find(|e| e.cell.is_prefix_of(cell))
+        // {
+        //     Some(entry) => Some(&mut entry.cell),
+        //     None => unreachable!(),
+        // }
 
         // return self.find_cell(root_entry, &next_key, cell,  tables);
     }

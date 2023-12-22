@@ -102,6 +102,57 @@ fn timestamp_now() -> u64 {
     now.duration_since(UNIX_EPOCH).unwrap().as_secs()
 }
 
+impl ValueCell {
+    pub fn is_prefix_of_cell(&self, cell: &Cell) -> bool {
+        self.inner_cell.as_ref().is_some_and(|inner| {
+            cell.name_space_or_value()
+                .is_some_and(|str| str.starts_with(&inner.value))
+        })
+    }
+
+    pub fn contains_prefix_from_cell(&self, cell: &Cell) -> bool {
+        self.inner_cell.as_ref().is_some_and(|inner| {
+            cell.name_space_or_value()
+                .is_some_and(|prefix| inner.value.starts_with(prefix))
+        })
+    }
+
+    pub fn contains_prefix(&self, prefix: &String) -> bool {
+        self.inner_cell
+            .as_ref()
+            .is_some_and(|inner| inner.value.starts_with(prefix))
+    }
+}
+
+impl DelegateCell {
+    pub fn allowance(&self) -> Option<u32> {
+        match &self.inner_cell {
+            Some(inner) => Some(inner.allowance),
+            None => None,
+        }
+    }
+
+    pub fn is_prefix_of_cell(&self, cell: &Cell) -> bool {
+        self.inner_cell.as_ref().is_some_and(|inner| {
+            cell.name_space_or_value()
+                .is_some_and(|str| str.starts_with(&inner.name_space))
+        })
+    }
+
+    pub fn contains_prefix_from_cell(&self, cell: &Cell) -> bool {
+        self.inner_cell.as_ref().is_some_and(|inner| {
+            cell.name_space_or_value()
+                .is_some_and(|prefix| inner.name_space.starts_with(prefix))
+        })
+    }
+
+    pub fn contains_prefix(&self, prefix: &String) -> bool {
+        self.inner_cell
+            .as_ref()
+            .is_some_and(|inner| inner.name_space.starts_with(prefix))
+    }
+}
+
 impl Cell {
     pub fn signature(&self) -> &SCPSignature {
         match &self {

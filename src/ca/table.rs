@@ -4,7 +4,7 @@ use crate::ca::table;
 
 use super::{
     ca_type::{PublicKey, SCPSignature},
-    cell::{Cell, InnerCellType},
+    cell::{Cell, DelegateCell, InnerCellType, ValueCell},
     merkle::{MerkleHash, MerkleTree},
 };
 
@@ -36,9 +36,17 @@ pub enum TableOpError {
 // entries and the table itself.  For example, the owner of a table
 // delegated an /8 IPv4 block must not to delegate the same /16 block to
 // two different tables.
-pub struct TableEntry {
-    // opaque lookup_key<>
-    pub cell: Cell,
+pub enum TableEntry {
+    Value(ValueEntry),
+    Delegate(DelegateEntry),
+}
+
+pub struct ValueEntry {
+    pub cell: ValueCell,
+}
+
+pub struct DelegateEntry {
+    pub cell: DelegateCell,
 }
 
 pub struct TableMeta {
@@ -48,8 +56,10 @@ pub struct TableMeta {
 
 pub struct Table {
     pub allowance: u32,
+    pub name_space: String,
     // Need to change this to a map
-    pub table_entries: Vec<TableEntry>,
+    pub value_entries: Vec<ValueEntry>,
+    pub delegate_entries: Vec<DelegateEntry>,
     pub merkle_tree: Box<MerkleTree>,
 }
 
@@ -74,8 +84,10 @@ impl Default for Table {
     fn default() -> Self {
         Self {
             allowance: Table::DEFAULT_ALLOWANCE,
-            table_entries: Default::default(),
             merkle_tree: Default::default(),
+            name_space: "".to_string(),
+            value_entries: Default::default(),
+            delegate_entries: Default::default(),
         }
     }
 }
@@ -83,30 +95,33 @@ impl Default for Table {
 impl Table {
     const DEFAULT_ALLOWANCE: u32 = 100;
 
-    pub fn new(allowance: u32) -> Self {
+    pub fn new(allowance: u32, namespace: String) -> Self {
         Self {
             allowance,
-            table_entries: Default::default(),
+            value_entries: Default::default(),
+            delegate_entries: Default::default(),
             merkle_tree: Default::default(),
+            name_space: namespace,
         }
     }
 
     pub fn add_entry(&mut self, cell: Cell) -> TableOpResult<()> {
-        if let Some(val) = cell.name_space_or_value() {
-            self.table_entries.push(TableEntry { cell: cell });
-            Ok(())
-        } else {
-            Err(TableOpError::EmptyCell)
+        // TODO: should we check if the cell contains a non-empty inner cell?
+
+        match cell {
+            Cell::Value(cell) => Ok(self.value_entries.push(ValueEntry { cell: cell })),
+            Cell::Delegate(cell) => Ok(self.delegate_entries.push(DelegateEntry { cell: cell })),
         }
     }
 
     pub fn remove_entry(&mut self, prompt: &str) {
-        self.table_entries.retain(|entry| {
-            !entry
-                .cell
-                .name_space_or_value()
-                .is_some_and(|val| val == prompt)
-        });
+        todo!()
+        // self.value_entries.retain(|entry| {
+        //     !entry
+        //         .cell
+        //         .name_space_or_value()
+        //         .is_some_and(|val| val == prompt)
+        // });
     }
 
     //    2.3.  Prefix-based Delegation Correctness
@@ -127,18 +142,25 @@ impl Table {
     //    schemes where there is no explicit restriction can use an empty
     //    prefix.
     pub fn check_cell_valid(&self, cell: &Cell) -> TableOpResult<()> {
-        if !self.table_entries.iter().any(|table_entry| {
-            table_entry.cell.inner_cell_type() == InnerCellType::Delegate
-                && table_entry.cell.is_prefix_of(cell)
-        }) {
+        if !cell
+            .name_space_or_value()
+            .is_some_and(|v| v.starts_with(&self.name_space))
+        {
             return Err(TableOpError::NamespaceError);
         }
 
-        // TODO: do not iterate over the whole thing for performance optimization.
         if self
-            .table_entries
+            .value_entries
             .iter()
-            .any(|table_entry| cell.is_prefix_of(&table_entry.cell))
+            .any(|table_entry| table_entry.cell.contains_prefix_from_cell(cell))
+        {
+            return Err(TableOpError::CellAddressIsPrefix);
+        }
+
+        if self
+            .delegate_entries
+            .iter()
+            .any(|table_entry| table_entry.cell.contains_prefix_from_cell(cell))
         {
             return Err(TableOpError::CellAddressIsPrefix);
         }
@@ -151,28 +173,24 @@ impl Table {
             return Ok(());
         }
 
-        if let Some(Some(current_allowance)) = self
-            .table_entries
-            .iter()
-            .map(|entry| entry.cell.allowance())
-            .reduce(|acc, e| {
-                if let Some(_acc) = acc {
-                    if let Some(_e) = e {
-                        return Some(_acc + _e);
-                    }
-                }
-                None
-            })
-        {
-            if current_allowance + allowance > self.allowance {
-                return Err(TableOpError::NotEnoughAllowence(
-                    self.allowance,
-                    current_allowance,
-                ));
+        let mut cur: u32 = 0;
+        self.value_entries.iter().for_each(|e| {
+            if e.cell.inner_cell.is_some() {
+                cur += 1;
             }
-        }
+        });
 
-        Ok(())
+        self.delegate_entries.iter().for_each(|e| {
+            if let Some(val) = e.cell.allowance() {
+                cur += val;
+            }
+        });
+
+        if cur + allowance > self.allowance {
+            Err(TableOpError::NotEnoughAllowence(self.allowance, cur))
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -188,12 +206,12 @@ mod tests {
 
     #[test]
     fn prefix_delegation_rule() {
-        let mut entries = Table::default();
+        let mut entries = Table::new(100, "home/".to_owned());
         let home_cell = Cell::test_new_delegate_cell(String::from("home/"), 1);
         let cell1 = Cell::test_new_value_cell(String::from("home/1"));
 
         assert!(entries
-            .check_cell_valid(&cell1)
+            .check_cell_valid(&Cell::test_new_value_cell(String::from("ho")))
             .is_err_and(|err| { err == TableOpError::NamespaceError }));
         assert!(entries.add_entry(home_cell).is_ok());
         assert!(entries.check_cell_valid(&cell1).is_ok());
@@ -217,7 +235,7 @@ mod tests {
 
     #[test]
     fn allowance() {
-        let mut table = Table::new(1);
+        let mut table = Table::new(1, "".to_string());
         assert!(table.contains_enough_allowance(1).is_ok());
 
         let home_cell = Cell::test_new_delegate_cell(String::from("home/"), 1);
