@@ -149,6 +149,12 @@ impl DelegateCell {
         }
     }
 
+    pub fn equals_prefix(&self, prefix: &String) -> bool {
+        self.inner_cell
+            .as_ref()
+            .is_some_and(|inner| inner.name_space.eq(prefix))
+    }
+
     pub fn is_prefix_of_cell(&self, cell: &Cell) -> bool {
         self.inner_cell.as_ref().is_some_and(|inner| {
             cell.name_space_or_value()

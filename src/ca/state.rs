@@ -19,16 +19,15 @@ use super::{
     cell::{Cell, CellRef},
     merkle::MerkleTree,
     operation::{CellMerkleProof, SetOperation, TableMerkleProof},
-    root::{RootEntry, RootEntryKey, RootListing},
-    table::{HValueEntry, Table, TableEntry},
+    root::{self, RootEntry, RootEntryKey, RootListing},
+    table::{HDelegateEntry, HTable, HValueEntry, Table, TableEntry},
 };
 
 pub struct CAState {
     table_tree: MerkleTree,
     root_listing: RootListing,
+    tables: BTreeMap<RootEntryKey, BTreeMap<String, HTable>>,
 }
-
-pub struct Tables(BTreeMap<RootEntryKey, BTreeMap<String, Table>>);
 
 #[derive(Hash, Default, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct CANominationValue {}
@@ -50,6 +49,7 @@ impl Default for CAState {
         Self {
             table_tree: Default::default(),
             root_listing: Default::default(),
+            tables: Default::default(),
         }
     }
 }
@@ -81,11 +81,10 @@ impl CAState {
         &self,
         root_key: &RootEntryKey,
         merkle_proof: &CellMerkleProof,
-        tables: &Tables,
     ) -> CAStateOpResult<()> {
-        if let Some(table) = self.get_table(root_key, merkle_proof.key, tables) {
+        if let Some(table) = self.get_table(root_key, merkle_proof.key) {
             // Check tree root has not changed.
-            if table.merkle_tree.root() != merkle_proof.root {
+            if table.borrow().merkle_tree.root() != merkle_proof.root {
                 return Err(CAStateOpError::MerkleTreeChanged);
             }
 
@@ -95,6 +94,7 @@ impl CAState {
                 .to_merkle_hash()
                 .is_some_and(|hash| {
                     table
+                        .borrow()
                         .merkle_tree
                         .veritfy_inclusion_proof(
                             &hash,
@@ -125,53 +125,31 @@ impl CAState {
         todo!()
     }
 
-    fn get_table<'a>(
+    pub fn find_delegation_cell(
         &self,
-        root_entry: &'a RootEntryKey,
-        table_key: &'a str,
-        tables: &'a Tables,
-    ) -> Option<&'a Table> {
-        if let Some(root_table) = tables.0.get(root_entry) {
-            root_table.get(table_key)
-        } else {
-            None
-        }
+        root_entry_key: &RootEntryKey,
+        cell_key: &String,
+    ) -> Option<HDelegateEntry> {
+        let root_table = self.get_root_table(root_entry_key)?;
+        Table::find_delegation_cell(&root_table, cell_key)
     }
 
-    fn get_table_mut<'a>(
+    pub fn find_value_cell(
         &self,
-        root_entry: &RootEntryKey,
-        table_key: &String,
-        tables: &'a mut Tables,
-    ) -> Option<&'a mut Table> {
-        if let Some(root_table) = tables.0.get_mut(root_entry) {
-            root_table.get_mut(table_key)
-        } else {
-            None
-        }
+        root_entry_key: &RootEntryKey,
+        cell_key: &String,
+    ) -> Option<HValueEntry> {
+        let root_table = self.get_root_table(root_entry_key)?;
+        Table::find_value_cell(&root_table, cell_key)
     }
 
-    fn get_root_table_mut<'a>(
-        &mut self,
-        root_key: &RootEntryKey,
-        tables: &'a mut Tables,
-    ) -> Option<&'a mut Table> {
-        self.get_table_mut(root_key, &String::from(""), tables)
+    fn get_root_table(&self, root_entry_key: &RootEntryKey) -> Option<HTable> {
+        self.get_table(root_entry_key, "")
     }
 
-    pub fn get_cell_mut(
-        &mut self,
-        root_key: RootEntryKey,
-        cell: &Cell,
-    ) -> CAStateOpResult<Option<&mut Cell>> {
-        if let Some(key) = cell.name_space_or_value() {
-            // if let Some(root_entry) = self.root_listing.
-
-            todo!()
-            // Ok(())
-        } else {
-            Err(CAStateOpError::InvalidCell)
-        }
+    fn get_table(&self, root_entry: &RootEntryKey, table_key: &str) -> Option<HTable> {
+        let root_table = self.tables.get(root_entry)?;
+        root_table.get(table_key).map(|v| v.clone())
     }
 
     pub fn contains_root_entry(

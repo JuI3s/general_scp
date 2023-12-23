@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
+use std::{cell::RefCell, collections::BTreeSet, f32::consts::E, rc::Rc};
 
 use crate::ca::table;
 
@@ -14,6 +14,7 @@ type TableOpResult<T> = std::result::Result<T, TableOpError>;
 pub enum TableOpError {
     NamespaceError,
     CellAddressIsPrefix,
+    CellAddressContainsPrefix,
     // NotEnoughAllowence(allowance_capacity, allowance_filled)
     NotEnoughAllowence(u32, u32),
     EmptyCell,
@@ -109,8 +110,6 @@ impl Table {
     }
 
     pub fn add_entry(&mut self, cell: Cell) -> TableOpResult<()> {
-        // TODO: should we check if the cell contains a non-empty inner cell?
-
         match cell {
             Cell::Value(cell) => Ok(self.value_entries.push(ValueEntry::new_handle(cell))),
             Cell::Delegate(cell) => Ok(self.delegate_entries.push(DelegateEntry::new_handle(cell))),
@@ -161,11 +160,27 @@ impl Table {
         }
 
         if self
+            .value_entries
+            .iter()
+            .any(|table_entry| table_entry.borrow().cell.is_prefix_of_cell(cell))
+        {
+            return Err(TableOpError::CellAddressContainsPrefix);
+        }
+
+        if self
             .delegate_entries
             .iter()
             .any(|table_entry| table_entry.borrow().cell.contains_prefix_from_cell(cell))
         {
             return Err(TableOpError::CellAddressIsPrefix);
+        }
+
+        if self
+            .delegate_entries
+            .iter()
+            .any(|table_entry| table_entry.borrow().cell.is_prefix_of_cell(cell))
+        {
+            return Err(TableOpError::CellAddressContainsPrefix);
         }
 
         Ok(())
@@ -196,7 +211,23 @@ impl Table {
         }
     }
 
-    pub fn find_value_cell<'a>(table: &Rc<RefCell<Self>>, key: &String) -> Option<HValueEntry> {
+    pub fn find_delegation_cell(table: &Rc<RefCell<Self>>, key: &String) -> Option<HDelegateEntry> {
+        for entry in &table.borrow().delegate_entries {
+            if entry.borrow().cell.equals_prefix(key) {
+                return Some(entry.clone());
+            }
+
+            if entry.borrow().cell.is_prefix_of(key) {
+                if let Some(next_table) = &entry.borrow().cell.table {
+                    return Table::find_delegation_cell(&next_table, key);
+                }
+            }
+        }
+
+        None
+    }
+
+    pub fn find_value_cell(table: &Rc<RefCell<Self>>, key: &String) -> Option<HValueEntry> {
         if let Some(val) = table
             .borrow()
             .value_entries
@@ -248,8 +279,8 @@ mod tests {
     #[test]
     fn prefix_delegation_rule() {
         let mut entries = Table::new(100, "home/".to_owned());
-        let home_cell = Cell::test_new_delegate_cell(String::from("home/"), 1);
-        let cell1 = Cell::test_new_value_cell(String::from("home/1"));
+        let home_cell = Cell::test_new_delegate_cell(String::from("home/home"), 1);
+        let cell1 = Cell::test_new_value_cell(String::from("home/cell1"));
 
         assert!(entries
             .check_cell_valid(&Cell::test_new_value_cell(String::from("ho")))
@@ -258,9 +289,10 @@ mod tests {
         assert!(entries.check_cell_valid(&cell1).is_ok());
 
         assert!(entries.add_entry(cell1.clone()).is_ok());
-        assert!(entries
-            .check_cell_valid(&cell1)
-            .is_err_and(|err| { err == TableOpError::CellAddressIsPrefix }));
+        assert!(entries.check_cell_valid(&cell1).is_err_and(|err| {
+            err == TableOpError::CellAddressIsPrefix
+                || err == TableOpError::CellAddressContainsPrefix
+        }));
 
         let cell2 = Cell::test_new_value_cell(String::from("home/"));
         let cell3 = Cell::test_new_value_cell(String::from("home/1/2"));
