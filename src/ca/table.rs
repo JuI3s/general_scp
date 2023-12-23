@@ -126,24 +126,27 @@ impl Table {
         // });
     }
 
-    //    2.3.  Prefix-based Delegation Correctness
-
-    //    To generalize correctness, each table must conform with a prefix-
-    //    based rule: for every cell with value or delegation subset "c" in a
-    //    table controlling namespace "n", "n" must
-    //
-    //    (1) be a prefix of "c" and
-    //    (2) there cannot exist another cell with value or delegation subset
-    //    "c2" such that "c" is a prefix of "c2".
-
-    //    While there exist many more hierarchical naming schemes, many can be
-    //    simply represented in a prefix scheme.  For example, suffix-based
-    //    delegations, including domain name hierarchies, can use reversed keys
-    //    internally and perform a swap in the application layer before
-    //    displaying any results to clients.  Likewise, 'flat' delegation
-    //    schemes where there is no explicit restriction can use an empty
-    //    prefix.
     pub fn check_cell_valid(&self, cell: &Cell) -> TableOpResult<()> {
+        // This function can be used to inductively check that after each insertion of a new cell, the table remains valid based on the following rule.
+        
+        //    2.3.  Prefix-based Delegation Correctness
+    
+        //    To generalize correctness, each table must conform with a prefix-
+        //    based rule: for every cell with value or delegation subset "c" in a
+        //    table controlling namespace "n", "n" must
+        //
+        //    (1) be a prefix of "c" and
+        //    (2) there cannot exist another cell with value or delegation subset
+        //    "c2" such that "c" is a prefix of "c2".
+
+        //    While there exist many more hierarchical naming schemes, many can be
+        //    simply represented in a prefix scheme.  For example, suffix-based
+        //    delegations, including domain name hierarchies, can use reversed keys
+        //    internally and perform a swap in the application layer before
+        //    displaying any results to clients.  Likewise, 'flat' delegation
+        //    schemes where there is no explicit restriction can use an empty
+        //    prefix.
+
         if !cell
             .name_space_or_value()
             .is_some_and(|v| v.starts_with(&self.name_space))
