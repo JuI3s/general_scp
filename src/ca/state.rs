@@ -1,5 +1,6 @@
 use std::{
     ascii::AsciiExt,
+    borrow::BorrowMut,
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
     marker::PhantomData,
     os::unix::ffi::OsStrExt,
@@ -20,7 +21,7 @@ use super::{
     merkle::MerkleTree,
     operation::{CellMerkleProof, SetOperation, TableMerkleProof},
     root::{self, RootEntry, RootEntryKey, RootListing},
-    table::{HDelegateEntry, HTable, HValueEntry, Table, TableEntry},
+    table::{HDelegateEntry, HTable, HValueEntry, Table, TableOpError},
 };
 
 pub struct CAState {
@@ -33,6 +34,7 @@ pub struct CAState {
 pub struct CANominationValue {}
 
 pub type CAStateOpResult<T> = std::result::Result<T, CAStateOpError>;
+#[derive(PartialEq, Debug)]
 pub enum CAStateOpError {
     MerkleTreeNotPresent,
     MerkleTreeChanged,
@@ -40,6 +42,7 @@ pub enum CAStateOpError {
     InvalidProof,
     InvalidCell,
     RootTableNotFound,
+    TableOpError(TableOpError),
 }
 
 impl NominationValue for CANominationValue {}
@@ -117,8 +120,19 @@ impl CAState {
         todo!()
     }
 
-    pub fn insert_cell(&mut self, cell: &Cell) {
-        todo!()
+    pub fn insert_cell(
+        &mut self,
+        root_entry_key: &RootEntryKey,
+        cell: Cell,
+    ) -> CAStateOpResult<()> {
+        if let Some(root_table) = self.get_root_table(root_entry_key) {
+            match root_table.as_ref().borrow_mut().add_entry(cell) {
+                Ok(_) => Ok(()),
+                Err(err) => Err(CAStateOpError::TableOpError(err)),
+            }
+        } else {
+            Err(CAStateOpError::RootTableNotFound)
+        }
     }
 
     pub fn insert_root_entry(&mut self, root_entry: &RootEntry) {

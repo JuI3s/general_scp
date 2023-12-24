@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::BTreeSet, f32::consts::E, rc::Rc};
+use std::{borrow::BorrowMut, cell::RefCell, collections::BTreeSet, f32::consts::E, rc::Rc};
 
 use crate::ca::table;
 
@@ -8,7 +8,7 @@ use super::{
     merkle::{MerkleHash, MerkleTree},
 };
 
-type TableOpResult<T> = std::result::Result<T, TableOpError>;
+pub type TableOpResult<T> = std::result::Result<T, TableOpError>;
 
 #[derive(PartialEq, Debug)]
 pub enum TableOpError {
@@ -110,27 +110,60 @@ impl Table {
     }
 
     pub fn add_entry(&mut self, cell: Cell) -> TableOpResult<()> {
-        match cell {
-            Cell::Value(cell) => Ok(self.value_entries.push(ValueEntry::new_handle(cell))),
-            Cell::Delegate(cell) => Ok(self.delegate_entries.push(DelegateEntry::new_handle(cell))),
+        match self.check_cell_valid(&cell) {
+            Err(err) => Err(err),
+            Ok(_) => match cell {
+                Cell::Value(cell) => Ok(self.value_entries.push(ValueEntry::new_handle(cell))),
+                Cell::Delegate(cell) => {
+                    Ok(self.delegate_entries.push(DelegateEntry::new_handle(cell)))
+                }
+            },
         }
     }
 
-    pub fn remove_entry(&mut self, prompt: &str) {
-        todo!()
-        // self.value_entries.retain(|entry| {
-        //     !entry
-        //         .cell
-        //         .name_space_or_value()
-        //         .is_some_and(|val| val == prompt)
-        // });
+    pub fn remove_delegation_cell(table: &HTable, key: &String) {
+        // TODO: update modification time.
+        match Table::find_delegation_cell(table, key) {
+            None => {}
+            Some(entry) => {
+                if !entry
+                    .as_ref()
+                    .borrow_mut()
+                    .cell
+                    .set_modify_timestamp()
+                    .is_ok()
+                {
+                    return;
+                }
+                entry.as_ref().borrow_mut().cell.inner_cell = None
+            }
+        }
+    }
+
+    pub fn remove_value_cell(table: &HTable, key: &String) {
+        // TODO: update modification time.
+        match Table::find_value_cell(table, key) {
+            None => {}
+            Some(entry) => {
+                if !entry
+                    .as_ref()
+                    .borrow_mut()
+                    .cell
+                    .set_modify_timestamp()
+                    .is_ok()
+                {
+                    return;
+                }
+                entry.as_ref().borrow_mut().cell.inner_cell = None;
+            }
+        }
     }
 
     pub fn check_cell_valid(&self, cell: &Cell) -> TableOpResult<()> {
         // This function can be used to inductively check that after each insertion of a new cell, the table remains valid based on the following rule.
-        
+
         //    2.3.  Prefix-based Delegation Correctness
-    
+
         //    To generalize correctness, each table must conform with a prefix-
         //    based rule: for every cell with value or delegation subset "c" in a
         //    table controlling namespace "n", "n" must
@@ -241,9 +274,9 @@ impl Table {
         }
 
         if let Some(del_entry) = table
-            .borrow_mut()
+            .borrow()
             .delegate_entries
-            .iter_mut()
+            .iter()
             .find(|e| e.borrow().cell.is_prefix_of(key))
         {
             match &del_entry.borrow().cell.table {

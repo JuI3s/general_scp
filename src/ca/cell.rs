@@ -110,6 +110,19 @@ fn timestamp_now() -> u64 {
 }
 
 impl ValueCell {
+    pub fn set_modify_timestamp(&mut self) -> CellOpResult<()> {
+        let now = timestamp_now();
+
+        if now <= self.commitment_time {
+            return Err(CellOpError::CommitmentNotExpires);
+        }
+
+        self.revision_time = now;
+        self.commitment_time = now;
+
+        Ok(())
+    }
+
     pub fn is_prefix_of_cell(&self, cell: &Cell) -> bool {
         self.inner_cell.as_ref().is_some_and(|inner| {
             cell.name_space_or_value()
@@ -138,6 +151,19 @@ impl ValueCell {
 }
 
 impl DelegateCell {
+    pub fn set_modify_timestamp(&mut self) -> CellOpResult<()> {
+        let now = timestamp_now();
+
+        if now <= self.commitment_time {
+            return Err(CellOpError::CommitmentNotExpires);
+        }
+
+        self.revision_time = now;
+        self.commitment_time = now;
+
+        Ok(())
+    }
+
     pub fn namespace<'a>(&'a self) -> Option<&'a String> {
         self.inner_cell.as_ref().map(|v| &v.name_space)
     }
