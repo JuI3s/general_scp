@@ -1,5 +1,7 @@
 use std::{borrow::BorrowMut, cell::RefCell, collections::BTreeSet, f32::consts::E, rc::Rc};
 
+use serde::Serialize;
+
 use crate::ca::table;
 
 use super::{

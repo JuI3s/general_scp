@@ -1,10 +1,12 @@
+use std::fmt::{write, Display, self};
+
 use digest::Digest;
 use dsa::{Signature, SigningKey, VerifyingKey};
 use pkcs8::{
     der::{Decode, Encode},
-    DecodePrivateKey,
+    DecodePrivateKey, DecodePublicKey, EncodePublicKey,
 };
-use serde::Serialize;
+use serde::{de, ser, Deserialize, Deserializer, Serialize};
 use sha2::Sha256;
 use signature::{DigestVerifier, RandomizedDigestSigner, SignatureEncoding};
 
@@ -16,6 +18,97 @@ use crate::scp::scp::SCP;
 pub struct PublicKey {
     // TODO: remove option
     key: VerifyingKey,
+}
+
+pub struct SCPVerifyingKey(VerifyingKey);
+
+// Custom wrapper around verifying key for serialization and deserializatioon. Uses DER format to encode the veryifying key to bytes.
+#[derive(Debug)]
+pub struct SCPVerifyingKeySerdeError {}
+
+impl Display for SCPVerifyingKeySerdeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SCPVerifyingKeySerdeError")
+    }
+}
+
+impl ser::Error for SCPVerifyingKeySerdeError {
+    fn custom<T: Display>(msg: T) -> Self {
+        SCPVerifyingKeySerdeError {}
+    }
+}
+
+impl de::Error for SCPVerifyingKeySerdeError {
+    fn custom<T: Display>(msg: T) -> Self {
+        SCPVerifyingKeySerdeError {}
+    }
+}
+
+impl std::error::Error for SCPVerifyingKeySerdeError {}
+
+impl Serialize for SCPVerifyingKey {
+    fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use ser::SerializeTuple;
+
+        let mut seq = serializer.serialize_tuple(842)?;
+
+        for byte in self.0.to_public_key_der().expect("").as_bytes() {
+            seq.serialize_element(&byte)?;
+        }
+
+        seq.end()
+    }
+
+    // fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    // where
+    //     S: serde::Serializer,
+    // {
+    //     serializer.serialize_bytes(self.0.to_public_key_der().expect("").as_bytes())
+    // }
+}
+
+impl<'de> Deserialize<'de> for SCPVerifyingKey {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct ByteArrayVisitor;
+
+        impl<'de> de::Visitor<'de> for ByteArrayVisitor {
+            type Value = [u8; 842];
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("bytestring of length 842")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<[u8; 842], A::Error>
+            where
+                A: de::SeqAccess<'de>,
+            {
+                use de::Error;
+                let mut arr = [0u8; 842];
+
+                for (i, byte) in arr.iter_mut().enumerate() {
+                    *byte = seq
+                        .next_element()?
+                        .ok_or_else(|| Error::invalid_length(i, &self))?;
+                }
+
+                Ok(arr)
+            }
+        }
+
+        deserializer
+            .deserialize_bytes(ByteArrayVisitor)
+            .map(|b| {
+                SCPVerifyingKey(VerifyingKey::from_public_key_der(&b).unwrap())
+            })
+    }
+
+
+        // let bytes: &[u8] = serde_bytes::deserialize(deserializer)?;
+        // match VerifyingKey::from_public_key_der(bytes) {
+        //     Ok(key) => Ok(SCPVerifyingKey(key)),
+        //     Err(_) => Err(SCPVerifyingKeySerdeError {}).map_err(serde::de::Error::custom),
+        // }
+    // }
 }
 
 impl PublicKey {}
@@ -112,6 +205,44 @@ mod tests {
 
     const OPENSSL_PEM_PRIVATE_KEY: &str = include_str!("../../test_private.pem");
     const OPENSSL_PEM_PUBLIC_KEY: &str = include_str!("../../test_public.pem");
+
+    #[test]
+    fn custom_verifying_key() {
+        let msg = b"hello world";
+        let signing_key = SigningKey::from_pkcs8_pem(OPENSSL_PEM_PRIVATE_KEY)
+            .expect("Failed to decode PEM encoded OpenSSL signing key");
+
+        let signature: Signature = signing_key
+            .sign_digest_with_rng(&mut rand::thread_rng(), Sha256::new().chain_update(msg));
+
+        let verifying_key = signing_key.verifying_key();
+
+        assert!(verifying_key
+            .verify_digest(Sha256::new().chain_update(msg), &signature)
+            .is_ok());
+
+        let veryifing_key_pem = verifying_key
+            .to_public_key_pem(LineEnding::LF)
+            .expect("Error converting public key to pem");
+
+        assert_eq!(veryifing_key_pem, OPENSSL_PEM_PUBLIC_KEY);
+
+        let scp_verifying_key = SCPVerifyingKey(verifying_key.clone());
+
+        let verifying_key_encoded = bincode::serialize(&scp_verifying_key).unwrap();
+
+        // assert_eq!(verifying_key.to_public_key_der().expect("").as_bytes().len(), 126); 
+        // assert_eq!(verifying_key.to_public_key_der().expect("").as_bytes().len(), 127); 
+
+
+        let scp_verifying_key_decoded: SCPVerifyingKey =
+            bincode::deserialize(&verifying_key_encoded).unwrap();
+
+        assert!(scp_verifying_key_decoded
+            .0
+            .verify_digest(Sha256::new().chain_update(msg), &signature)
+            .is_ok());
+    }
 
     #[test]
     fn decode_encode_openssl_signing_key() {
