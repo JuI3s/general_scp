@@ -12,7 +12,7 @@ use syn::token::Mut;
 use crate::{
     application::{
         quorum::QuorumSet,
-        work_queue::{ClockEvent, HWorkQueue},
+        work_queue::{self, ClockEvent, HWorkQueue},
     },
     herder::herder::HerderDriver,
     scp::ballot_protocol::SCPPhase,
@@ -32,6 +32,7 @@ use super::{
 };
 
 pub type HSCPDriver<N> = Arc<Mutex<dyn SCPDriver<N>>>;
+pub type HSlotTimer = Arc<Mutex<SlotTimer>>;
 
 pub enum EnvelopeState {
     Invalid,
@@ -54,7 +55,7 @@ where
     pub timer: HSlotTimer,
     nomination_state_handle: HNominationProtocolState<N>,
     ballot_state_handle: HBallotProtocolState<N>,
-    pub herder_driver: dyn HerderDriver<N>,
+    pub herder_driver: Box<dyn HerderDriver<N>>,
 }
 
 pub type HSCPEnvelope<N> = Arc<Mutex<SCPEnvelope<N>>>;
@@ -144,12 +145,17 @@ where
     fn sign_envelope(envelope: &SCPEnvelope<N>);
 }
 
-pub type HSlotTimer = Arc<Mutex<SlotTimer>>;
 pub struct SlotTimer {
     work_queue: HWorkQueue,
 }
 
 impl SlotTimer {
+    pub fn new(work_queue: HWorkQueue) -> Self {
+        Self {
+            work_queue: work_queue,
+        }
+    }
+
     pub fn add_task(&mut self, callback: ClockEvent) {
         self.work_queue.lock().unwrap().add_task(callback);
     }
@@ -159,6 +165,24 @@ impl<N> SlotDriver<N>
 where
     N: NominationValue + 'static,
 {
+    pub fn new(
+        slot_index: u64,
+        local_node: HLocalNode<N>,
+        timer: HSlotTimer,
+        nomination_state_handle: HNominationProtocolState<N>,
+        ballot_state_handle: HBallotProtocolState<N>,
+        herder_driver: Box<dyn HerderDriver<N>>,
+    ) -> Self {
+        Self {
+            slot_index: slot_index,
+            local_node: local_node,
+            timer: timer,
+            nomination_state_handle: nomination_state_handle,
+            ballot_state_handle: ballot_state_handle,
+            herder_driver: herder_driver,
+        }
+    }
+
     pub fn bump_state_(self: &Arc<Self>, nomination_value: &N, force: bool) -> bool {
         self.bump_state(
             &mut self.ballot_state_handle.lock().unwrap(),
