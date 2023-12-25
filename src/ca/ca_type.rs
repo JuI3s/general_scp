@@ -1,4 +1,4 @@
-use std::fmt::{write, Display, self};
+use std::fmt::{self, write, Display};
 
 use digest::Digest;
 use dsa::{Signature, SigningKey, VerifyingKey};
@@ -97,17 +97,14 @@ impl<'de> Deserialize<'de> for SCPVerifyingKey {
 
         deserializer
             .deserialize_bytes(ByteArrayVisitor)
-            .map(|b| {
-                SCPVerifyingKey(VerifyingKey::from_public_key_der(&b).unwrap())
-            })
+            .map(|b| SCPVerifyingKey(VerifyingKey::from_public_key_der(&b).unwrap()))
     }
 
-
-        // let bytes: &[u8] = serde_bytes::deserialize(deserializer)?;
-        // match VerifyingKey::from_public_key_der(bytes) {
-        //     Ok(key) => Ok(SCPVerifyingKey(key)),
-        //     Err(_) => Err(SCPVerifyingKeySerdeError {}).map_err(serde::de::Error::custom),
-        // }
+    // let bytes: &[u8] = serde_bytes::deserialize(deserializer)?;
+    // match VerifyingKey::from_public_key_der(bytes) {
+    //     Ok(key) => Ok(SCPVerifyingKey(key)),
+    //     Err(_) => Err(SCPVerifyingKeySerdeError {}).map_err(serde::de::Error::custom),
+    // }
     // }
 }
 
@@ -231,9 +228,8 @@ mod tests {
 
         let verifying_key_encoded = bincode::serialize(&scp_verifying_key).unwrap();
 
-        // assert_eq!(verifying_key.to_public_key_der().expect("").as_bytes().len(), 126); 
-        // assert_eq!(verifying_key.to_public_key_der().expect("").as_bytes().len(), 127); 
-
+        // assert_eq!(verifying_key.to_public_key_der().expect("").as_bytes().len(), 126);
+        // assert_eq!(verifying_key.to_public_key_der().expect("").as_bytes().len(), 127);
 
         let scp_verifying_key_decoded: SCPVerifyingKey =
             bincode::deserialize(&verifying_key_encoded).unwrap();
