@@ -118,29 +118,43 @@ mod tests {
     use crate::{
         application::{clock::VirtualClock, quorum::QuorumSet, work_queue::WorkQueue},
         scp::{
-            local_node::LocalNode, scp::NodeID, scp_driver::SlotTimer,
-            scp_driver_builder::SlotDriverBuilder,
+            local_node::LocalNode,
+            local_node_builder::LocalNodeBuilder,
+            scp::NodeID,
+            scp_driver::SlotTimer,
+            scp_driver_builder::{SlotDriverBuilder, SlotTimerBuilder},
         },
     };
 
     use super::*;
 
     #[test]
-    fn nominate() {
+    fn slot_driver_builder() {
         let node_id: NodeID = "node1".into();
         let virtual_clock = VirtualClock::new_clock();
-        let work_queue_handle = Arc::new(Mutex::new(WorkQueue::new(virtual_clock.clone())));
-        let timer_handler = Arc::new(Mutex::new(SlotTimer::new(work_queue_handle.clone())));
+
+        let timer_handle = SlotTimerBuilder::new()
+            .clock(virtual_clock.clone())
+            .build()
+            .unwrap();
 
         let quorum_set = QuorumSet::example_quorum_set();
-        let local_node_handle: Arc<Mutex<LocalNode<MockState>>> = Arc::new(Mutex::new(
-            LocalNode::<MockState>::new(true, quorum_set, node_id),
-        ));
+        // let local_node_handle: Arc<Mutex<LocalNode<MockState>>> = Arc::new(Mutex::new(
+        // LocalNode::<MockState>::new(true, quorum_set, node_id),
+        // ));
+
+        let local_node = LocalNodeBuilder::<MockState>::new()
+            .is_validator(true)
+            .quorum_set(quorum_set)
+            .node_id(node_id)
+            .build()
+            .unwrap();
 
         let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
             .slot_index(0)
             .herder_driver(Default::default())
-            .timer(timer_handler.clone())
+            .timer(timer_handle.clone())
+            .local_node(local_node)
             .build()
             .unwrap();
     }
