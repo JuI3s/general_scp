@@ -183,6 +183,14 @@ where
         }
     }
 
+    pub fn nomination_state(&self) -> HNominationProtocolState<N> {
+        self.nomination_state_handle.clone()
+    }
+
+    pub fn ballot_state(&self) -> HBallotProtocolState<N> {
+        self.ballot_state().clone()
+    }
+
     pub fn bump_state_(self: &Arc<Self>, nomination_value: &N, force: bool) -> bool {
         self.bump_state(
             &mut self.ballot_state_handle.lock().unwrap(),

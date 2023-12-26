@@ -400,11 +400,7 @@ where
         // state.add_value_from_leaders(self);
 
         // if we're leader, add our value if we haven't added any votes yet
-        if state
-            .round_leaders
-            .contains(&self.local_node.lock().unwrap().node_id)
-            && state.votes.is_empty()
-        {
+        if state.round_leaders.contains(&local_node.node_id) && state.votes.is_empty() {
             if state.votes.insert(value.clone()) {
                 updated = true;
                 self.nominating_value(value.as_ref());
@@ -430,6 +426,7 @@ where
         self.timer.lock().unwrap().add_task(clock_event);
 
         if updated {
+            println!("Updated");
             self.emit_nomination(&mut state);
         } else {
             debug!("NominationProtocol::nominate (SKIPPED");

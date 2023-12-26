@@ -5,5 +5,6 @@ pub mod nomination_protocol;
 pub mod scp;
 pub mod scp_driver;
 pub mod scp_driver_builder;
+pub mod scp_state_builder;
 pub mod slot;
 pub mod statement;

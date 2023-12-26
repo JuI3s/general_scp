@@ -7,8 +7,9 @@ use crate::application::clock::{HVirtualClock, VirtualClock};
 use crate::application::work_queue::WorkQueue;
 use crate::herder::herder::HerderDriver;
 
+use super::ballot_protocol::BallotProtocolState;
 use super::local_node::{HLocalNode, LocalNode};
-use super::nomination_protocol::NominationValue;
+use super::nomination_protocol::{NominationProtocolState, NominationValue};
 use super::scp_driver::{HSlotTimer, SlotDriver, SlotTimer};
 
 pub struct SlotDriverBuilder<N, T>
@@ -20,6 +21,8 @@ where
     local_node: Option<LocalNode<N>>,
     timer: Option<HSlotTimer>,
     herder_driver: Option<T>,
+    nomination_protocol_state: Option<NominationProtocolState<N>>,
+    ballot_protocol_state: Option<BallotProtocolState<N>>,
 }
 
 impl<N, T> Default for SlotDriverBuilder<N, T>
@@ -33,6 +36,8 @@ where
             local_node: Default::default(),
             timer: Default::default(),
             herder_driver: Default::default(),
+            nomination_protocol_state: Default::default(),
+            ballot_protocol_state: Default::default(),
         }
     }
 }
@@ -66,6 +71,19 @@ where
         self
     }
 
+    pub fn nomination_protocol_state(
+        mut self,
+        nomination_protocol_state: NominationProtocolState<N>,
+    ) -> Self {
+        self.nomination_protocol_state = Some(nomination_protocol_state);
+        self
+    }
+
+    pub fn ballot_protocol_state(mut self, ballot_protocol_state: BallotProtocolState<N>) -> Self {
+        self.ballot_protocol_state = Some(ballot_protocol_state);
+        self
+    }
+
     pub fn build(self) -> Result<Arc<SlotDriver<N>>, &'static str> {
         if self.slot_index.is_none() {
             return Err("Missing slot index.");
@@ -87,8 +105,10 @@ where
             self.slot_index.unwrap(),
             Arc::new(Mutex::new(self.local_node.unwrap())),
             self.timer.unwrap(),
-            Default::default(),
-            Default::default(),
+            Arc::new(Mutex::new(
+                self.nomination_protocol_state.unwrap_or_default(),
+            )),
+            Arc::new(Mutex::new(self.ballot_protocol_state.unwrap_or_default())),
             Box::new(self.herder_driver.unwrap()),
         )))
     }

@@ -113,6 +113,7 @@ impl MockStateDriver {}
 
 #[cfg(test)]
 mod tests {
+
     use std::sync::Mutex;
 
     use crate::{
@@ -139,9 +140,6 @@ mod tests {
             .unwrap();
 
         let quorum_set = QuorumSet::example_quorum_set();
-        // let local_node_handle: Arc<Mutex<LocalNode<MockState>>> = Arc::new(Mutex::new(
-        // LocalNode::<MockState>::new(true, quorum_set, node_id),
-        // ));
 
         let local_node = LocalNodeBuilder::<MockState>::new()
             .is_validator(true)
@@ -153,9 +151,41 @@ mod tests {
         let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
             .slot_index(0)
             .herder_driver(Default::default())
-            .timer(timer_handle.clone())
+            .timer(timer_handle)
             .local_node(local_node)
             .build()
             .unwrap();
+    }
+
+    #[test]
+    fn nominate() {
+        let node_id: NodeID = "node1".into();
+        let virtual_clock = VirtualClock::new_clock();
+
+        let timer_handle = SlotTimerBuilder::new()
+            .clock(virtual_clock.clone())
+            .build()
+            .unwrap();
+
+        let quorum_set = QuorumSet::example_quorum_set();
+
+        let local_node = LocalNodeBuilder::<MockState>::new()
+            .is_validator(true)
+            .quorum_set(quorum_set)
+            .node_id(node_id)
+            .build()
+            .unwrap();
+
+        let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
+            .slot_index(0)
+            .herder_driver(Default::default())
+            .timer(timer_handle)
+            .local_node(local_node)
+            .build()
+            .unwrap();
+
+        let value = Arc::new(MockState::random());
+        let prev_value = MockState::random();
+        slot_driver.nominate(slot_driver.nomination_state(), value, &prev_value);
     }
 }
