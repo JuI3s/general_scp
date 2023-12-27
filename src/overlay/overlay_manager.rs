@@ -182,8 +182,7 @@ impl OverlayManager for OverlayManagerImpl {
                 };
 
                 self.work_schedular
-                    .lock()
-                    .unwrap()
+                    .borrow_mut()
                     .post_on_main_thread(Box::new(send_msg_predicate));
                 broadcasted = true;
             }

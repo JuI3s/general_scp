@@ -35,8 +35,7 @@ impl LoopbackPeer {
         if !peer.in_queue.is_empty() {
             let self_clone = Arc::downgrade(&this.clone());
             peer.work_schedular
-                .lock()
-                .unwrap()
+                .borrow_mut()
                 .post_on_main_thread(Box::new(move || {
                     if let Some(p) = self_clone.upgrade() {
                         LoopbackPeer::process_in_queue(p);
@@ -60,8 +59,7 @@ impl SCPPeer for LoopbackPeer {
             let remote_clone = self.remote.clone();
 
             self.work_schedular
-                .lock()
-                .unwrap()
+                .borrow_mut()
                 .post_on_main_thread(Box::new(move || {
                     if let Some(peer) = remote_clone.upgrade() {
                         LoopbackPeer::process_in_queue(peer);
@@ -93,19 +91,21 @@ impl LoopbackPeerConnection {
 
 #[cfg(test)]
 mod tests {
+    use std::{cell::RefCell, rc::Rc};
+
     use crate::application::work_queue::WorkScheduler;
 
     use super::*;
 
     #[test]
     fn send_hello_message() {
-        let work_scheduler = Arc::new(Mutex::new(WorkScheduler::default()));
+        let work_scheduler = Rc::new(RefCell::new(WorkScheduler::default()));
         let connection = LoopbackPeerConnection::new(&work_scheduler);
         let msg = Arc::new(Mutex::new(SCPMessage {}));
 
         connection.initiator.lock().unwrap().send_message(&msg);
         assert_eq!(connection.acceptor.lock().unwrap().in_queue.len(), 1);
-        let num_tasks_done = work_scheduler.lock().unwrap().excecute_main_thread_tasks();
+        let num_tasks_done = work_scheduler.borrow_mut().excecute_main_thread_tasks();
         assert_eq!(connection.acceptor.lock().unwrap().in_queue.len(), 0);
         assert_eq!(num_tasks_done, 1);
     }

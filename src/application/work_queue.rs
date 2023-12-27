@@ -1,9 +1,11 @@
 use std::{
     alloc::System,
+    cell::RefCell,
     collections::{BTreeMap, VecDeque},
     f32::consts::E,
+    rc::Rc,
     sync::{Arc, Mutex},
-    time::SystemTime, cell::RefCell,
+    time::SystemTime,
 };
 
 use super::clock::{HVirtualClock, VirtualClock};
@@ -24,7 +26,7 @@ impl ClockEvent {
     }
 }
 
-pub type HWorkScheduler = Arc<Mutex<WorkScheduler>>;
+pub type HWorkScheduler = Rc<RefCell<WorkScheduler>>;
 pub struct WorkScheduler {
     main_thread_queue: MainWorkQueue,
     event_queue: RefCell<EventQueue>,
@@ -32,7 +34,10 @@ pub struct WorkScheduler {
 
 impl WorkScheduler {
     pub fn new(clock: HVirtualClock) -> Self {
-        WorkScheduler{ main_thread_queue: Default::default(), event_queue: EventQueue::new(clock).into() }
+        WorkScheduler {
+            main_thread_queue: Default::default(),
+            event_queue: EventQueue::new(clock).into(),
+        }
     }
 
     pub fn post_on_main_thread(&mut self, callback: Callback) {
@@ -128,7 +133,6 @@ impl EventQueue {
     }
 
     pub fn execute_task(&mut self) {
-
         let mut elapsed_timestamps = vec![];
 
         // TODO: Can we avoid copying system time?

@@ -10,7 +10,7 @@ use crate::herder::herder::HerderDriver;
 use super::ballot_protocol::BallotProtocolState;
 use super::local_node::{HLocalNode, LocalNode};
 use super::nomination_protocol::{NominationProtocolState, NominationValue};
-use super::scp_driver::{SlotDriver};
+use super::scp_driver::SlotDriver;
 
 pub struct SlotDriverBuilder<N, T>
 where
@@ -141,7 +141,6 @@ impl SlotTimerBuilder {
             Err("Missing clock.")
         } else {
             Ok(WorkScheduler::new(self.clock.unwrap()))
-
         }
     }
 }

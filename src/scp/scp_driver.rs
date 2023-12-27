@@ -54,7 +54,7 @@ where
 {
     pub slot_index: u64,
     pub local_node: HLocalNode<N>,
-    pub timer: WorkScheduler,
+    pub scheduler: WorkScheduler,
     nomination_state_handle: HNominationProtocolState<N>,
     ballot_state_handle: HBallotProtocolState<N>,
     pub herder_driver: Box<dyn HerderDriver<N>>,
@@ -185,7 +185,7 @@ where
         Self {
             slot_index: slot_index,
             local_node: local_node,
-            timer: timer,
+            scheduler: timer,
             nomination_state_handle: nomination_state_handle,
             ballot_state_handle: ballot_state_handle,
             herder_driver: herder_driver,

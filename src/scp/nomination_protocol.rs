@@ -269,10 +269,10 @@ where
     //     for leader in &self.round_leaders {
     //         match self.latest_nominations.get(leader) {
     //             Some(nomination) => match
-    // self.get_new_value_form_nomination(nomination) {                 
-    // Some(new_value) => {                     
+    // self.get_new_value_form_nomination(nomination) {
+    // Some(new_value) => {
     // driver.nominating_value(&new_value);                     let
-    // new_value_handle = Arc::new(new_value);                     
+    // new_value_handle = Arc::new(new_value);
     // self.votes.insert(new_value_handle);                     updated = true;
     //                 }
     //                 None => {}
@@ -502,8 +502,9 @@ where
             None => todo!(),
         };
 
-        let clock_event = ClockEvent::new(SystemTime::now() + timeout, Box::new(re_nominate_callback));
-        self.timer.post_clock_event(clock_event);
+        let clock_event =
+            ClockEvent::new(SystemTime::now() + timeout, Box::new(re_nominate_callback));
+        self.scheduler.post_clock_event(clock_event);
 
         if updated {
             println!("Updated");
