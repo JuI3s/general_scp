@@ -1,9 +1,9 @@
 use std::{
     alloc::System,
-    collections::VecDeque,
+    collections::{BTreeMap, VecDeque},
     f32::consts::E,
     sync::{Arc, Mutex},
-    time::SystemTime,
+    time::SystemTime, cell::RefCell,
 };
 
 use super::clock::{HVirtualClock, VirtualClock};
@@ -27,9 +27,14 @@ impl ClockEvent {
 pub type HWorkScheduler = Arc<Mutex<WorkScheduler>>;
 pub struct WorkScheduler {
     main_thread_queue: MainWorkQueue,
+    event_queue: RefCell<EventQueue>,
 }
 
 impl WorkScheduler {
+    pub fn new(clock: HVirtualClock) -> Self {
+        WorkScheduler{ main_thread_queue: Default::default(), event_queue: EventQueue::new(clock).into() }
+    }
+
     pub fn post_on_main_thread(&mut self, callback: Callback) {
         self.main_thread_queue.add_task(callback);
     }
@@ -41,6 +46,10 @@ impl WorkScheduler {
     pub fn excecute_main_thread_tasks(&mut self) -> u64 {
         self.main_thread_queue.execute_tasks()
     }
+
+    pub fn post_clock_event(&self, clock_event: ClockEvent) {
+        self.event_queue.borrow_mut().add_task(clock_event)
+    }
 }
 
 struct MainWorkQueue {
@@ -51,6 +60,7 @@ impl Default for WorkScheduler {
     fn default() -> Self {
         Self {
             main_thread_queue: Default::default(),
+            event_queue: EventQueue::new(VirtualClock::new_clock()).into(),
         }
     }
 }
@@ -91,42 +101,47 @@ impl MainWorkQueue {
     }
 }
 
-pub type HWorkQueue = Arc<Mutex<WorkQueue>>;
-pub struct WorkQueue {
+pub struct EventQueue {
     clock: HVirtualClock,
-    tasks: VecDeque<ClockEvent>,
+    tasks: BTreeMap<SystemTime, Vec<Callback>>,
 }
 
-impl WorkQueue {
+impl EventQueue {
     pub fn new(clock: HVirtualClock) -> Self {
-        WorkQueue {
+        EventQueue {
             clock: clock,
-            tasks: VecDeque::<ClockEvent>::new(),
+            tasks: Default::default(),
         }
     }
 
-    pub fn add_task(&mut self, callback: ClockEvent) -> () {
-        self.tasks.push_back(callback);
+    pub fn add_task(&mut self, event: ClockEvent) -> () {
+        if let Some(callbacks) = self.tasks.get_mut(&event.timestamp) {
+            callbacks.push(event.callback);
+        } else {
+            self.tasks.insert(event.timestamp, vec![event.callback]);
+        }
+        // self.tasks.push_back(callback);
     }
 
-    fn event_expired(&mut self, timestamp: &SystemTime) -> bool {
-        self.clock.lock().unwrap().time_now() >= timestamp
+    fn event_expired(&self, timestamp: &SystemTime) -> bool {
+        self.clock.borrow().time_now() >= timestamp
     }
 
     pub fn execute_task(&mut self) {
-        loop {
-            match self.tasks.pop_front() {
-                Some(clock_event) => {
-                    if self.event_expired(&clock_event.timestamp) {
-                        (clock_event.callback)();
-                        // let val = clock_event.callback.to_owned();
-                        // let result = Arc::as_ref(&clock_event.callback);
-                        // Arc::(&mut clock_event.callback).unwrap()();
-                    } else {
-                        break;
-                    }
-                }
-                None => break,
+
+        let mut elapsed_timestamps = vec![];
+
+        // TODO: Can we avoid copying system time?
+        for (ts, _) in &self.tasks {
+            if self.event_expired(ts) {
+                elapsed_timestamps.push(ts.to_owned());
+            }
+        }
+
+        for ts in elapsed_timestamps {
+            let callbacks: Vec<Box<dyn FnOnce()>> = self.tasks.remove(&ts).unwrap();
+            for cb in callbacks {
+                cb();
             }
         }
     }

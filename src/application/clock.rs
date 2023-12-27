@@ -1,14 +1,24 @@
 use core::time;
 use std::{
     alloc::System,
+    cell::RefCell,
     fmt::DebugStruct,
+    rc::Rc,
     sync::{Arc, Mutex},
     time::SystemTime,
 };
 
-pub type HVirtualClock = Arc<Mutex<VirtualClock>>;
+pub type HVirtualClock = Rc<RefCell<VirtualClock>>;
 pub struct VirtualClock {
     time_now: SystemTime,
+}
+
+impl Default for VirtualClock {
+    fn default() -> Self {
+        Self {
+            time_now: SystemTime::now(),
+        }
+    }
 }
 
 impl VirtualClock {
@@ -17,7 +27,7 @@ impl VirtualClock {
     }
 
     pub fn new_clock() -> HVirtualClock {
-        Arc::new(Mutex::new(VirtualClock {
+        Rc::new(RefCell::new(VirtualClock {
             time_now: SystemTime::now(),
         }))
     }

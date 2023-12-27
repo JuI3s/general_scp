@@ -4,13 +4,13 @@ use std::sync::{Arc, Mutex};
 use typenum::U6;
 
 use crate::application::clock::{HVirtualClock, VirtualClock};
-use crate::application::work_queue::WorkQueue;
+use crate::application::work_queue::{EventQueue, HWorkScheduler, WorkScheduler};
 use crate::herder::herder::HerderDriver;
 
 use super::ballot_protocol::BallotProtocolState;
 use super::local_node::{HLocalNode, LocalNode};
 use super::nomination_protocol::{NominationProtocolState, NominationValue};
-use super::scp_driver::{HSlotTimer, SlotDriver, SlotTimer};
+use super::scp_driver::{SlotDriver};
 
 pub struct SlotDriverBuilder<N, T>
 where
@@ -19,7 +19,7 @@ where
 {
     slot_index: Option<u64>,
     local_node: Option<LocalNode<N>>,
-    timer: Option<HSlotTimer>,
+    timer: Option<WorkScheduler>,
     herder_driver: Option<T>,
     nomination_protocol_state: Option<NominationProtocolState<N>>,
     ballot_protocol_state: Option<BallotProtocolState<N>>,
@@ -61,7 +61,7 @@ where
         self
     }
 
-    pub fn timer(mut self, timer: HSlotTimer) -> Self {
+    pub fn timer(mut self, timer: WorkScheduler) -> Self {
         self.timer = Some(timer);
         self
     }
@@ -136,15 +136,12 @@ impl SlotTimerBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Arc<Mutex<SlotTimer>>, &'static str> {
+    pub fn build(self) -> Result<WorkScheduler, &'static str> {
         if self.clock.is_none() {
             Err("Missing clock.")
         } else {
-            let work_queue_handle = Arc::new(Mutex::new(WorkQueue::new(self.clock.unwrap())));
+            Ok(WorkScheduler::new(self.clock.unwrap()))
 
-            Ok(Arc::new(Mutex::new(SlotTimer::new(
-                work_queue_handle.clone(),
-            ))))
         }
     }
 }

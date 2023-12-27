@@ -14,14 +14,14 @@ use crate::{
     rpc::args::RpcArg,
 };
 
-use super::{app_config::AppConfig, work_queue::WorkQueue};
+use super::{app_config::AppConfig, work_queue::EventQueue};
 
 pub type PendingRequestQueue = UnboundedReceiver<RpcArg>;
 pub type RpcRequestWriteQueue = Arc<Mutex<UnboundedSender<RpcArg>>>;
 
 pub struct Application {
     local_node_id: PeerID,
-    main_thread_work_queue: Arc<Mutex<WorkQueue>>,
+    main_thread_work_queue: Arc<Mutex<EventQueue>>,
     peers: HashMap<PeerID, HPeer>,
     pending_requests: PendingRequestQueue,
     config: AppConfig,
@@ -29,7 +29,7 @@ pub struct Application {
 
 impl Application {
     pub fn new(config: AppConfig) -> Self {
-        let work_queue = Arc::new(Mutex::new(WorkQueue::new(config.clock.clone())));
+        let work_queue = Arc::new(Mutex::new(EventQueue::new(config.clock.clone())));
 
         let (tx, rx) = unbounded_channel::<RpcArg>();
         let rpc_write_queue = Arc::new(Mutex::new(tx));

@@ -117,12 +117,11 @@ mod tests {
     use std::sync::Mutex;
 
     use crate::{
-        application::{clock::VirtualClock, quorum::QuorumSet, work_queue::WorkQueue},
+        application::{clock::VirtualClock, quorum::QuorumSet, work_queue::EventQueue},
         scp::{
             local_node::LocalNode,
             local_node_builder::LocalNodeBuilder,
             scp::NodeID,
-            scp_driver::SlotTimer,
             scp_driver_builder::{SlotDriverBuilder, SlotTimerBuilder},
         },
     };

@@ -27,8 +27,8 @@ impl SCPMessage {
 // The consensus protocol works on top of an underlying overlay network, and
 // envelopes emitted by the consensus algorithm are broadcast to remote peers.
 // The diagram below gives an overview of how the different components interact
-// in broadcasting messages. 
-// 
+// in broadcasting messages.
+//
 // ┌──────────────────────┐
 // │                      │
 // │  Consensus protocol  │
@@ -71,8 +71,7 @@ impl SCPMessage {
 //                                            │          responded.          │
 //                                            │                              │
 //                                            └──────────────────────────────┘
-pub trait OverlayManager
-{
+pub trait OverlayManager {
     // Peer handle.
     type HP;
     type P: SCPPeer;

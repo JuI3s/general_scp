@@ -1,8 +1,10 @@
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     env,
     os::fd::RawFd,
-    sync::{Arc, Mutex, Weak}, cell::RefCell, rc::Rc,
+    rc::Rc,
+    sync::{Arc, Mutex, Weak},
 };
 
 pub type HashValue = u64;
@@ -12,11 +14,12 @@ use syn::token::Mut;
 use crate::{
     application::{
         quorum::QuorumSet,
-        work_queue::{self, ClockEvent, HWorkQueue},
+        work_queue::{self, ClockEvent, WorkScheduler},
     },
     herder::herder::HerderDriver,
+    overlay::overlay_manager::OverlayManager,
     scp::ballot_protocol::SCPPhase,
-    utils::weak_self::WeakSelf, overlay::overlay_manager::OverlayManager,
+    utils::weak_self::WeakSelf,
 };
 
 use super::{
@@ -32,7 +35,6 @@ use super::{
 };
 
 pub type HSCPDriver<N> = Arc<Mutex<dyn SCPDriver<N>>>;
-pub type HSlotTimer = Arc<Mutex<SlotTimer>>;
 
 pub enum EnvelopeState {
     Invalid,
@@ -52,7 +54,7 @@ where
 {
     pub slot_index: u64,
     pub local_node: HLocalNode<N>,
-    pub timer: HSlotTimer,
+    pub timer: WorkScheduler,
     nomination_state_handle: HNominationProtocolState<N>,
     ballot_state_handle: HBallotProtocolState<N>,
     pub herder_driver: Box<dyn HerderDriver<N>>,
@@ -147,9 +149,11 @@ where
 
     // Inform about events happening within the consensus algorithm.
 
-    // ``nominating_value`` is called every time the local instance nominates a new value.
+    // ``nominating_value`` is called every time the local instance nominates a new
+    // value.
     fn nominating_value(self: &Arc<Self>, value: &N);
-    // `value_externalized` is called at most once per slot when the slot externalize its value.
+    // `value_externalized` is called at most once per slot when the slot
+    // externalize its value.
     fn value_externalized(self: &Arc<Self>, slot_index: u64, value: &N);
     // `accepted_bsallot_prepared` every time a ballot is accepted as prepared
     fn accepted_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot<N>);
@@ -158,27 +162,12 @@ where
 
     fn confirm_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot<N>) {}
 
-    // the following methods are used for monitoring of the SCP subsystem most implementation don't really need to do anything with these.
+    // the following methods are used for monitoring of the SCP subsystem most
+    // implementation don't really need to do anything with these.
 
     fn emit_envelope(envelope: &SCPEnvelope<N>);
 
     fn sign_envelope(envelope: &mut SCPEnvelope<N>);
-}
-
-pub struct SlotTimer {
-    work_queue: HWorkQueue,
-}
-
-impl SlotTimer {
-    pub fn new(work_queue: HWorkQueue) -> Self {
-        Self {
-            work_queue: work_queue,
-        }
-    }
-
-    pub fn add_task(&mut self, callback: ClockEvent) {
-        self.work_queue.lock().unwrap().add_task(callback);
-    }
 }
 
 impl<N> SlotDriver<N>
@@ -188,7 +177,7 @@ where
     pub fn new(
         slot_index: u64,
         local_node: HLocalNode<N>,
-        timer: HSlotTimer,
+        timer: WorkScheduler,
         nomination_state_handle: HNominationProtocolState<N>,
         ballot_state_handle: HBallotProtocolState<N>,
         herder_driver: Box<dyn HerderDriver<N>>,
@@ -285,7 +274,9 @@ where
     }
 
     fn get_latest_message(&self, node_id: &NodeID) -> Option<HSCPEnvelope<N>> {
-        // Return the latest message we have heard from the node with node_id. Start searching in the ballot protocol state and then the nomination protocol state. If nothing is found, return None.
+        // Return the latest message we have heard from the node with node_id. Start
+        // searching in the ballot protocol state and then the nomination protocol
+        // state. If nothing is found, return None.
 
         if let Some(env) = self
             .ballot_state()
@@ -311,7 +302,8 @@ where
     }
 
     pub fn maybe_got_v_blocking(&mut self) {
-        // Called when we process an envelope or set state from an envelope and maybe we hear from a v-blocking set for the first time.
+        // Called when we process an envelope or set state from an envelope and maybe we
+        // hear from a v-blocking set for the first time.
 
         if self.got_v_blocking {
             return;
@@ -347,7 +339,6 @@ where
 
     fn emit_envelope(envelope: &SCPEnvelope<N>) {
         println!("Emitting an envelope");
-
     }
 
     fn value_externalized(self: &Arc<Self>, slot_index: u64, value: &N) {

@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    application::work_queue::{ClockEvent, WorkQueue},
+    application::work_queue::{ClockEvent, EventQueue},
     scp::{scp::NodeID, scp_driver::HSCPEnvelope},
 };
 
@@ -39,7 +39,7 @@ impl Peer {
         self.get_state().incr_one();
     }
 
-    pub fn add_to_queue(&mut self, work_queue: &mut WorkQueue) {
+    pub fn add_to_queue(&mut self, work_queue: &mut EventQueue) {
         let clone = self.state.clone();
         let weak = Arc::downgrade(&clone);
 
@@ -72,7 +72,7 @@ impl State {
         self.value += 1;
     }
 
-    pub fn add_to_queue(this: Arc<Mutex<Self>>, work_queue: &mut WorkQueue) -> () {
+    pub fn add_to_queue(this: Arc<Mutex<Self>>, work_queue: &mut EventQueue) -> () {
         let strong = this.clone();
         // let mut strong = self.clone();
         let weak = Arc::downgrade(&strong);

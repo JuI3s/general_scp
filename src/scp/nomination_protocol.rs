@@ -492,7 +492,7 @@ where
         let value_copy = value.clone();
         let prev_value_copy = previous_value.clone();
 
-        let callback = move || match weak_self.upgrade() {
+        let re_nominate_callback = move || match weak_self.upgrade() {
             Some(slot_driver) => match weak_state.upgrade() {
                 Some(state) => {
                     slot_driver.nominate(state, value_copy, &prev_value_copy);
@@ -502,8 +502,8 @@ where
             None => todo!(),
         };
 
-        let clock_event = ClockEvent::new(SystemTime::now() + timeout, Box::new(callback));
-        self.timer.lock().unwrap().add_task(clock_event);
+        let clock_event = ClockEvent::new(SystemTime::now() + timeout, Box::new(re_nominate_callback));
+        self.timer.post_clock_event(clock_event);
 
         if updated {
             println!("Updated");
