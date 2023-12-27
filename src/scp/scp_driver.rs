@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     env,
     os::fd::RawFd,
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Mutex, Weak}, cell::RefCell, rc::Rc,
 };
 
 pub type HashValue = u64;
@@ -16,7 +16,7 @@ use crate::{
     },
     herder::herder::HerderDriver,
     scp::ballot_protocol::SCPPhase,
-    utils::weak_self::WeakSelf,
+    utils::weak_self::WeakSelf, overlay::overlay_manager::OverlayManager,
 };
 
 use super::{
@@ -56,6 +56,8 @@ where
     nomination_state_handle: HNominationProtocolState<N>,
     ballot_state_handle: HBallotProtocolState<N>,
     pub herder_driver: Box<dyn HerderDriver<N>>,
+    pub fully_validated: bool,
+    pub got_v_blocking: bool,
 }
 
 pub type HSCPEnvelope<N> = Arc<Mutex<SCPEnvelope<N>>>;
@@ -73,6 +75,24 @@ impl<N> SCPEnvelope<N>
 where
     N: NominationValue,
 {
+    pub fn new(
+        statement: SCPStatement<N>,
+        node_id: NodeID,
+        slot_index: SlotIndex,
+        signature: HashValue,
+    ) -> Self {
+        Self {
+            statement: statement,
+            node_id: node_id,
+            slot_index: slot_index,
+            signature: signature,
+        }
+    }
+
+    pub fn to_handle(self) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(self))
+    }
+
     pub fn get_statement(&self) -> &SCPStatement<N> {
         &self.statement
     }
@@ -142,7 +162,7 @@ where
 
     fn emit_envelope(envelope: &SCPEnvelope<N>);
 
-    fn sign_envelope(envelope: &SCPEnvelope<N>);
+    fn sign_envelope(envelope: &mut SCPEnvelope<N>);
 }
 
 pub struct SlotTimer {
@@ -180,11 +200,13 @@ where
             nomination_state_handle: nomination_state_handle,
             ballot_state_handle: ballot_state_handle,
             herder_driver: herder_driver,
+            fully_validated: true,
+            got_v_blocking: false,
         }
     }
 
-    pub fn nomination_state(&self) -> HNominationProtocolState<N> {
-        self.nomination_state_handle.clone()
+    pub fn nomination_state(&self) -> &HNominationProtocolState<N> {
+        &self.nomination_state_handle
     }
 
     pub fn ballot_state(&self) -> HBallotProtocolState<N> {
@@ -197,10 +219,6 @@ where
             nomination_value,
             force,
         )
-    }
-
-    fn get_local_node(&self) -> &LocalNode<N> {
-        todo!();
     }
 
     pub fn get_latest_composite_value(&self) -> HLatestCompositeCandidateValue<N> {
@@ -217,8 +235,8 @@ where
         accepted_predicate: impl Fn(&SCPStatement<N>) -> bool,
         envelopes: &BTreeMap<NodeID, HSCPEnvelope<N>>,
     ) -> bool {
-        if LocalNode::is_v_blocking(
-            self.get_local_node().get_quorum_set(),
+        if LocalNode::is_v_blocking_with_predicate(
+            self.local_node.lock().unwrap().get_quorum_set(),
             envelopes,
             &accepted_predicate,
         ) {
@@ -226,11 +244,10 @@ where
         } else {
             let ratify_filter =
                 move |st: &SCPStatement<N>| accepted_predicate(st) && voted_predicate(st);
+
+            let local_node = self.local_node.lock().unwrap();
             if LocalNode::is_quorum_with_node_filter(
-                Some((
-                    self.get_local_node().get_quorum_set(),
-                    &self.get_local_node().node_id,
-                )),
+                Some((local_node.get_quorum_set(), &local_node.node_id)),
                 envelopes,
                 |st| self.herder_driver.get_quorum_set(st),
                 ratify_filter,
@@ -248,19 +265,14 @@ where
         voted_predicate: impl Fn(&SCPStatement<N>) -> bool,
         envelopes: &BTreeMap<NodeID, HSCPEnvelope<N>>,
     ) -> bool {
+        let local_node = self.local_node.lock().unwrap();
+
         LocalNode::is_quorum_with_node_filter(
-            Some((
-                self.get_local_node().get_quorum_set(),
-                &self.get_local_node().node_id,
-            )),
+            Some((local_node.get_quorum_set(), &local_node.node_id)),
             envelopes,
             |st| self.herder_driver.get_quorum_set(st),
             voted_predicate,
         )
-    }
-
-    fn sign_envelope(&self) -> HashValue {
-        todo!()
     }
 
     pub fn create_envelope(&self, statement: SCPStatement<N>) -> SCPEnvelope<N> {
@@ -268,7 +280,57 @@ where
             statement,
             node_id: self.local_node.lock().unwrap().node_id.clone(),
             slot_index: self.slot_index.clone(),
-            signature: self.sign_envelope(),
+            signature: 0,
+        }
+    }
+
+    fn get_latest_message(&self, node_id: &NodeID) -> Option<HSCPEnvelope<N>> {
+        // Return the latest message we have heard from the node with node_id. Start searching in the ballot protocol state and then the nomination protocol state. If nothing is found, return None.
+
+        if let Some(env) = self
+            .ballot_state()
+            .lock()
+            .unwrap()
+            .latest_envelopes
+            .get(node_id)
+        {
+            return Some(env.clone());
+        }
+
+        if let Some(env) = self
+            .nomination_state()
+            .lock()
+            .unwrap()
+            .latest_nominations
+            .get(node_id)
+        {
+            return Some(env.clone());
+        }
+
+        None
+    }
+
+    pub fn maybe_got_v_blocking(&mut self) {
+        // Called when we process an envelope or set state from an envelope and maybe we hear from a v-blocking set for the first time.
+
+        if self.got_v_blocking {
+            return;
+        }
+
+        let local_node = self.local_node.lock().unwrap();
+
+        // Add nodes that we have heard from.
+        let mut nodes: Vec<NodeID> = Default::default();
+
+        LocalNode::<N>::for_all_nodes(&local_node.quorum_set, &mut |node| {
+            if self.get_latest_message(node).is_some() {
+                nodes.push(node.to_owned());
+            }
+            true
+        });
+
+        if LocalNode::<N>::is_v_blocking(&local_node.quorum_set, &nodes) {
+            self.got_v_blocking = true;
         }
     }
 }
@@ -283,14 +345,18 @@ where
         ValidationLevel::MaybeValid
     }
 
-    fn emit_envelope(envelope: &SCPEnvelope<N>) {}
+    fn emit_envelope(envelope: &SCPEnvelope<N>) {
+        println!("Emitting an envelope");
+
+    }
 
     fn value_externalized(self: &Arc<Self>, slot_index: u64, value: &N) {
         todo!()
     }
 
-    fn sign_envelope(envelope: &SCPEnvelope<N>) {
-        todo!()
+    fn sign_envelope(envelope: &mut SCPEnvelope<N>) {
+        // TODO: for now just pretend we're signing...
+        envelope.signature = 0;
     }
 
     fn accepted_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot<N>) {}

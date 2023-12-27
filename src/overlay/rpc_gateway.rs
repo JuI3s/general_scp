@@ -10,7 +10,8 @@ use crate::{application::application::RpcRequestWriteQueue, rpc::args::RpcArg};
 use super::peer::{Peer, PeerID};
 
 pub type HRpcGateway = Arc<Mutex<dyn RpcGateway>>;
-// When an application is constructed, it needs to register with an RpcGateway struct to receive rpc calls.
+// When an application is constructed, it needs to register with an RpcGateway
+// struct to receive rpc calls.
 pub trait RpcGateway {
     fn register(&mut self, peer_id: PeerID, write_queue: RpcRequestWriteQueue);
     fn remove(&mut self, peer_id: PeerID);

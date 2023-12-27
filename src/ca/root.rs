@@ -13,10 +13,10 @@ pub enum RootOpError {
 // the entry point for lookup operations.  Well-known application
 // identifier strings denote the namespace they control.
 
-// If an application begins to run out of allowance (too many cells or large delegations),
-// it can sign and nominate a new "rootentry" for the same application
-// identifier with a larger value, at which point the other nodes can
-// (given global knowledge of table sizes and growth rates, along with
+// If an application begins to run out of allowance (too many cells or large
+// delegations), it can sign and nominate a new "rootentry" for the same
+// application identifier with a larger value, at which point the other nodes
+// can (given global knowledge of table sizes and growth rates, along with
 // additional real-world information, if applicable) determine whether
 // or not to accept the change.
 

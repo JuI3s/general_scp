@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
 
+use crate::application::quorum::QuorumSet;
+
 use super::{
     ballot_protocol::SCPBallot,
     nomination_protocol::{NominationProtocol, NominationValue, SCPNominationValue},
@@ -64,6 +66,14 @@ impl<N> SCPStatementNominate<N>
 where
     N: NominationValue,
 {
+    pub fn new(quorum_set: &QuorumSet) -> Self {
+        SCPStatementNominate {
+            quorum_set_hash: quorum_set.hash_value(),
+            votes: Default::default(),
+            accepted: Default::default(),
+        }
+    }
+
     fn is_subset(left: &Vec<N>, right: &Vec<N>) -> (bool, bool) {
         let mut is_subset = false;
         let mut equal = false;
@@ -76,6 +86,11 @@ where
     }
 
     pub fn is_older_than(&self, other: &Self) -> bool {
+        // The set of nomination statements satisfies a partial ordering. An old_st is
+        // older than a new_st if the votes of old_st are contained in the votes of
+        // new_st. If old_st and new_st have the same set of votes, then old_st is older
+        // than new_st if the accepted vector of old_st is contained in the accepted
+        // vector of the new_st.
         let mut ret = false;
 
         let (is_subset_votes, equal_votes_grown) = Self::is_subset(&self.votes, &other.votes);

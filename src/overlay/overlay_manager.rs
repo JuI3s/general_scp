@@ -4,6 +4,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use syn::token::Percent;
+
 use crate::{
     application::work_queue::{HWorkScheduler, WorkScheduler},
     scp::scp::NodeID,
@@ -22,12 +24,58 @@ impl SCPMessage {
     }
 }
 
-pub trait OverlayManager<P>
-where
-    P: SCPPeer,
+// The consensus protocol works on top of an underlying overlay network, and
+// envelopes emitted by the consensus algorithm are broadcast to remote peers.
+// The diagram below gives an overview of how the different components interact
+// in broadcasting messages. 
+// 
+// ┌──────────────────────┐
+// │                      │
+// │  Consensus protocol  │
+// │                      │
+// └──────────────────────┘
+//             │
+//             │
+// triggered by consensus events, such as
+// externalization or nomination of a value
+//             │
+//             │
+//             ▼
+// ┌──────────────────────┐
+// │        Herder        │
+// └──────────────────────┘
+//             │                             ┌───────────────────────────────┐
+//             │                             │                               │
+// pass to overlay manager to send           │The overlay manager keeps track│
+//  message to remote peers                  │   of information about the    │
+//             ▼                             │underlying overlay network that│
+//  ┌────────────────────┐                   │  the local node needs, e.g.   │
+//  │                    │                   │connected/authenticated peers, │
+//  │  Overlay Manager   │─ ─ ─ ─ ─ ─ ─ ─ ─ ▶│ which peers have received the │
+//  │                    │                   │ msg, etc. The overlay manager │
+//  └────────────────────┘                   │  owns the floodgate which is  │
+//             │                             │ responsible for broadcasting  │
+//             │                             │    messages in the overlay    │
+//             │                             │           network.            │
+//           pass                            │                               │
+//        message to                         └───────────────────────────────┘
+//        broadcast
+//             │                              ┌──────────────────────────────┐
+//             ▼                              │ The floodgate keeps track of │
+// ┌──────────────────────┐                   │ state and information about  │
+// │                      │                   │ broadcasting messages in the │
+// │      Flood gate      │                   │overlay network. For example, │
+// │                      │ ─ ─ ─ ─ ─ ─ ─ ─ ─▶│  it stores for each message  │
+// │                      │                   │ whether each peer for which  │
+// └──────────────────────┘                   │the message has been sent has │
+//                                            │          responded.          │
+//                                            │                              │
+//                                            └──────────────────────────────┘
+pub trait OverlayManager
 {
     // Peer handle.
     type HP;
+    type P: SCPPeer;
 
     // TODO:
     // Send a given message to all peers, via the FloodGate.
@@ -40,14 +88,14 @@ where
     // that, call broadcastMessage, above.
     // Returns true if this is a new message
     // fills msgID with msg's hash
-    fn recv_flooded_message(&mut self, msg: &SCPMessage, peer: &P, msg_id: u64);
+    fn recv_flooded_message(&mut self, msg: &SCPMessage, peer: &Self::P, msg_id: u64);
 
     // removes msgID from the floodgate's internal state
     // as it's not tracked anymore, calling "broadcast" with a (now forgotten)
     // message with the ID msgID will cause it to be broadcast to all peers
     fn forget_flooded_message(&mut self, msg_id: &u64);
 
-    fn remove_peer(&mut self, peer: &P);
+    fn remove_peer(&mut self, peer: &Self::P);
 
     fn get_authenticated_peers(&self) -> BTreeMap<NodeID, Self::HP>;
 }
@@ -108,8 +156,9 @@ struct OverlayManagerImpl {
     work_schedular: HWorkScheduler,
 }
 
-impl OverlayManager<Peer> for OverlayManagerImpl {
+impl OverlayManager for OverlayManagerImpl {
     type HP = HPeer;
+    type P = Peer;
 
     fn broadcast_message(&mut self, msg: &SCPMessage, force: bool, hash: Option<u64>) -> bool {
         let mut broadcasted = false;

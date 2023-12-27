@@ -49,6 +49,18 @@ impl QuorumSet {
         }
     }
 
+    pub fn nodes(&self) -> BTreeSet<NodeID> {
+        // This method returns a set of all the node_ids in the quorum set.
+        let mut nodes = BTreeSet::default();
+        for slice in &self.slices {
+            for node in &slice.data {
+                nodes.insert(node.node_id.to_owned());
+            }
+        }
+
+        nodes
+    }
+
     pub fn example_quorum_set() -> Self {
         let sock1 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080);
         let sock2 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8081);

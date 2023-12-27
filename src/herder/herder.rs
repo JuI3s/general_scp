@@ -18,7 +18,8 @@ pub trait HerderDriver<N>
 where
     N: NominationValue,
 {
-    // Needs to be implemented by the specific consensus protocol for application level checks.
+    // Needs to be implemented by the specific consensus protocol for application
+    // level checks.
     fn validate_value(&self, value: &N, nomination: bool) -> ValidationLevel {
         // TODO: evaluates to true for every value for now.
         ValidationLevel::FullyValidated
@@ -31,8 +32,8 @@ where
 
     fn extract_valid_value(&self, value: &N) -> Option<N>;
     // {
-    // TODO: assume input value is always valid and just return the input value for now.
-    // Some(value.to_owned())
+    // TODO: assume input value is always valid and just return the input value for
+    // now. Some(value.to_owned())
     // }
 
     fn get_quorum_set(&self, statement: &SCPStatement<N>) -> Option<HQuorumSet>;

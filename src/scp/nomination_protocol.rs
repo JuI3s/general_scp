@@ -1,4 +1,5 @@
 use std::{
+    borrow::Borrow,
     collections::hash_map::DefaultHasher,
     hash::{self, Hash, Hasher},
     ops::Deref,
@@ -17,13 +18,16 @@ use log::debug;
 use tokio::time::timeout;
 
 use crate::{
-    application::work_queue::ClockEvent, herder::herder::HerderDriver, overlay::peer::PeerID,
-    scp::slot, utils::weak_self::WeakSelf,
+    application::{quorum::QuorumSet, work_queue::ClockEvent},
+    herder::herder::HerderDriver,
+    overlay::peer::PeerID,
+    scp::{slot, statement::SCPStatementPrepare},
+    utils::weak_self::WeakSelf,
 };
 
 use super::{
     scp::{EnvelopeState, NodeID},
-    scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver, ValidationLevel},
+    scp_driver::{HSCPEnvelope, SCPDriver, SCPEnvelope, SlotDriver, ValidationLevel},
     slot::Slot,
     statement::{SCPStatement, SCPStatementNominate},
 };
@@ -182,7 +186,11 @@ where
         ret
     }
 
-    fn is_newer_statement(&self, node_id: &NodeID, statement: &SCPStatementNominate<N>) -> bool {
+    fn is_newer_statement_for_node(
+        &self,
+        node_id: &NodeID,
+        statement: &SCPStatementNominate<N>,
+    ) -> bool {
         if let Some(envelope) = self.latest_nominations.get(node_id) {
             envelope
                 .lock()
@@ -256,16 +264,16 @@ where
         cur_value
     }
 
-    // pub fn add_value_from_leaders(&mut self, driver: &Arc<impl SCPDriver>) -> bool {
-    //     let mut updated = false;
+    // pub fn add_value_from_leaders(&mut self, driver: &Arc<impl SCPDriver>) ->
+    // bool {     let mut updated = false;
     //     for leader in &self.round_leaders {
     //         match self.latest_nominations.get(leader) {
-    //             Some(nomination) => match self.get_new_value_form_nomination(nomination) {
-    //                 Some(new_value) => {
-    //                     driver.nominating_value(&new_value);
-    //                     let new_value_handle = Arc::new(new_value);
-    //                     self.votes.insert(new_value_handle);
-    //                     updated = true;
+    //             Some(nomination) => match
+    // self.get_new_value_form_nomination(nomination) {                 
+    // Some(new_value) => {                     
+    // driver.nominating_value(&new_value);                     let
+    // new_value_handle = Arc::new(new_value);                     
+    // self.votes.insert(new_value_handle);                     updated = true;
     //                 }
     //                 None => {}
     //             },
@@ -275,7 +283,8 @@ where
     //     updated
     // }
 
-    // only called after a call to isNewerStatement so safe to replace the mLatestNomination
+    // only called after a call to isNewerStatement so safe to replace the
+    // mLatestNomination
     fn record_envelope(&mut self, envelope: &HSCPEnvelope<N>) {
         let nomination_env = envelope.lock().unwrap();
         let node_id = &nomination_env.node_id;
@@ -319,7 +328,76 @@ where
     N: NominationValue,
 {
     fn emit_nomination(self: &Arc<Self>, state: &mut NominationProtocolState<N>) {
-        todo!()
+        // This function creats a nomination statement that contains the current
+        // nomination value. The statement is then wrapped in an SCP envelope which is
+        // checked for validity before being passed to Herder for broadcasting.
+
+        let local_node = self.local_node.lock().unwrap();
+
+        // Creating the nomination statement
+        let mut nom_st: SCPStatementNominate<N> =
+            SCPStatementNominate::<N>::new(&local_node.quorum_set);
+
+        self.nomination_state()
+            .lock()
+            .unwrap()
+            .votes
+            .iter()
+            .for_each(|vote: &Arc<N>| {
+                nom_st.votes.push(vote.as_ref().clone());
+            });
+        self.nomination_state()
+            .lock()
+            .unwrap()
+            .accepted
+            .iter()
+            .for_each(|accepted| {
+                nom_st.votes.push(accepted.as_ref().clone());
+            });
+
+        // Creating the envelop
+        let st = SCPStatement::Nominate(nom_st);
+        let env = self.create_envelope(st).to_handle();
+
+        // Process the envelope. This may triggers more envelops being emitted.
+        match self.process_envelope(&self.nomination_state(), &env) {
+            EnvelopeState::Valid => {
+                let mut nomination_state = self.nomination_state().lock().unwrap();
+                if !nomination_state
+                    .latest_envelope
+                    .as_ref()
+                    .is_some_and(|env| match &env.lock().unwrap().statement {
+                        SCPStatement::Nominate(st) => {
+                            if env
+                                .lock()
+                                .unwrap()
+                                .statement
+                                .as_nomination_statement()
+                                .is_older_than(&st)
+                            {
+                                false
+                            } else {
+                                true
+                            }
+                        }
+                        _ => {
+                            panic!("Nomination state should only contain nomination statements.")
+                        }
+                    })
+                {
+                    // Do not do anything if we have already emitted a newer evenlope.
+                    return;
+                }
+
+                nomination_state.latest_envelope = Some(env.clone());
+                if self.fully_validated {
+                    self.herder_driver.emit_envelope(&env.lock().unwrap());
+                }
+            }
+            EnvelopeState::Invalid => {
+                panic!("Self issuing an invalid statement.")
+            }
+        }
     }
 
     fn accept_predicat(value: &N, statement: &SCPStatement<N>) -> bool {
@@ -378,32 +456,34 @@ where
 
         let timeout: std::time::Duration = self.herder_driver.compute_timeout(state.round_number);
 
-        let local_node = &self.local_node.lock().unwrap();
+        {
+            let local_node = &self.local_node.lock().unwrap();
 
-        updated = updated
-            || state.gather_votes_from_round_leaders(
-                &self.slot_index,
-                &local_node.node_id,
-                &|value| self.herder_driver.extract_valid_value(value),
-                &|value| self.herder_driver.validate_value(value, true),
-                &|value| self.herder_driver.nominating_value(value, &self.slot_index),
-            );
+            updated = updated
+                || state.gather_votes_from_round_leaders(
+                    &self.slot_index,
+                    &local_node.node_id,
+                    &|value| self.herder_driver.extract_valid_value(value),
+                    &|value| self.herder_driver.validate_value(value, true),
+                    &|value| self.herder_driver.nominating_value(value, &self.slot_index),
+                );
 
-        // if we're leader, add our value if we haven't added any votes yet
-        if state.round_leaders.contains(&local_node.node_id) && state.votes.is_empty() {
-            state.votes.insert(value.clone().into());
-            updated = true;
-            self.herder_driver
-                .nominating_value(&value, &self.slot_index);
-        }
-
-        // state.add_value_from_leaders(self);
-
-        // if we're leader, add our value if we haven't added any votes yet
-        if state.round_leaders.contains(&local_node.node_id) && state.votes.is_empty() {
-            if state.votes.insert(value.clone()) {
+            // if we're leader, add our value if we haven't added any votes yet
+            if state.round_leaders.contains(&local_node.node_id) && state.votes.is_empty() {
+                state.votes.insert(value.clone().into());
                 updated = true;
-                self.nominating_value(value.as_ref());
+                self.herder_driver
+                    .nominating_value(&value, &self.slot_index);
+            }
+
+            // state.add_value_from_leaders(self);
+
+            // if we're leader, add our value if we haven't added any votes yet
+            if state.round_leaders.contains(&local_node.node_id) && state.votes.is_empty() {
+                if state.votes.insert(value.clone()) {
+                    updated = true;
+                    self.nominating_value(value.as_ref());
+                }
             }
         }
 

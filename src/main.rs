@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashSet, BTreeSet},
+    collections::{BTreeSet, HashSet},
     fs,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     sync::Arc,
@@ -21,9 +21,10 @@ use general_scp::{
     overlay::rpc_gateway::TestRpcGateway,
     scp::{
         local_node_builder::LocalNodeBuilder,
-        nomination_protocol::{NominationProtocol, NominationProtocolState, self},
+        nomination_protocol::{self, NominationProtocol, NominationProtocolState},
         scp::NodeID,
-        scp_driver_builder::{SlotDriverBuilder, SlotTimerBuilder}, scp_state_builder::NominationProtocolStateBuilder,
+        scp_driver_builder::{SlotDriverBuilder, SlotTimerBuilder},
+        scp_state_builder::NominationProtocolStateBuilder,
     },
 };
 
@@ -47,7 +48,8 @@ fn main() {
     // );
 
     // let signing_key_bytes = signing_key.to_pkcs8_pem(LineEnding::LF).unwrap();
-    // let verifying_key_bytes = verifying_key.to_public_key_pem(LineEnding::LF).unwrap();
+    // let verifying_key_bytes =
+    // verifying_key.to_public_key_pem(LineEnding::LF).unwrap();
 
     // let mut file = File::create("public.pem").unwrap();
     // file.write_all(verifying_key_bytes.as_bytes()).unwrap();
@@ -90,7 +92,6 @@ fn main() {
     let mut leaders: BTreeSet<NodeID> = BTreeSet::new();
     leaders.insert(node_id.clone());
 
-
     let timer_handle = SlotTimerBuilder::new()
         .clock(virtual_clock.clone())
         .build()
@@ -105,8 +106,10 @@ fn main() {
         .build()
         .unwrap();
 
-    let nomination_protocol_state = NominationProtocolStateBuilder::<MockState>::new().round_leaders(leaders).build();
-    
+    let nomination_protocol_state = NominationProtocolStateBuilder::<MockState>::new()
+        .round_leaders(leaders)
+        .build();
+
     let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
         .slot_index(0)
         .herder_driver(Default::default())
@@ -120,5 +123,5 @@ fn main() {
     let prev_value = MockState::random();
 
     println!("Nominating...");
-    slot_driver.nominate(slot_driver.nomination_state(), value, &prev_value);
+    slot_driver.nominate(slot_driver.nomination_state().clone(), value, &prev_value);
 }

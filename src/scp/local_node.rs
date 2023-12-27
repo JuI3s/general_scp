@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     f32::consts::E,
     marker::PhantomData,
     sync::{Arc, Mutex},
@@ -44,8 +44,28 @@ where
         todo!();
     }
 
-    // This implementation is different from the Stellar implementation because we have different data structures.
-    fn is_v_blocking_internal(quorum_set: &QuorumSet, node_set: &Vec<NodeID>) -> bool {
+    pub fn for_all_nodes(
+        quorum_set: &QuorumSet,
+        predicate: &mut impl FnMut(&NodeID) -> bool,
+    ) -> bool {
+        // This function applies the predicate to each node_id in the quorum set. If the
+        // predicate evalutes false on any node, return false immediatley. Otherwise,
+        // return true.nnnn
+
+        let nodes = quorum_set.nodes();
+
+        for node in &nodes {
+            if !predicate(node) {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    // This implementation is different from the Stellar implementation because we
+    // have different data structures.
+    pub fn is_v_blocking(quorum_set: &QuorumSet, node_set: &Vec<NodeID>) -> bool {
         // TODO: do we need this? Now validators are represented by quorum slices.
         // if quorum_set.threshold == 0 {
         // return false;
@@ -60,7 +80,7 @@ where
         })
     }
 
-    pub fn is_v_blocking(
+    pub fn is_v_blocking_with_predicate(
         quorum_set: &QuorumSet,
         envelope_map: &BTreeMap<NodeID, HSCPEnvelope<N>>,
         filter: &impl Fn(&SCPStatement<N>) -> bool,
@@ -71,7 +91,7 @@ where
                 nodes.push(entry.0.clone());
             }
         });
-        LocalNode::<N>::is_v_blocking_internal(quorum_set, &nodes)
+        LocalNode::<N>::is_v_blocking(quorum_set, &nodes)
     }
 
     fn nodes_fill_quorum_slice(quorum_slice: &QuorumSlice, nodes: &Vec<NodeID>) -> bool {
@@ -93,8 +113,8 @@ where
 
     // `is_quorum_with_node_filter` tests if the filtered nodes V form a quorum
     // (meaning for each v \in V there is q \in Q(v)
-    // isQuorumincluded in V and we have quorum on V for qSetHash). `qfun` extracts the
-    // SCPQuorumSetPtr from the SCPStatement for its associated node in map
+    // isQuorumincluded in V and we have quorum on V for qSetHash). `qfun` extracts
+    // the SCPQuorumSetPtr from the SCPStatement for its associated node in map
     // (required for transitivity)
 
     pub fn is_quorum_with_node_filter(
@@ -124,7 +144,9 @@ where
             nodes.push(local_node_id.to_owned());
         }
 
-        // Definition (quorum). A set of nodes 𝑈 ⊆ 𝐕 in FBAS ⟨𝐕,𝐐⟩ is a quorum iff 𝑈 ≠ ∅ and 𝑈 contains a slice for each member—i.e., ∀𝑣 ∈ 𝑈 , ∃𝑞 ∈ 𝐐(𝑣) such that 𝑞 ⊆ 𝑈 .
+        // Definition (quorum). A set of nodes 𝑈 ⊆ 𝐕 in FBAS ⟨𝐕,𝐐⟩ is a quorum iff 𝑈 ≠ ∅
+        // and 𝑈 contains a slice for each member—i.e., ∀𝑣 ∈ 𝑈 , ∃𝑞 ∈ 𝐐(𝑣) such that 𝑞 ⊆
+        // 𝑈 .
         let mut ret = if nodes.is_empty() {
             false
         } else {

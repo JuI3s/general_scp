@@ -186,6 +186,6 @@ mod tests {
 
         let value = Arc::new(MockState::random());
         let prev_value = MockState::random();
-        slot_driver.nominate(slot_driver.nomination_state(), value, &prev_value);
+        slot_driver.nominate(slot_driver.nomination_state().clone(), value, &prev_value);
     }
 }

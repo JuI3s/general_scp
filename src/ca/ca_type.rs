@@ -22,7 +22,8 @@ pub struct PublicKey {
 
 pub struct SCPVerifyingKey(VerifyingKey);
 
-// Custom wrapper around verifying key for serialization and deserializatioon. Uses DER format to encode the veryifying key to bytes.
+// Custom wrapper around verifying key for serialization and deserializatioon.
+// Uses DER format to encode the veryifying key to bytes.
 #[derive(Debug)]
 pub struct SCPVerifyingKeySerdeError {}
 
@@ -63,8 +64,8 @@ impl Serialize for SCPVerifyingKey {
     // where
     //     S: serde::Serializer,
     // {
-    //     serializer.serialize_bytes(self.0.to_public_key_der().expect("").as_bytes())
-    // }
+    //     serializer.serialize_bytes(self.0.to_public_key_der().expect("").
+    // as_bytes()) }
 }
 
 impl<'de> Deserialize<'de> for SCPVerifyingKey {
@@ -103,8 +104,8 @@ impl<'de> Deserialize<'de> for SCPVerifyingKey {
     // let bytes: &[u8] = serde_bytes::deserialize(deserializer)?;
     // match VerifyingKey::from_public_key_der(bytes) {
     //     Ok(key) => Ok(SCPVerifyingKey(key)),
-    //     Err(_) => Err(SCPVerifyingKeySerdeError {}).map_err(serde::de::Error::custom),
-    // }
+    //     Err(_) => Err(SCPVerifyingKeySerdeError
+    // {}).map_err(serde::de::Error::custom), }
     // }
 }
 
@@ -228,8 +229,9 @@ mod tests {
 
         let verifying_key_encoded = bincode::serialize(&scp_verifying_key).unwrap();
 
-        // assert_eq!(verifying_key.to_public_key_der().expect("").as_bytes().len(), 126);
-        // assert_eq!(verifying_key.to_public_key_der().expect("").as_bytes().len(), 127);
+        // assert_eq!(verifying_key.to_public_key_der().expect("").as_bytes().len(),
+        // 126); assert_eq!(verifying_key.to_public_key_der().expect("").
+        // as_bytes().len(), 127);
 
         let scp_verifying_key_decoded: SCPVerifyingKey =
             bincode::deserialize(&verifying_key_encoded).unwrap();

@@ -18,8 +18,8 @@ pub enum MerkleOpError {
     FailureGenerateInclusionProof,
     InvalidIndex,
     // From the ct-merkle crate.
-    /// The proof is malformed, meaning it's either too big for the tree, or its length is not a
-    /// multiple of the hash function's digest size.
+    /// The proof is malformed, meaning it's either too big for the tree, or its
+    /// length is not a multiple of the hash function's digest size.
     MalformedProof,
     /// This root hash does not match the proof's root hash w.r.t. the item
     VerificationFailure,

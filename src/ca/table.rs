@@ -162,7 +162,8 @@ impl Table {
     }
 
     pub fn check_cell_valid(&self, cell: &Cell) -> TableOpResult<()> {
-        // This function can be used to inductively check that after each insertion of a new cell, the table remains valid based on the following rule.
+        // This function can be used to inductively check that after each insertion of a
+        // new cell, the table remains valid based on the following rule.
 
         //    2.3.  Prefix-based Delegation Correctness
 

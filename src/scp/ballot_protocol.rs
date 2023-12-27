@@ -42,12 +42,14 @@ where
     fn is_statement_sane(&self) -> bool {
         match self {
             SCPStatement::Prepare(st) => {
-                // Statement from self is allowed to have b = 0 (as long as it never gets emitted)
+                // Statement from self is allowed to have b = 0 (as long as it never gets
+                // emitted)
                 if !(st.from_self || st.ballot.counter > 0) {
                     return false;
                 }
 
-                // If prepared_prime and prepared are not None, then prepared_prime should be less and incompatible with prepared.
+                // If prepared_prime and prepared are not None, then prepared_prime should be
+                // less and incompatible with prepared.
                 if let Some(prepared) = st.prepared.as_ref() {
                     if let Some(prepared_prime) = st.prepared_prime.as_ref() {
                         if !prepared_prime.less_and_incompatible(prepared) {
@@ -56,7 +58,8 @@ where
                     }
                 }
 
-                // high ballot counter number should be 0 or no greater than the prepared counter (in which case the prepared ballot field is set).
+                // high ballot counter number should be 0 or no greater than the prepared
+                // counter (in which case the prepared ballot field is set).
                 if !(st.num_high == 0
                     || st
                         .prepared
@@ -186,8 +189,8 @@ where
 
     // `attempt*` methods are called by `advanceSlot` internally call the
     //  the `set*` methods.
-    //   * check if the specified state for the current slot has been
-    //     reached or not.
+    //   * check if the specified state for the current slot has been reached or
+    //     not.
     //   * idempotent
     //  input: latest statement received (used as a hint to reduce the
     //  space to explore)
@@ -355,7 +358,8 @@ where
         ret
     }
 
-    // This function gives a set of ballots containing candidate values that we can accept based on current state and the hint SCP statement.
+    // This function gives a set of ballots containing candidate values that we can
+    // accept based on current state and the hint SCP statement.
     fn get_prepare_candidates(&self, hint: &SCPStatement<N>) -> BTreeSet<SCPBallot<N>> {
         let mut hint_ballots = BTreeSet::new();
 
@@ -398,7 +402,8 @@ where
 
         let mut candidates = BTreeSet::new();
 
-        // TODO: I am not entirely clear about the logic of this part, soneed to add more documentation.
+        // TODO: I am not entirely clear about the logic of this part, soneed to add
+        // more documentation.
         hint_ballots.iter().rev().for_each(|top_vote| {
             // find candidates that may have been prepared
             self.latest_envelopes
@@ -555,7 +560,8 @@ where
         }
     }
 
-    // This update current ballot and other related fields according to the new high ballot.
+    // This update current ballot and other related fields according to the new high
+    // ballot.
     fn update_current_if_needed(&mut self, high_ballot: &SCPBallot<N>) -> bool {
         if self
             .current_ballot
@@ -861,12 +867,13 @@ where
         counter: u32,
     ) -> bool {
         let local_node = self.local_node.lock().unwrap();
-        LocalNode::is_v_blocking(&local_node.quorum_set, envelopes, &|st| {
+        LocalNode::is_v_blocking_with_predicate(&local_node.quorum_set, envelopes, &|st| {
             st.ballot_counter() > counter
         })
     }
 
-    // This method abandons the current ballot and sets the state according to state counter n.
+    // This method abandons the current ballot and sets the state according to state
+    // counter n.
     fn abandon_ballot(self: &Arc<Self>, state: &mut BallotProtocolState<N>, n: u32) -> bool {
         match self.get_latest_composite_value().lock().unwrap().as_ref() {
             Some(value) => {

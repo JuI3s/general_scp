@@ -53,7 +53,6 @@ impl<N> NominationProtocolStateBuilder<N>
 where
     N: NominationValue,
 {
-
     pub fn new() -> Self {
         Default::default()
     }
