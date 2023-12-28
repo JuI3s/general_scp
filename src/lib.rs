@@ -1,5 +1,6 @@
 pub mod application;
 pub mod ca;
+pub mod crypto;
 pub mod herder;
 pub mod mock;
 pub mod overlay;

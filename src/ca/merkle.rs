@@ -1,3 +1,4 @@
+use hex_literal::hex;
 use std::{
     cell::RefCell, collections::hash_map::DefaultHasher, fmt, hash::Hasher, process::id, rc::Rc,
 };

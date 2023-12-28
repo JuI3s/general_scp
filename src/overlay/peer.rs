@@ -124,7 +124,6 @@ pub trait SCPPeer<N>
 where
     N: NominationValue,
 {
-
     fn peer_state(&mut self) -> &Rc<RefCell<SCPPeerState>>;
     fn herder(&self) -> &Rc<RefCell<dyn HerderDriver<N>>>;
     fn overlay_manager(
@@ -137,9 +136,6 @@ where
     fn connected(&mut self) {}
 
     fn recv_scp_message(&mut self, envelope: &SCPEnvelope<N>) {
-
-        
-
         // We pass it to the herder
         self.herder()
             .as_ref()
