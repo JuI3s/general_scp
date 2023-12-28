@@ -15,6 +15,7 @@ use std::{
 };
 
 use log::debug;
+use serde::{Deserialize, Deserializer, Serialize};
 use tokio::time::timeout;
 
 use crate::{
@@ -59,11 +60,11 @@ type HNominationEnvelope = Arc<Mutex<NominationEnvelope>>;
 struct NominationEnvelope {}
 
 pub trait NominationValue:
-    Clone + PartialEq + PartialOrd + Eq + Ord + Hash + Default + 'static
+    Clone + PartialEq + PartialOrd + Eq + Ord + Hash + Default + Serialize + 'static
 {
 }
 
-#[derive(Default, Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Default, Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize)]
 pub struct SCPNominationValue {}
 
 impl NominationValue for SCPNominationValue {}

@@ -10,6 +10,7 @@ use std::{
 use ct_merkle::inclusion::InclusionProof;
 use digest::Key;
 use log::Log;
+use serde::Serialize;
 use sha2::Sha256;
 use syn::braced;
 
@@ -30,7 +31,7 @@ pub struct CAState {
     tables: BTreeMap<RootEntryKey, BTreeMap<String, HTable>>,
 }
 
-#[derive(Hash, Default, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Hash, Default, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize)]
 pub struct CANominationValue {}
 
 pub type CAStateOpResult<T> = std::result::Result<T, CAStateOpError>;

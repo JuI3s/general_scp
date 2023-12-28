@@ -11,12 +11,12 @@ use crate::{
     herder::herder::HerderDriver,
     scp::{
         nomination_protocol::NominationValue,
-        scp::NodeID,
+        scp::{NodeID, EnvelopeState},
         scp_driver::{HSCPEnvelope, SCPEnvelope},
     },
 };
 
-use super::overlay_manager::{HSCPMessage, OverlayManager, SCPMessage};
+use super::overlay_manager::{OverlayManager, SCPMessage};
 
 type ArcState = Arc<Mutex<State>>;
 pub type PeerID = &'static str;
@@ -123,26 +123,38 @@ impl State {
 pub trait SCPPeer<N>
 where
     N: NominationValue,
+    Self: Sized
 {
+
+    fn id(&self) -> &NodeID;
     fn peer_state(&mut self) -> &Rc<RefCell<SCPPeerState>>;
     fn herder(&self) -> &Rc<RefCell<dyn HerderDriver<N>>>;
     fn overlay_manager(
         &self,
-    ) -> &Rc<RefCell<dyn OverlayManager<N, HP = Rc<RefCell<dyn SCPPeer<N>>>, P = dyn SCPPeer<N>>>>;
+    ) -> &Rc<RefCell<dyn OverlayManager<N, HP = Rc<RefCell<Self>>, P = Self>>>;
 
-    fn send_message(&mut self, envelope: &HSCPMessage);
-
-    fn recv_message(&mut self, message: &SCPMessage) {}
     fn connected(&mut self) {}
 
-    fn recv_scp_message(&mut self, envelope: &SCPEnvelope<N>) {
-        self.overlay_manager().as_ref();
-
+    fn recv_scp_envelope(&mut self, envelope: &SCPEnvelope<N>) {
         // We pass it to the herder
         self.herder()
             .as_ref()
             .borrow_mut()
             .recv_scp_envelope(envelope)
+    }
+
+    fn recv_message(&mut self, msg: &SCPMessage<N>) {
+
+        if msg.is_boardcast_msg() {
+            self.overlay_manager().as_ref().borrow_mut().recv_flooded_message(msg, self)
+        }
+
+        match msg {
+            SCPMessage::SCP(scp_envelope) => {
+                self.recv_scp_envelope(scp_envelope)
+            },
+        }
+
     }
 }
 

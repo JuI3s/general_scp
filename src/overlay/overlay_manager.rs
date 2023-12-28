@@ -1,29 +1,41 @@
 use std::{
-    cell::RefCell,
     collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
     fmt::Display,
-    rc::Rc,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex}, cell::RefCell, rc::Rc,
 };
 
+use serde::Serialize;
 use syn::token::Percent;
 
 use crate::{
     application::work_queue::{HWorkScheduler, WorkScheduler},
-    crypto::types::Blake2Hash,
-    scp::{nomination_protocol::NominationValue, scp::NodeID, slot::SlotIndex},
+    crypto::types::{Blake2Hash, Blake2Hashable},
+    scp::{nomination_protocol::NominationValue, scp::NodeID, slot::SlotIndex, scp_driver::SCPEnvelope},
 };
 
 use super::peer::{HPeer, Peer, PeerID, SCPPeer};
 
-#[derive(Clone, Debug)]
-pub struct SCPMessage {}
+#[derive(Serialize)]
+pub enum SCPMessage<N>
+where
+N: NominationValue
+{
+    SCP(SCPEnvelope<N>)
+}
 
-pub type HSCPMessage = Arc<Mutex<SCPMessage>>;
+impl<N> Blake2Hashable for SCPMessage<N> 
+where 
+N: NominationValue {
 
-impl SCPMessage {
-    fn to_hash(&self) -> u64 {
-        todo!()
+}
+
+impl<N> SCPMessage<N> 
+where 
+N: NominationValue
+
+{
+    pub fn is_boardcast_msg(&self) -> bool {
+        true 
     }
 }
 
@@ -87,7 +99,7 @@ where
     // TODO:
     // Send a given message to all peers, via the FloodGate.
     // returns true if message was sent to at least one peer
-    fn broadcast_message(&mut self, msg: &SCPMessage, force: bool, hash: Option<u64>) -> bool;
+    fn broadcast_message(&mut self, msg: &SCPMessage<N>, force: bool, hash: Option<u64>) -> bool;
 
     // Make a note in the FloodGate that a given peer has provided us with an
     // given broadcast message, so that it is inhibited from being resent nto
@@ -95,16 +107,21 @@ where
     // that, call broadcastMessage, above.
     // Returns true if this is a new message
     // fills msgID with msg's hash
-    fn recv_flooded_message(&mut self, msg: &SCPMessage, peer: &Self::P, msg_id: u64);
+    fn recv_flooded_message(&mut self, msg: &SCPMessage<N>, peer: &Self::P) {
+        self.flood_gate().borrow_mut().add_record(&msg.to_blake2(), peer.id())
+    }
 
     // removes msgID from the floodgate's internal state
     // as it's not tracked anymore, calling "broadcast" with a (now forgotten)
     // message with the ID msgID will cause it to be broadcast to all peers
-    fn forget_flooded_message(&mut self, msg_id: &Blake2Hash) {}
+    fn forget_flooded_message(&mut self, msg_id: &Blake2Hash) {
+        
+    }
 
     fn remove_peer(&mut self, peer: &Self::P);
 
     fn get_authenticated_peers(&self) -> BTreeMap<NodeID, Self::HP>;
+
 }
 
 type HFloodRecord = Arc<Mutex<FloodRecord>>;
