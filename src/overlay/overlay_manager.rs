@@ -1,6 +1,8 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    cell::RefCell,
+    collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
     fmt::Display,
+    rc::Rc,
     sync::{Arc, Mutex},
 };
 
@@ -8,7 +10,8 @@ use syn::token::Percent;
 
 use crate::{
     application::work_queue::{HWorkScheduler, WorkScheduler},
-    scp::{nomination_protocol::NominationValue, scp::NodeID},
+    crypto::types::Blake2Hash,
+    scp::{nomination_protocol::NominationValue, scp::NodeID, slot::SlotIndex},
 };
 
 use super::peer::{HPeer, Peer, PeerID, SCPPeer};
@@ -79,6 +82,8 @@ where
     type HP;
     type P: SCPPeer<N>;
 
+    fn flood_gate(&self) -> &Rc<RefCell<FloodGate>>;
+
     // TODO:
     // Send a given message to all peers, via the FloodGate.
     // returns true if message was sent to at least one peer
@@ -95,7 +100,7 @@ where
     // removes msgID from the floodgate's internal state
     // as it's not tracked anymore, calling "broadcast" with a (now forgotten)
     // message with the ID msgID will cause it to be broadcast to all peers
-    fn forget_flooded_message(&mut self, msg_id: &u64);
+    fn forget_flooded_message(&mut self, msg_id: &Blake2Hash) {}
 
     fn remove_peer(&mut self, peer: &Self::P);
 
@@ -104,6 +109,7 @@ where
 
 type HFloodRecord = Arc<Mutex<FloodRecord>>;
 struct FloodRecord {
+    pub slot_idx: SlotIndex,
     pub peers_told: BTreeSet<NodeID>,
 }
 
@@ -117,39 +123,33 @@ impl Default for FloodRecord {
     fn default() -> Self {
         Self {
             peers_told: Default::default(),
+            slot_idx: 0,
         }
     }
 }
 
-struct FloodGate {
-    flood_records: BTreeMap<u64, HFloodRecord>,
+pub struct FloodGate {
+    flood_records: BTreeMap<Blake2Hash, FloodRecord>,
 }
 
 impl FloodGate {
-    fn add_record(&mut self, msg_hash: &u64, peer_id: &NodeID) {
-        match self.flood_records.get(msg_hash) {
+    fn add_record(&mut self, msg_hash: &Blake2Hash, peer_id: &NodeID) {
+        match self.flood_records.get_mut(msg_hash) {
             Some(record) => {
-                record.lock().unwrap().insert(peer_id);
+                record.insert(peer_id);
             }
             None => {
                 let mut new_record: FloodRecord = Default::default();
                 new_record.insert(peer_id);
-                self.flood_records
-                    .insert(msg_hash.clone(), Arc::new(Mutex::new(new_record)));
+                self.flood_records.insert(msg_hash.clone(), new_record);
             }
         }
     }
 
-    fn get_or_create_record(&mut self, msg_hash: &u64) -> HFloodRecord {
-        match self.flood_records.get(msg_hash) {
-            Some(val) => val.to_owned(),
-            None => {
-                // Create a new record
-                let new = Arc::new(Mutex::new(Default::default()));
-                self.flood_records.insert(msg_hash.clone(), new.clone());
-                new
-            }
-        }
+    fn get_or_create_record(&mut self, msg_hash: &Blake2Hash) -> &FloodRecord {
+        self.flood_records
+            .entry(*msg_hash)
+            .or_insert_with(|| Default::default())
     }
 }
 

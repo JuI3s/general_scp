@@ -9,6 +9,7 @@ use std::{
 
 pub type HashValue = u64;
 
+use serde::{Deserialize, Serialize};
 use syn::token::Mut;
 
 use crate::{
@@ -16,6 +17,7 @@ use crate::{
         quorum::QuorumSet,
         work_queue::{self, ClockEvent, WorkScheduler},
     },
+    crypto::types::Blake2Hashable,
     herder::herder::HerderDriver,
     overlay::overlay_manager::OverlayManager,
     scp::ballot_protocol::SCPPhase,
@@ -63,6 +65,8 @@ where
 }
 
 pub type HSCPEnvelope<N> = Arc<Mutex<SCPEnvelope<N>>>;
+
+#[derive(Serialize, Deserialize)]
 pub struct SCPEnvelope<N>
 where
     N: NominationValue,
@@ -72,6 +76,8 @@ where
     pub slot_index: SlotIndex,
     pub signature: HashValue,
 }
+
+impl<N> Blake2Hashable for SCPEnvelope<N> where N: NominationValue + Serialize {}
 
 impl<N> SCPEnvelope<N>
 where
@@ -353,4 +359,21 @@ where
     fn accepted_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot<N>) {}
     fn accepted_commit(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot<N>) {}
     fn confirm_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot<N>) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::mock::state::MockState;
+
+    use super::*;
+
+    #[test]
+    fn mock_scp_envelope_to_blake2() {
+        let env1 = SCPEnvelope::<MockState>::test_make_scp_envelope("1".into());
+        let env2 = SCPEnvelope::<MockState>::test_make_scp_envelope("2".into());
+        let hash_1 = env1.to_blake2();
+        let hash_2 = env2.to_blake2();
+        assert_ne!(hash_1, hash_2);
+        assert_eq!(hash_1, env1.to_blake2());
+    }
 }

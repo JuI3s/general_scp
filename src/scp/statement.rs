@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
 
+use serde::{Deserialize, Serialize};
+
 use crate::application::quorum::QuorumSet;
 
 use super::{
@@ -10,6 +12,7 @@ use super::{
 
 pub type HSCPStatement<N> = Arc<Mutex<SCPStatement<N>>>;
 
+#[derive(Serialize, Deserialize)]
 pub enum SCPStatement<N>
 where
     N: NominationValue,
@@ -20,6 +23,7 @@ where
     Nominate(SCPStatementNominate<N>),
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct SCPStatementNominate<N>
 where
     N: NominationValue,
@@ -29,6 +33,7 @@ where
     pub accepted: Vec<N>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct SCPStatementPrepare<N>
 where
     N: NominationValue,
@@ -41,7 +46,7 @@ where
     pub num_high: u32,
     pub from_self: bool,
 }
-
+#[derive(Serialize, Deserialize)]
 pub struct SCPStatementConfirm<N>
 where
     N: NominationValue,
@@ -53,6 +58,7 @@ where
     pub num_high: u32,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct SCPStatementExternalize<N>
 where
     N: NominationValue,

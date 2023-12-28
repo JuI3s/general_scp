@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     application::quorum::HQuorumSet,
@@ -13,7 +14,7 @@ use crate::{
 };
 
 // Just hold a vector u8 integers.
-#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
 pub struct MockState(Vec<[u8; 32]>);
 
 impl MockState {

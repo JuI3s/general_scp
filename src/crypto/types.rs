@@ -1,4 +1,19 @@
+use blake2::{Blake2b512, Blake2s256, Digest};
+use serde::Serialize;
+
 pub type Blake2Hash = [u8; 64];
+
+pub trait Blake2Hashable
+where
+    Self: Serialize,
+{
+    fn to_blake2(&self) -> Blake2Hash {
+        let mut hasher = Blake2b512::new();
+        let encoded: Vec<u8> = bincode::serialize(&self).unwrap();
+        hasher.update(encoded);
+        hasher.finalize().into()
+    }
+}
 
 #[cfg(test)]
 mod tests {

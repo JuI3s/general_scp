@@ -136,6 +136,8 @@ where
     fn connected(&mut self) {}
 
     fn recv_scp_message(&mut self, envelope: &SCPEnvelope<N>) {
+        self.overlay_manager().as_ref();
+
         // We pass it to the herder
         self.herder()
             .as_ref()

@@ -6,6 +6,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     herder::herder::HerderDriver,
     scp::{local_node::LocalNode, nomination_protocol::NominationProtocol, scp_driver::SCPDriver},
@@ -132,7 +134,7 @@ where
 
 pub struct SPCStatementCommit {}
 
-#[derive(Eq, PartialEq, PartialOrd, Ord, Clone)]
+#[derive(Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
 pub struct SCPBallot<N>
 where
     N: NominationValue,
