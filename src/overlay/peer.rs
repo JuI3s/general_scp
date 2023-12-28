@@ -1,14 +1,22 @@
 use std::{
+    borrow::{Borrow, BorrowMut},
+    cell::RefCell,
+    rc::{Rc, Weak},
     sync::{Arc, Mutex},
     time::SystemTime,
 };
 
 use crate::{
     application::work_queue::{ClockEvent, EventQueue},
-    scp::{scp::NodeID, scp_driver::HSCPEnvelope},
+    herder::herder::HerderDriver,
+    scp::{
+        nomination_protocol::NominationValue,
+        scp::NodeID,
+        scp_driver::{HSCPEnvelope, SCPEnvelope},
+    },
 };
 
-use super::overlay_manager::{HSCPMessage, SCPMessage};
+use super::overlay_manager::{HSCPMessage, OverlayManager, SCPMessage};
 
 type ArcState = Arc<Mutex<State>>;
 pub type PeerID = &'static str;
@@ -112,12 +120,35 @@ impl State {
     }
 }
 
-pub trait SCPPeer {
-    fn send_message(&mut self, envelope: &HSCPMessage) {}
-    fn recv_message(&mut self, message: &SCPMessage) {
-        println!("{:?}", message);
-        // todo!()
+pub trait SCPPeer<N>
+where
+    N: NominationValue,
+{
+
+    fn peer_state(&mut self) -> &Rc<RefCell<SCPPeerState>>;
+    fn herder(&self) -> &Rc<RefCell<dyn HerderDriver<N>>>;
+    fn overlay_manager(
+        &self,
+    ) -> &Rc<RefCell<dyn OverlayManager<N, HP = Rc<RefCell<dyn SCPPeer<N>>>, P = dyn SCPPeer<N>>>>;
+
+    fn send_message(&mut self, envelope: &HSCPMessage);
+
+    fn recv_message(&mut self, message: &SCPMessage) {}
+    fn connected(&mut self) {}
+
+    fn recv_scp_message(&mut self, envelope: &SCPEnvelope<N>) {
+
+        
+
+        // We pass it to the herder
+        self.herder()
+            .as_ref()
+            .borrow_mut()
+            .recv_scp_envelope(envelope)
     }
 }
 
-impl SCPPeer for Peer {}
+// This struct maintains state neeed by the peer.
+pub struct SCPPeerState {
+    pub shutting_down: bool,
+}

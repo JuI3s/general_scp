@@ -8,7 +8,7 @@ use syn::token::Percent;
 
 use crate::{
     application::work_queue::{HWorkScheduler, WorkScheduler},
-    scp::scp::NodeID,
+    scp::{nomination_protocol::NominationValue, scp::NodeID},
 };
 
 use super::peer::{HPeer, Peer, PeerID, SCPPeer};
@@ -71,10 +71,13 @@ impl SCPMessage {
 //                                            │          responded.          │
 //                                            │                              │
 //                                            └──────────────────────────────┘
-pub trait OverlayManager {
+pub trait OverlayManager<N>
+where
+    N: NominationValue,
+{
     // Peer handle.
     type HP;
-    type P: SCPPeer;
+    type P: SCPPeer<N>;
 
     // TODO:
     // Send a given message to all peers, via the FloodGate.
@@ -155,55 +158,58 @@ struct OverlayManagerImpl {
     work_schedular: HWorkScheduler,
 }
 
-impl OverlayManager for OverlayManagerImpl {
-    type HP = HPeer;
-    type P = Peer;
+// impl<N> OverlayManager<N> for OverlayManagerImpl
+// where
+// N: NominationValue
+// {
+//     type HP = HPeer;
+//     type P = Peer;
 
-    fn broadcast_message(&mut self, msg: &SCPMessage, force: bool, hash: Option<u64>) -> bool {
-        let mut broadcasted = false;
-        let peers = self.get_authenticated_peers();
+//     fn broadcast_message(&mut self, msg: &SCPMessage, force: bool, hash:
+// Option<u64>) -> bool {         let mut broadcasted = false;
+//         let peers = self.get_authenticated_peers();
 
-        let msg_hash = msg.to_hash();
-        let msg_to_send = Arc::new(Mutex::new(msg.clone()));
+//         let msg_hash = msg.to_hash();
+//         let msg_to_send = Arc::new(Mutex::new(msg.clone()));
 
-        // Creating a new flood record.
-        let record = self.flood_gate.get_or_create_record(&msg_hash);
+//         // Creating a new flood record.
+//         let record = self.flood_gate.get_or_create_record(&msg_hash);
 
-        // Sending messages to peers to whom we haven't sent the msg before.
-        peers.values().into_iter().for_each(|peer| {
-            if !record.lock().unwrap().insert(&peer.lock().unwrap().id) {
-                let weak = Arc::downgrade(peer);
-                let mes_to_send_copy = msg_to_send.clone();
+//         // Sending messages to peers to whom we haven't sent the msg before.
+//         peers.values().into_iter().for_each(|peer| {
+//             if !record.lock().unwrap().insert(&peer.lock().unwrap().id) {
+//                 let weak = Arc::downgrade(peer);
+//                 let mes_to_send_copy = msg_to_send.clone();
 
-                let send_msg_predicate = move || {
-                    if let Some(strong) = weak.upgrade() {
-                        strong.lock().unwrap().send_message(&mes_to_send_copy)
-                    }
-                };
+//                 let send_msg_predicate = move || {
+//                     if let Some(strong) = weak.upgrade() {
+//
+// strong.lock().unwrap().send_message(&mes_to_send_copy)                     }
+//                 };
 
-                self.work_schedular
-                    .borrow_mut()
-                    .post_on_main_thread(Box::new(send_msg_predicate));
-                broadcasted = true;
-            }
-        });
+//                 self.work_schedular
+//                     .borrow_mut()
+//                     .post_on_main_thread(Box::new(send_msg_predicate));
+//                 broadcasted = true;
+//             }
+//         });
 
-        broadcasted
-    }
+//         broadcasted
+//     }
 
-    fn recv_flooded_message(&mut self, msg: &SCPMessage, peer: &Peer, msg_id: u64) {
-        self.flood_gate.add_record(&msg.to_hash(), &peer.id);
-    }
+//     fn recv_flooded_message(&mut self, msg: &SCPMessage, peer: &Peer, msg_id:
+// u64) {         self.flood_gate.add_record(&msg.to_hash(), &peer.id);
+//     }
 
-    fn forget_flooded_message(&mut self, msg_id: &u64) {
-        self.flood_gate.flood_records.remove(msg_id);
-    }
+//     fn forget_flooded_message(&mut self, msg_id: &u64) {
+//         self.flood_gate.flood_records.remove(msg_id);
+//     }
 
-    fn remove_peer(&mut self, peer: &Peer) {
-        todo!()
-    }
+//     fn remove_peer(&mut self, peer: &Peer) {
+//         todo!()
+//     }
 
-    fn get_authenticated_peers(&self) -> BTreeMap<NodeID, Self::HP> {
-        todo!()
-    }
-}
+//     fn get_authenticated_peers(&self) -> BTreeMap<NodeID, Self::HP> {
+//         todo!()
+//     }
+// }
