@@ -120,6 +120,14 @@ impl State {
     }
 }
 
+pub enum SCPPeerConnState { 
+    Connecting, 
+    Connected,
+    GotAuth, 
+    GotHello,
+    Closing,
+}
+
 pub trait SCPPeer<N>
 where
     N: NominationValue,
