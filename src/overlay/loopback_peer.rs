@@ -186,8 +186,9 @@ mod tests {
         // excecute_main_thread_tasks and post_on_main_thread both borrow_mut
         // main_work_queue. Instead use LoopbackPeer::<MockState>::process_in_queue,
         // which runs one task at a time and then defer the execution of other tasks in
-        // the future on main thread. let num_tasks_done =
-        // work_scheduler.borrow().excecute_main_thread_tasks();
+        // the future on main thread.
+
+        // let num_tasks_done = work_scheduler.borrow().excecute_main_thread_tasks();
 
         connection.initiator.borrow_mut().send_hello(msg.clone());
         connection.initiator.borrow_mut().send_hello(msg.clone());
