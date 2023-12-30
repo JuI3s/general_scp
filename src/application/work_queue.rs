@@ -28,7 +28,7 @@ impl ClockEvent {
 
 pub type HWorkScheduler = Rc<RefCell<WorkScheduler>>;
 pub struct WorkScheduler {
-    main_thread_queue: MainWorkQueue,
+    main_thread_queue: RefCell<MainWorkQueue>,
     event_queue: RefCell<EventQueue>,
 }
 
@@ -40,16 +40,16 @@ impl WorkScheduler {
         }
     }
 
-    pub fn post_on_main_thread(&mut self, callback: Callback) {
-        self.main_thread_queue.add_task(callback);
+    pub fn post_on_main_thread(&self, callback: Callback) {
+        self.main_thread_queue.borrow_mut().add_task(callback);
     }
 
-    pub fn execute_one_main_thread_task(&mut self) -> bool {
-        self.main_thread_queue.execute_one_task()
+    pub fn execute_one_main_thread_task(&self) -> bool {
+        self.main_thread_queue.borrow_mut().execute_one_task()
     }
 
-    pub fn excecute_main_thread_tasks(&mut self) -> u64 {
-        self.main_thread_queue.execute_tasks()
+    pub fn excecute_main_thread_tasks(&self) -> u64 {
+        self.main_thread_queue.borrow_mut().execute_tasks()
     }
 
     pub fn post_clock_event(&self, clock_event: ClockEvent) {
@@ -167,15 +167,15 @@ mod tests {
             *pt_copy.lock().unwrap() += 1;
         };
 
-        assert_eq!(work_scheduler.main_thread_queue.tasks.len(), 0);
+        assert_eq!(work_scheduler.main_thread_queue.borrow().tasks.len(), 0);
 
         // Adding a task
         work_scheduler.post_on_main_thread(Box::new(func));
-        assert_eq!(work_scheduler.main_thread_queue.tasks.len(), 1);
+        assert_eq!(work_scheduler.main_thread_queue.borrow().tasks.len(), 1);
 
         work_scheduler.execute_one_main_thread_task();
         assert_eq!(*pt.lock().unwrap(), 1);
-        assert_eq!(work_scheduler.main_thread_queue.tasks.len(), 0);
+        assert_eq!(work_scheduler.main_thread_queue.borrow().tasks.len(), 0);
     }
 
     #[test]
@@ -193,15 +193,15 @@ mod tests {
             *pt_copy_2.lock().unwrap() += 1;
         };
 
-        assert_eq!(work_scheduler.main_thread_queue.tasks.len(), 0);
+        assert_eq!(work_scheduler.main_thread_queue.borrow().tasks.len(), 0);
 
         // Adding a task
         work_scheduler.post_on_main_thread(Box::new(func1));
         work_scheduler.post_on_main_thread(Box::new(func2));
-        assert_eq!(work_scheduler.main_thread_queue.tasks.len(), 2);
+        assert_eq!(work_scheduler.main_thread_queue.borrow().tasks.len(), 2);
 
         work_scheduler.excecute_main_thread_tasks();
         assert_eq!(*pt.lock().unwrap(), 2);
-        assert_eq!(work_scheduler.main_thread_queue.tasks.len(), 0);
+        assert_eq!(work_scheduler.main_thread_queue.borrow().tasks.len(), 0);
     }
 }

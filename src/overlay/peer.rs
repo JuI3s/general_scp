@@ -143,7 +143,21 @@ where
         &self,
     ) -> &Rc<RefCell<dyn OverlayManager<N, HP = Rc<RefCell<Self>>, P = Self>>>;
 
-    fn connected(&mut self) {}
+    // Setting state on connected
+    fn set_state_on_connected(&mut self) {
+        self.borrow_mut()
+            .peer_state()
+            .as_ref()
+            .borrow_mut()
+            .set_conn_state(SCPPeerConnState::Connected);
+    }
+
+    fn connect_handler(&mut self) {
+        self.set_state_on_connected();
+
+        let hello_env = HelloEnvelope {};
+        self.send_hello(hello_env);
+    }
 
     // Implemented by struct implementing the trait.
     fn send_message(&mut self, msg: &SCPMessage<N>);
