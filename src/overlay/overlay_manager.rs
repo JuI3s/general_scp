@@ -1,7 +1,9 @@
 use std::{
+    cell::RefCell,
     collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
     fmt::Display,
-    sync::{Arc, Mutex}, cell::RefCell, rc::Rc,
+    rc::Rc,
+    sync::{Arc, Mutex},
 };
 
 use serde::Serialize;
@@ -10,34 +12,15 @@ use syn::token::Percent;
 use crate::{
     application::work_queue::{HWorkScheduler, WorkScheduler},
     crypto::types::{Blake2Hash, Blake2Hashable},
-    scp::{nomination_protocol::NominationValue, scp::NodeID, slot::SlotIndex, scp_driver::SCPEnvelope},
+    scp::{
+        nomination_protocol::NominationValue, scp::NodeID, scp_driver::SCPEnvelope, slot::SlotIndex,
+    },
 };
 
-use super::peer::{HPeer, Peer, PeerID, SCPPeer};
-
-#[derive(Serialize)]
-pub enum SCPMessage<N>
-where
-N: NominationValue
-{
-    SCP(SCPEnvelope<N>)
-}
-
-impl<N> Blake2Hashable for SCPMessage<N> 
-where 
-N: NominationValue {
-
-}
-
-impl<N> SCPMessage<N> 
-where 
-N: NominationValue
-
-{
-    pub fn is_boardcast_msg(&self) -> bool {
-        true 
-    }
-}
+use super::{
+    message::SCPMessage,
+    peer::{HPeer, Peer, PeerID, SCPPeer},
+};
 
 // The consensus protocol works on top of an underlying overlay network, and
 // envelopes emitted by the consensus algorithm are broadcast to remote peers.
@@ -108,20 +91,19 @@ where
     // Returns true if this is a new message
     // fills msgID with msg's hash
     fn recv_flooded_message(&mut self, msg: &SCPMessage<N>, peer: &Self::P) {
-        self.flood_gate().borrow_mut().add_record(&msg.to_blake2(), peer.id())
+        self.flood_gate()
+            .borrow_mut()
+            .add_record(&msg.to_blake2(), peer.id())
     }
 
     // removes msgID from the floodgate's internal state
     // as it's not tracked anymore, calling "broadcast" with a (now forgotten)
     // message with the ID msgID will cause it to be broadcast to all peers
-    fn forget_flooded_message(&mut self, msg_id: &Blake2Hash) {
-        
-    }
+    fn forget_flooded_message(&mut self, msg_id: &Blake2Hash) {}
 
     fn remove_peer(&mut self, peer: &Self::P);
 
     fn get_authenticated_peers(&self) -> BTreeMap<NodeID, Self::HP>;
-
 }
 
 type HFloodRecord = Arc<Mutex<FloodRecord>>;

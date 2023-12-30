@@ -1,4 +1,5 @@
 pub mod loopback_peer;
+pub mod message;
 pub mod outgate;
 pub mod overlay_manager;
 pub mod peer;

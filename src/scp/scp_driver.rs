@@ -66,7 +66,7 @@ where
 
 pub type HSCPEnvelope<N> = Arc<Mutex<SCPEnvelope<N>>>;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SCPEnvelope<N>
 where
     N: NominationValue,
