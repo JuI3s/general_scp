@@ -49,7 +49,23 @@ impl WorkScheduler {
     }
 
     pub fn excecute_main_thread_tasks(&self) -> u64 {
-        self.main_thread_queue.borrow_mut().execute_tasks()
+        let mut num_executed = 0;
+        loop {
+            // Important: need to move value to cb_opt to avoid borrow_mut main_thread_queue
+            // twice in loopback peer testing.
+            let cb_opt = self.main_thread_queue.borrow_mut().pop();
+            match cb_opt {
+                Some(cb) => {
+                    cb();
+                    num_executed += 1;
+                }
+                None => {
+                    return num_executed;
+                }
+            }
+        }
+
+        // self.main_thread_queue.borrow_mut().execute_tasks()
     }
 
     pub fn post_clock_event(&self, clock_event: ClockEvent) {
@@ -92,17 +108,8 @@ impl MainWorkQueue {
         }
     }
 
-    // Execute tasks and return the total number of tasks executed.
-    fn execute_tasks(&mut self) -> u64 {
-        let mut num_tasks_executed = 0;
-
-        while let Some(top) = self.tasks.pop_front() {
-            println!("Executing task... {}", num_tasks_executed);
-            top();
-            num_tasks_executed += 1;
-        }
-
-        num_tasks_executed
+    fn pop(&mut self) -> Option<Callback> {
+        self.tasks.pop_front()
     }
 }
 

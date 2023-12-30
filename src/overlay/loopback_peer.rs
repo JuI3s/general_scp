@@ -182,20 +182,11 @@ mod tests {
         LoopbackPeer::<MockState>::process_in_queue(&connection.acceptor);
         assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 0);
 
-        // IMPORTANT: Very subtle. Call the following will panic because work_schedular
-        // excecute_main_thread_tasks and post_on_main_thread both borrow_mut
-        // main_work_queue. Instead use LoopbackPeer::<MockState>::process_in_queue,
-        // which runs one task at a time and then defer the execution of other tasks in
-        // the future on main thread.
-
-        // let num_tasks_done = work_scheduler.borrow().excecute_main_thread_tasks();
-
         connection.initiator.borrow_mut().send_hello(msg.clone());
         connection.initiator.borrow_mut().send_hello(msg.clone());
-        assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 2);
-        LoopbackPeer::<MockState>::process_in_queue(&connection.acceptor);
-        assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 1);
-        LoopbackPeer::<MockState>::process_in_queue(&connection.acceptor);
+        assert_eq!(connection.initiator.borrow_mut().in_queue.len(), 0);
+
+        work_scheduler.borrow().excecute_main_thread_tasks();
         assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 0);
     }
 }
