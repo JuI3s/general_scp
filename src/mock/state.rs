@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     application::quorum::HQuorumSet,
+    crypto::types::Blake2Hashable,
     herder::herder::HerderDriver,
     scp::{
         ballot_protocol::HBallotProtocolState,

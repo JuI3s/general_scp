@@ -14,6 +14,16 @@ use crate::{
     },
 };
 
+pub enum HerderEnvelopeStatus {
+    // for some reason this envelope was discarded - either it was invalid,
+    // used unsane qset or was coming from node that is not in quorum
+    EnvelopeStatusDiscarded,
+    EnvelopeStatusSkippedSelf,
+    EnvelopeStatusProcessed,
+    EnvelopeStatusFetching,
+    EnvelopeStatusReady,
+}
+
 pub trait HerderDriver<N>
 where
     N: NominationValue,

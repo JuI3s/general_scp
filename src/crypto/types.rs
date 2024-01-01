@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use blake2::{Blake2b512, Blake2s256, Digest};
 use serde::Serialize;
 
@@ -10,6 +12,25 @@ where
     fn to_blake2(&self) -> Blake2Hash {
         let mut hasher = Blake2b512::new();
         let encoded: Vec<u8> = bincode::serialize(&self).unwrap();
+        hasher.update(encoded);
+        hasher.finalize().into()
+    }
+}
+
+pub struct Blake2Hasher<N>
+where
+    N: Serialize,
+{
+    phantom: PhantomData<N>,
+}
+
+impl<N> Blake2Hasher<N>
+where
+    N: Serialize,
+{
+    pub fn hash(value: &N) -> Blake2Hash {
+        let mut hasher = Blake2b512::new();
+        let encoded: Vec<u8> = bincode::serialize(&value).unwrap();
         hasher.update(encoded);
         hasher.finalize().into()
     }

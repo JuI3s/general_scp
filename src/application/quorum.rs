@@ -6,9 +6,14 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use blake2::{Blake2b512, Blake2s256, Digest};
+
 use serde::{Deserialize, Serialize};
 
-use crate::scp::{scp::NodeID, scp_driver::HashValue};
+use crate::{
+    crypto::types::Blake2Hashable,
+    scp::{scp::NodeID, scp_driver::HashValue},
+};
 
 // pub type QuorumSet = HashSet<SocketAddr>;
 // pub type Quorum = HashSet<QuorumSet>;
@@ -26,6 +31,15 @@ pub struct QuorumNode {
 pub struct QuorumSet {
     pub slices: BTreeSet<QuorumSlice>,
     pub threshold: usize,
+}
+
+impl Blake2Hashable for QuorumSet {
+    fn to_blake2(&self) -> crate::crypto::types::Blake2Hash {
+        let mut hasher = blake2::Blake2b512::new();
+        let encoded: Vec<u8> = bincode::serialize(&self).unwrap();
+        hasher.update(encoded);
+        hasher.finalize().into()
+    }
 }
 
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize)]

@@ -20,6 +20,7 @@ use tokio::time::timeout;
 
 use crate::{
     application::{quorum::QuorumSet, work_queue::ClockEvent},
+    crypto::types::Blake2Hashable,
     herder::herder::HerderDriver,
     overlay::peer::PeerID,
     scp::{slot, statement::SCPStatementPrepare},

@@ -12,7 +12,7 @@ use super::{
 
 pub type HSCPStatement<N> = Arc<Mutex<SCPStatement<N>>>;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SCPStatement<N>
 where
     N: NominationValue,
@@ -23,7 +23,7 @@ where
     Nominate(SCPStatementNominate<N>),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SCPStatementNominate<N>
 where
     N: NominationValue,
@@ -33,7 +33,7 @@ where
     pub accepted: Vec<N>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SCPStatementPrepare<N>
 where
     N: NominationValue,
@@ -46,7 +46,7 @@ where
     pub num_high: u32,
     pub from_self: bool,
 }
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SCPStatementConfirm<N>
 where
     N: NominationValue,
@@ -58,7 +58,7 @@ where
     pub num_high: u32,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SCPStatementExternalize<N>
 where
     N: NominationValue,

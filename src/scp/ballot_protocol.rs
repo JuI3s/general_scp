@@ -134,7 +134,7 @@ where
 
 pub struct SPCStatementCommit {}
 
-#[derive(Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize, Hash)]
 pub struct SCPBallot<N>
 where
     N: NominationValue,
