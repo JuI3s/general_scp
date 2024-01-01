@@ -54,7 +54,7 @@ pub struct SlotDriver<N>
 where
     N: NominationValue + 'static,
 {
-    pub slot_index: u64,
+    pub slot_index: SlotIndex,
     pub local_node: HLocalNode<N>,
     pub scheduler: WorkScheduler,
     nomination_state_handle: HNominationProtocolState<N>,
@@ -181,7 +181,7 @@ where
     N: NominationValue + 'static,
 {
     pub fn new(
-        slot_index: u64,
+        slot_index: SlotIndex,
         local_node: HLocalNode<N>,
         timer: WorkScheduler,
         nomination_state_handle: HNominationProtocolState<N>,

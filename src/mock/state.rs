@@ -11,6 +11,7 @@ use crate::{
         ballot_protocol::HBallotProtocolState,
         nomination_protocol::{HNominationProtocolState, NominationProtocol, NominationValue},
         scp_driver::{HashValue, SlotDriver},
+        slot::SlotIndex,
     },
 };
 
@@ -88,10 +89,10 @@ impl HerderDriver<MockState> for MockStateDriver {
         crate::scp::scp_driver::ValidationLevel::FullyValidated
     }
 
-    fn nominating_value(&self, value: &MockState, slot_index: &u64) {}
+    fn nominating_value(&self, value: &MockState, slot_index: &SlotIndex) {}
 
-    fn compute_timeout(&self, round_number: u64) -> std::time::Duration {
-        const MAX_TIMEOUT_SECONDS: u64 = 30 * 60;
+    fn compute_timeout(&self, round_number: SlotIndex) -> std::time::Duration {
+        const MAX_TIMEOUT_SECONDS: SlotIndex = 30 * 60;
 
         if round_number > MAX_TIMEOUT_SECONDS {
             std::time::Duration::from_secs(MAX_TIMEOUT_SECONDS)

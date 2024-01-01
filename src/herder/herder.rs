@@ -10,6 +10,7 @@ use crate::{
     scp::{
         nomination_protocol::{NominationValue, SCPNominationValue, SCPNominationValueSet},
         scp_driver::{HashValue, SCPEnvelope, ValidationLevel},
+        slot::SlotIndex,
         statement::{HSCPStatement, SCPStatement},
     },
 };
@@ -38,7 +39,7 @@ where
     fn combine_candidates(&self, candidates: &BTreeSet<Arc<N>>) -> Option<N>;
     fn emit_envelope(&self, envelope: &SCPEnvelope<N>);
 
-    fn nominating_value(&self, value: &N, slot_index: &u64) {}
+    fn nominating_value(&self, value: &N, slot_index: &SlotIndex) {}
 
     fn extract_valid_value(&self, value: &N) -> Option<N>;
     // {

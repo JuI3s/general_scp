@@ -11,13 +11,14 @@ use super::ballot_protocol::BallotProtocolState;
 use super::local_node::{HLocalNode, LocalNode};
 use super::nomination_protocol::{NominationProtocolState, NominationValue};
 use super::scp_driver::SlotDriver;
+use super::slot::SlotIndex;
 
 pub struct SlotDriverBuilder<N, T>
 where
     N: NominationValue + 'static,
     T: HerderDriver<N>,
 {
-    slot_index: Option<u64>,
+    slot_index: Option<SlotIndex>,
     local_node: Option<LocalNode<N>>,
     timer: Option<WorkScheduler>,
     herder_driver: Option<T>,
@@ -51,7 +52,7 @@ where
         Default::default()
     }
 
-    pub fn slot_index(mut self, idx: u64) -> Self {
+    pub fn slot_index(mut self, idx: SlotIndex) -> Self {
         self.slot_index = Some(idx);
         self
     }

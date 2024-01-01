@@ -15,7 +15,6 @@ use super::{
 };
 
 pub type SlotIndex = u64;
-
 pub struct Slot<N>
 where
     N: NominationValue,

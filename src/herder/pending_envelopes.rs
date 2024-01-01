@@ -9,7 +9,10 @@ use std::{
 use crate::{
     application::quorum::QuorumSet,
     crypto::types::{Blake2Hash, Blake2Hashable, Blake2Hasher},
-    scp::{nomination_protocol::NominationValue, scp::EnvelopeState, scp_driver::SCPEnvelope},
+    scp::{
+        nomination_protocol::NominationValue, scp::EnvelopeState, scp_driver::SCPEnvelope,
+        slot::SlotIndex,
+    },
 };
 
 use super::herder::{HerderDriver, HerderEnvelopeStatus};
@@ -60,7 +63,7 @@ where
 {
     nomination_value_fetcher: ItemFetcher<N>,
     scp_quorum_set_fetcher: ItemFetcher<N>,
-    slot_envelopes: BTreeMap<usize, SlotEnvelopes<N>>,
+    slot_envelopes: BTreeMap<SlotIndex, SlotEnvelopes<N>>,
     herder: Rc<RefCell<H>>,
 }
 
@@ -96,7 +99,19 @@ where
     }
 
     fn is_discarded(&self, envelope: &SCPEnvelope<N>) -> bool {
-        todo!()
+        if let Some(slot_envelopes) = self.slot_envelopes.get(&envelope.slot_index) {
+            slot_envelopes.is_discarded(envelope)
+        } else {
+            false
+        }
+    }
+
+    fn is_processed(&self, envelope: &SCPEnvelope<N>) -> bool {
+        if let Some(slot_envelopes) = self.slot_envelopes.get(&envelope.slot_index) {
+            slot_envelopes.is_processed(envelope)
+        } else {
+            false
+        }
     }
 
     pub fn envelope_status(&self, envelope: &SCPEnvelope<N>) -> HerderEnvelopeStatus {

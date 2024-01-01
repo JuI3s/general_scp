@@ -23,7 +23,7 @@ where
     latest_composite_candidate: Option<HLatestCompositeCandidateValue<N>>,
     previous_value: Option<N>,
 
-    num_timeouts: Option<usize>,
+    num_timeouts: Option<u64>,
     timed_out: Option<bool>,
 }
 
@@ -113,7 +113,7 @@ where
         self
     }
 
-    pub fn num_timeouts(mut self, num_timeouts: usize) -> Self {
+    pub fn num_timeouts(mut self, num_timeouts: u64) -> Self {
         self.num_timeouts = Some(num_timeouts);
         self
     }

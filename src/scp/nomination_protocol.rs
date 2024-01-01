@@ -30,7 +30,7 @@ use crate::{
 use super::{
     scp::{EnvelopeState, NodeID},
     scp_driver::{HSCPEnvelope, SCPDriver, SCPEnvelope, SlotDriver, ValidationLevel},
-    slot::Slot,
+    slot::{Slot, SlotIndex},
     statement::{SCPStatement, SCPStatementNominate},
 };
 
@@ -81,7 +81,7 @@ pub struct NominationProtocolState<N>
 where
     N: NominationValue,
 {
-    pub round_number: u64,
+    pub round_number: SlotIndex,
     pub votes: SCPNominationValueSet<N>,
     pub accepted: SCPNominationValueSet<N>,
     pub candidates: SCPNominationValueSet<N>,
@@ -94,7 +94,7 @@ where
     pub latest_composite_candidate: HLatestCompositeCandidateValue<N>,
     pub previous_value: N,
 
-    pub num_timeouts: usize,
+    pub num_timeouts: u64,
     pub timed_out: bool,
 }
 
@@ -153,7 +153,7 @@ where
     // TODO: I really need to make local_id a part of nomination state.
     fn gather_votes_from_round_leaders(
         &mut self,
-        slot_index: &u64,
+        slot_index: &SlotIndex,
         local_id: &NodeID,
         extract_valid_value_predicate: &impl Fn(&N) -> Option<N>,
         validate_value_predicate: &impl Fn(&N) -> ValidationLevel,
@@ -236,7 +236,7 @@ where
         extract_valid_value_predicate: impl Fn(&N) -> Option<N>,
         validate_value_predicate: impl Fn(&N) -> ValidationLevel,
     ) -> Option<N> {
-        let mut cur_hash: u64 = 0;
+        let mut cur_hash = 0;
         let mut cur_value: Option<N> = None;
 
         // TODO: Can we avoid copying?
