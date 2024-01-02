@@ -11,13 +11,13 @@ use blake2::{Blake2b512, Blake2s256, Digest};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    crypto::types::Blake2Hashable,
+    crypto::types::{Blake2Hash, Blake2Hashable},
     scp::{scp::NodeID, scp_driver::HashValue},
 };
 
 // pub type QuorumSet = HashSet<SocketAddr>;
 // pub type Quorum = HashSet<QuorumSet>;
-
+pub type QuorumSetHash = Blake2Hash;
 pub type HQuorumSet = Arc<Mutex<QuorumSet>>;
 
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize)]
@@ -48,7 +48,7 @@ pub struct QuorumSlice {
 }
 
 impl QuorumSlice {
-    pub fn hash_value(&self) -> HashValue {
+    pub fn hash_value(&self) -> u64 {
         let mut s = DefaultHasher::new();
         self.hash(&mut s);
         s.finish()
@@ -107,9 +107,7 @@ impl QuorumSet {
     }
 
     pub fn hash_value(&self) -> HashValue {
-        let mut s = DefaultHasher::new();
-        self.hash(&mut s);
-        s.finish()
+        self.to_blake2()
     }
 
     pub fn insert(&mut self, slice: QuorumSlice) {

@@ -1,13 +1,13 @@
 use std::{
-    cell::RefCell,
-    collections::{BTreeMap, BTreeSet, HashSet},
+    cell::{Ref, RefCell},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     future::Pending,
     marker::PhantomData,
     rc::Rc,
 };
 
 use crate::{
-    application::quorum::QuorumSet,
+    application::quorum::{QuorumSet, QuorumSetHash},
     crypto::types::{Blake2Hash, Blake2Hashable, Blake2Hasher},
     scp::{
         nomination_protocol::NominationValue, scp::EnvelopeState, scp_driver::SCPEnvelope,
@@ -24,6 +24,7 @@ where
     ready_envelopes: HashSet<SCPEnvelope<N>>,
     discarded_envelopes: HashSet<SCPEnvelope<N>>,
     processed_envelopes: HashSet<SCPEnvelope<N>>,
+    fetching_envelopes: HashSet<SCPEnvelope<N>>,
 }
 
 impl<N> Default for SlotEnvelopes<N>
@@ -35,6 +36,7 @@ where
             ready_envelopes: Default::default(),
             discarded_envelopes: Default::default(),
             processed_envelopes: Default::default(),
+            fetching_envelopes: Default::default(),
         }
     }
 }
@@ -54,6 +56,16 @@ where
     pub fn is_processed(&self, envelope: &SCPEnvelope<N>) -> bool {
         self.processed_envelopes.contains(envelope)
     }
+
+    pub fn is_fetching(&self, envelopes: &SCPEnvelope<N>) -> bool {
+        self.fetching_envelopes.contains(envelopes)
+    }
+
+    pub fn envelope_ready(&mut self, envelope: &SCPEnvelope<N>) -> bool {
+        let ret = self.fetching_envelopes.remove(envelope);
+        self.processed_envelopes.insert(envelope.to_owned());
+        ret
+    }
 }
 
 pub struct PendingEnvelopes<N, H>
@@ -64,6 +76,10 @@ where
     nomination_value_fetcher: ItemFetcher<N>,
     scp_quorum_set_fetcher: ItemFetcher<N>,
     slot_envelopes: BTreeMap<SlotIndex, SlotEnvelopes<N>>,
+
+    known_quorum_set_hashes: HashMap<QuorumSetHash, Rc<RefCell<QuorumSet>>>,
+    known_value_hashes: HashMap<Blake2Hash, Rc<RefCell<N>>>,
+
     herder: Rc<RefCell<H>>,
 }
 
@@ -95,6 +111,8 @@ where
             scp_quorum_set_fetcher: Default::default(),
             slot_envelopes: Default::default(),
             herder: herder,
+            known_quorum_set_hashes: Default::default(),
+            known_value_hashes: Default::default(),
         }
     }
 
@@ -114,10 +132,66 @@ where
         }
     }
 
-    pub fn envelope_status(&self, envelope: &SCPEnvelope<N>) -> HerderEnvelopeStatus {
-        // if self.slot_envelopes.f
+    fn is_fetching(&self, envelope: &SCPEnvelope<N>) -> bool {
+        if let Some(slot_envelopes) = self.slot_envelopes.get(&envelope.slot_index) {
+            slot_envelopes.is_fetching(envelope)
+        } else {
+            false
+        }
+    }
+
+    fn get_nomination_value(&self, hash: &Blake2Hash) -> Option<Rc<RefCell<N>>> {
+        let val = self.known_value_hashes.get(hash)?;
+        Some(val.to_owned())
+    }
+
+    fn get_quorum_set(&self, hash: &QuorumSetHash) -> Option<Rc<RefCell<QuorumSet>>> {
+        let q_set = self.known_quorum_set_hashes.get(hash)?;
+        Some(q_set.to_owned())
+    }
+
+    fn start_fetching(&mut self, envelope: &SCPEnvelope<N>) {
+        let q_hash = envelope.statement.quorum_set_hash_value();
+        if self.get_quorum_set(&q_hash).is_none() {
+            self.scp_quorum_set_fetcher.fetch(&q_hash, envelope);
+        }
 
         todo!()
+    }
+
+    fn fully_fetched(&self, envelope: &SCPEnvelope<N>) -> bool {
+        todo!()
+    }
+
+    fn envelope_ready(&mut self, envelope: &SCPEnvelope<N>) -> Result<(), ()> {
+        let _ = match self.slot_envelopes.get_mut(&envelope.slot_index) {
+            Some(slot_envelope) => {
+                slot_envelope.envelope_ready(envelope);
+            }
+            None => return Err(()),
+        };
+
+        todo!();
+
+        Ok(())
+    }
+
+    pub fn envelope_status(&mut self, envelope: &SCPEnvelope<N>) -> HerderEnvelopeStatus {
+        if self.is_processed(envelope) {
+            return HerderEnvelopeStatus::EnvelopeStatusProcessed;
+        }
+
+        if self.is_discarded(envelope) {
+            return HerderEnvelopeStatus::EnvelopeStatusDiscarded;
+        }
+
+        if self.fully_fetched(envelope) {
+            self.envelope_ready(envelope).unwrap();
+        } else {
+            self.start_fetching(envelope);
+        }
+
+        HerderEnvelopeStatus::EnvelopeStatusFetching
     }
 
     pub fn recv_scp_quorum_set(&mut self, quorum_set: &QuorumSet) {

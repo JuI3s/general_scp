@@ -28,16 +28,18 @@ pub struct SCPStatementNominate<N>
 where
     N: NominationValue,
 {
+    #[serde(with = "serde_bytes")]
     pub quorum_set_hash: HashValue,
     pub votes: Vec<N>,
     pub accepted: Vec<N>,
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SCPStatementPrepare<N>
 where
     N: NominationValue,
 {
+    #[serde(with = "serde_bytes")]
     pub quorum_set_hash: HashValue,
     pub ballot: SCPBallot<N>,
     pub prepared: Option<SCPBallot<N>>,
@@ -51,6 +53,7 @@ pub struct SCPStatementConfirm<N>
 where
     N: NominationValue,
 {
+    #[serde(with = "serde_bytes")]
     pub quorum_set_hash: HashValue,
     pub ballot: SCPBallot<N>,
     pub num_prepared: u32,
@@ -63,6 +66,7 @@ pub struct SCPStatementExternalize<N>
 where
     N: NominationValue,
 {
+    #[serde(with = "serde_bytes")]
     pub commit_quorum_set_hash: HashValue,
     pub commit: SCPBallot<N>,
     pub num_high: u32,

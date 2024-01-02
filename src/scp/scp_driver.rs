@@ -7,17 +7,18 @@ use std::{
     sync::{Arc, Mutex, Weak},
 };
 
-pub type HashValue = u64;
+// pub type HashValue = Vec<u8>;
+pub type HashValue = [u8; 64];
 
 use serde::{Deserialize, Serialize};
 use syn::token::Mut;
 
 use crate::{
     application::{
-        quorum::QuorumSet,
+        quorum::{QuorumSet, QuorumSetHash},
         work_queue::{self, ClockEvent, WorkScheduler},
     },
-    crypto::types::Blake2Hashable,
+    crypto::types::{test_default_blake2, Blake2Hashable},
     herder::herder::HerderDriver,
     overlay::overlay_manager::OverlayManager,
     scp::ballot_protocol::SCPPhase,
@@ -74,6 +75,8 @@ where
     pub statement: SCPStatement<N>,
     pub node_id: NodeID,
     pub slot_index: SlotIndex,
+
+    #[serde(with = "serde_bytes")]
     pub signature: HashValue,
 }
 
@@ -110,7 +113,7 @@ where
     pub fn test_make_scp_envelope(node_id: NodeID) -> Self {
         SCPEnvelope {
             statement: SCPStatement::Prepare(super::statement::SCPStatementPrepare {
-                quorum_set_hash: 0,
+                quorum_set_hash: [0; 64],
                 ballot: SCPBallot::default(),
                 prepared: Some(SCPBallot::default()),
                 prepared_prime: Some(SCPBallot::default()),
@@ -120,7 +123,7 @@ where
             }),
             node_id: node_id,
             slot_index: 0,
-            signature: 0,
+            signature: test_default_blake2(),
         }
     }
 
@@ -137,7 +140,7 @@ where
             }),
             node_id: node_id,
             slot_index: 0,
-            signature: 0,
+            signature: test_default_blake2(),
         }
     }
 
@@ -275,7 +278,7 @@ where
             statement,
             node_id: self.local_node.lock().unwrap().node_id.clone(),
             slot_index: self.slot_index.clone(),
-            signature: 0,
+            signature: test_default_blake2(),
         }
     }
 
@@ -353,7 +356,7 @@ where
 
     fn sign_envelope(envelope: &mut SCPEnvelope<N>) {
         // TODO: for now just pretend we're signing...
-        envelope.signature = 0;
+        envelope.signature = test_default_blake2();
     }
 
     fn accepted_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot<N>) {}

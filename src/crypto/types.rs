@@ -36,6 +36,39 @@ where
     }
 }
 
+pub fn test_default_blake2() -> Blake2Hash {
+    [0; 64]
+}
+
+mod serde_bytes_array {
+    use core::convert::TryInto;
+
+    use serde::de::Error;
+    use serde::{Deserializer, Serializer};
+
+    /// This just specializes [`serde_bytes::serialize`] to `<T = [u8]>`.
+    pub(crate) fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serde_bytes::serialize(bytes, serializer)
+    }
+
+    /// This takes the result of [`serde_bytes::deserialize`] from `[u8]` to
+    /// `[u8; N]`.
+    pub(crate) fn deserialize<'de, D, const N: usize>(deserializer: D) -> Result<[u8; N], D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let slice: &[u8] = serde_bytes::deserialize(deserializer)?;
+        let array: [u8; N] = slice.try_into().map_err(|_| {
+            let expected = format!("[u8; {}]", N);
+            D::Error::invalid_length(slice.len(), &expected.as_str())
+        })?;
+        Ok(array)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use blake2::{Blake2b512, Blake2s256, Digest};
