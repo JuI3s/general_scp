@@ -26,4 +26,8 @@ impl HerderDriver<MockState> for MockHerder {
     ) -> Option<crate::application::quorum::HQuorumSet> {
         todo!()
     }
+
+    fn recv_scp_envelope(&mut self, envelope: &crate::scp::scp_driver::SCPEnvelope<MockState>) {
+        todo!()
+    }
 }

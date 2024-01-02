@@ -10,18 +10,23 @@ use crate::{
     application::quorum::{QuorumSet, QuorumSetHash},
     crypto::types::{Blake2Hash, Blake2Hashable, Blake2Hasher},
     scp::{
-        nomination_protocol::NominationValue, scp::EnvelopeState, scp_driver::SCPEnvelope,
-        slot::SlotIndex,
+        nomination_protocol::NominationValue,
+        scp::EnvelopeState,
+        scp_driver::SCPEnvelope,
+        slot::{self, SlotIndex},
     },
 };
 
-use super::herder::{HerderDriver, HerderEnvelopeStatus};
+use super::{
+    herder::{HerderDriver, HerderEnvelopeStatus},
+    pending_envelope_manager::PendingEnvelopeManager,
+};
 
 pub struct SlotEnvelopes<N>
 where
     N: NominationValue,
 {
-    ready_envelopes: HashSet<SCPEnvelope<N>>,
+    ready_envelopes: Vec<SCPEnvelope<N>>,
     discarded_envelopes: HashSet<SCPEnvelope<N>>,
     processed_envelopes: HashSet<SCPEnvelope<N>>,
     fetching_envelopes: HashSet<SCPEnvelope<N>>,
@@ -49,6 +54,10 @@ where
         Default::default()
     }
 
+    pub fn pop(&mut self) -> Option<SCPEnvelope<N>> {
+        self.ready_envelopes.pop()
+    }
+
     pub fn is_discarded(&self, envelope: &SCPEnvelope<N>) -> bool {
         self.discarded_envelopes.contains(envelope)
     }
@@ -68,7 +77,7 @@ where
     }
 }
 
-pub struct PendingEnvelopes<N, H>
+pub struct PendingEnvelopesFetchingManager<N, H>
 where
     N: NominationValue,
     H: HerderDriver<N>,
@@ -100,7 +109,7 @@ where
     waiting_envelopes: Vec<SCPEnvelope<N>>,
 }
 
-impl<N, H> PendingEnvelopes<N, H>
+impl<N, H> PendingEnvelopesFetchingManager<N, H>
 where
     N: NominationValue,
     H: HerderDriver<N>,
@@ -178,8 +187,14 @@ where
 
         Ok(())
     }
+}
 
-    pub fn envelope_status(&mut self, envelope: &SCPEnvelope<N>) -> HerderEnvelopeStatus {
+impl<N, H> PendingEnvelopeManager<N> for PendingEnvelopesFetchingManager<N, H>
+where
+    N: NominationValue,
+    H: HerderDriver<N>,
+{
+    fn envelope_status(&mut self, envelope: &SCPEnvelope<N>) -> HerderEnvelopeStatus {
         if self.is_processed(envelope) {
             return HerderEnvelopeStatus::EnvelopeStatusProcessed;
         }
@@ -197,18 +212,23 @@ where
         HerderEnvelopeStatus::EnvelopeStatusFetching
     }
 
-    pub fn recv_scp_quorum_set(&mut self, quorum_set: &QuorumSet) {
+    fn recv_scp_quorum_set(&mut self, quorum_set: &QuorumSet) {
         self.scp_quorum_set_fetcher
             .recv(&quorum_set.to_blake2(), &mut |env| {
                 self.herder.borrow_mut().recv_scp_envelope(env);
             });
     }
 
-    pub fn recv_nomination_value(&mut self, value: &N) {
+    fn recv_nomination_value(&mut self, value: &N) {
         self.nomination_value_fetcher
             .recv(&Blake2Hasher::<N>::hash(value), &mut |env| {
                 self.herder.borrow_mut().recv_scp_envelope(env);
             })
+    }
+
+    fn pop(&mut self, slot_index: &SlotIndex) -> Option<SCPEnvelope<N>> {
+        let slot_envelopes = self.slot_envelopes.get_mut(slot_index)?;
+        slot_envelopes.pop()
     }
 }
 
