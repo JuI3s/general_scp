@@ -157,6 +157,8 @@ where
             self.scp_quorum_set_fetcher.fetch(&q_hash, envelope);
         }
 
+        // Fetching nomination values that we do not currently have.
+
         todo!()
     }
 

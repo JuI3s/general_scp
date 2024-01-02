@@ -32,6 +32,8 @@ where
     pub quorum_set_hash: HashValue,
     pub votes: Vec<N>,
     pub accepted: Vec<N>,
+
+    pub quorum_set: Option<QuorumSet>,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -47,6 +49,8 @@ where
     pub num_commit: u32,
     pub num_high: u32,
     pub from_self: bool,
+
+    pub quorum_set: Option<QuorumSet>,
 }
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SCPStatementConfirm<N>
@@ -59,6 +63,8 @@ where
     pub num_prepared: u32,
     pub num_commit: u32,
     pub num_high: u32,
+
+    pub quorum_set: Option<QuorumSet>,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -70,6 +76,8 @@ where
     pub commit_quorum_set_hash: HashValue,
     pub commit: SCPBallot<N>,
     pub num_high: u32,
+
+    pub commit_quorum_set: Option<QuorumSet>,
 }
 
 impl<N> SCPStatementNominate<N>
@@ -81,6 +89,7 @@ where
             quorum_set_hash: quorum_set.hash_value(),
             votes: Default::default(),
             accepted: Default::default(),
+            quorum_set: None,
         }
     }
 
@@ -126,6 +135,15 @@ where
             SCPStatement::Confirm(st) => st.quorum_set_hash,
             SCPStatement::Externalize(st) => st.commit_quorum_set_hash,
             SCPStatement::Nominate(st) => st.quorum_set_hash,
+        }
+    }
+
+    pub fn quorum_set(&self) -> Option<&QuorumSet> {
+        match self {
+            SCPStatement::Prepare(st) => st.quorum_set.as_ref(),
+            SCPStatement::Confirm(st) => st.quorum_set.as_ref(),
+            SCPStatement::Externalize(st) => st.commit_quorum_set.as_ref(),
+            SCPStatement::Nominate(st) => st.quorum_set.as_ref(),
         }
     }
 }

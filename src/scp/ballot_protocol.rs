@@ -651,6 +651,7 @@ where
                     num_commit: num_commit,
                     num_high: num_high,
                     from_self: true,
+                    quorum_set: None,
                 })
             }
             SCPPhase::PhaseConfirm => SCPStatement::Confirm(SCPStatementConfirm {
@@ -686,6 +687,7 @@ where
                     .expect("High ballot")
                     .counter
                     .clone(),
+                quorum_set: None,
             }),
             SCPPhase::PhaseExternalize => SCPStatement::Externalize(SCPStatementExternalize {
                 commit_quorum_set_hash: local_quorum_set_hash,
@@ -704,6 +706,7 @@ where
                     .expect("High ballot")
                     .counter
                     .clone(),
+                commit_quorum_set: None,
             }),
         }
     }

@@ -27,7 +27,7 @@ pub struct QuorumNode {
 }
 
 // Set of quorum slices for local node.
-#[derive(Debug, Serialize, Deserialize, Hash, Clone)]
+#[derive(Debug, Serialize, Deserialize, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct QuorumSet {
     pub slices: BTreeSet<QuorumSlice>,
     pub threshold: usize,
