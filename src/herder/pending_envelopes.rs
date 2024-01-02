@@ -151,6 +151,7 @@ where
     }
 
     fn start_fetching(&mut self, envelope: &SCPEnvelope<N>) {
+        // Maybe fetcing quorum set.
         let q_hash = envelope.statement.quorum_set_hash_value();
         if self.get_quorum_set(&q_hash).is_none() {
             self.scp_quorum_set_fetcher.fetch(&q_hash, envelope);
