@@ -1,8 +1,23 @@
-use crate::herder::herder::HerderDriver;
+use crate::{
+    application::work_queue::WorkScheduler,
+    herder::herder::HerderDriver,
+    scp::{local_node::HLocalNode, scp_driver::SlotDriver, slot::SlotIndex},
+};
 
-use super::state::MockState;
+use super::{scp_driver::MockSCPDriver, state::MockState};
 
-pub struct MockHerder {}
+pub struct MockHerder {
+    pub scp_driver: MockSCPDriver,
+    pub local_node: HLocalNode<MockState>,
+    pub scheduler: WorkScheduler,
+}
+
+impl MockHerder {
+    // fn new_slot(&self, slot_index: SlotIndex) -> SlotDriver<MockState> {
+    //     SlotDriver::<MockState>::new(slot_index, self.local_node.clone(),
+    // self.scheduler.clone(), Default::default(), Default::default(),
+    // herder_driver) }
+}
 
 impl HerderDriver<MockState> for MockHerder {
     fn combine_candidates(
@@ -28,6 +43,6 @@ impl HerderDriver<MockState> for MockHerder {
     }
 
     fn recv_scp_envelope(&mut self, envelope: &crate::scp::scp_driver::SCPEnvelope<MockState>) {
-        todo!()
+        // self.scp_driver
     }
 }

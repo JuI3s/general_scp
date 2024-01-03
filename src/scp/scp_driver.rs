@@ -205,6 +205,8 @@ where
         }
     }
 
+    pub fn recv_scp_envelvope(&mut self, envelope: &SCPEnvelope<N>) {}
+
     pub fn nomination_state(&self) -> &HNominationProtocolState<N> {
         &self.nomination_state_handle
     }

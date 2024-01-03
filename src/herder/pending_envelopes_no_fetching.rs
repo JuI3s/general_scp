@@ -18,7 +18,10 @@ impl<N> PendingEnvelopeManager<N> for PendingEnvelopeNoFetchingManager<N>
 where
     N: NominationValue,
 {
-    fn envelope_status(&mut self, _envelope: &SCPEnvelope<N>) -> HerderEnvelopeStatus {
+    fn envelope_status(&mut self, envelope: &SCPEnvelope<N>) -> HerderEnvelopeStatus {
+        let slot_envelopes = self.ready_envelopes.entry(envelope.slot_index).or_default();
+        slot_envelopes.push(envelope.to_owned());
+
         HerderEnvelopeStatus::EnvelopeStatusReady
     }
 

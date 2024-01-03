@@ -27,9 +27,10 @@ impl ClockEvent {
 }
 
 pub type HWorkScheduler = Rc<RefCell<WorkScheduler>>;
+#[derive(Clone)]
 pub struct WorkScheduler {
-    main_thread_queue: RefCell<MainWorkQueue>,
-    event_queue: RefCell<EventQueue>,
+    main_thread_queue: Rc<RefCell<MainWorkQueue>>,
+    event_queue: Rc<RefCell<EventQueue>>,
 }
 
 impl WorkScheduler {
@@ -116,6 +117,12 @@ impl MainWorkQueue {
 pub struct EventQueue {
     clock: HVirtualClock,
     tasks: BTreeMap<SystemTime, Vec<Callback>>,
+}
+
+impl Into<Rc<RefCell<EventQueue>>> for EventQueue {
+    fn into(self) -> Rc<RefCell<EventQueue>> {
+        Rc::new(RefCell::new(self))
+    }
 }
 
 impl EventQueue {
