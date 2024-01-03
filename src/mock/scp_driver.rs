@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::scp::{
     nomination_protocol::NominationValue,
@@ -9,7 +9,7 @@ use crate::scp::{
 use super::{herder::MockHerder, state::MockState};
 
 pub struct MockSCPDriver {
-    pub slots: HashMap<SlotIndex, SlotDriver<MockState, MockHerder>>,
+    pub slots: HashMap<SlotIndex, Rc<RefCell<SlotDriver<MockState, MockHerder>>>>,
 }
 
 impl Default for MockSCPDriver {
@@ -18,16 +18,4 @@ impl Default for MockSCPDriver {
             slots: Default::default(),
         }
     }
-}
-
-impl MockSCPDriver {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    // pub fn recv_scp_envelope(&mut self, envelope: &SCPEnvelope<MockState>) {
-    //     let slot =
-    // self.slots.entry(envelope.slot_index).or_insert(Default::default());
-    //     slot.recv_scp_envelvope(envelope);
-    // }
 }

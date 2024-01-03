@@ -349,7 +349,7 @@ where
         // nomination value. The statement is then wrapped in an SCP envelope which is
         // checked for validity before being passed to Herder for broadcasting.
 
-        let local_node = self.local_node.lock().unwrap();
+        let local_node = self.local_node.borrow();
 
         // Creating the nomination statement
         let mut nom_st: SCPStatementNominate<N> =
@@ -465,7 +465,7 @@ where
             .compute_timeout(state.round_number);
 
         {
-            let local_node = &self.local_node.lock().unwrap();
+            let local_node = &self.local_node.borrow();
 
             updated = updated
                 || state.gather_votes_from_round_leaders(
@@ -534,9 +534,9 @@ where
     }
 
     fn update_round_learders(&mut self) {
-        let local_id = &self.local_node.lock().unwrap().node_id;
+        let local_id = &self.local_node.borrow().node_id;
 
-        let max_leader_count = &self.local_node.lock().unwrap().quorum_set;
+        let max_leader_count = &self.local_node.borrow().quorum_set;
 
         todo!()
     }

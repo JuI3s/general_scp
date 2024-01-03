@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::application::quorum::QuorumSet;
 
-use super::local_node::LocalNode;
+use super::local_node::{HLocalNode, LocalNode};
 use super::nomination_protocol::NominationValue;
 use super::scp::NodeID;
 
@@ -53,7 +53,7 @@ where
         self
     }
 
-    pub fn build(self) -> Result<LocalNode<N>, &'static str> {
+    pub fn build(self) -> Result<HLocalNode<N>, &'static str> {
         if self.is_validator.is_none() {
             return Err("Missing is_validator.");
         }
@@ -70,6 +70,7 @@ where
             self.is_validator.unwrap(),
             self.quorum_set.unwrap(),
             self.node_id.unwrap(),
-        ))
+        )
+        .into())
     }
 }

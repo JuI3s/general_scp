@@ -843,16 +843,11 @@ where
     }
 
     fn emit_current_state_statement(self: &Arc<Self>, state: &mut BallotProtocolState<N>) {
-        let statement = state.create_statement(
-            self.local_node
-                .lock()
-                .unwrap()
-                .get_quorum_set()
-                .hash_value(),
-        );
+        let statement =
+            state.create_statement(self.local_node.borrow().get_quorum_set().hash_value());
 
         let mut can_emit = state.current_ballot.lock().unwrap().is_some();
-        let local_node_id = self.local_node.lock().unwrap().node_id.clone();
+        let local_node_id = self.local_node.borrow().node_id.clone();
 
         // if we generate the same envelope, don't process it again
         // this can occur when updating h in PREPARE phase
@@ -872,7 +867,7 @@ where
         envelopes: &BTreeMap<NodeID, HSCPEnvelope<N>>,
         counter: u32,
     ) -> bool {
-        let local_node = self.local_node.lock().unwrap();
+        let local_node = self.local_node.borrow();
         LocalNode::is_v_blocking_with_predicate(&local_node.quorum_set, envelopes, &|st| {
             st.ballot_counter() > counter
         })
@@ -1017,8 +1012,8 @@ where
 
             if LocalNode::is_quorum(
                 Some((
-                    &self.local_node.lock().unwrap().quorum_set,
-                    &self.local_node.lock().unwrap().node_id,
+                    &self.local_node.borrow().quorum_set,
+                    &self.local_node.borrow().node_id,
                 )),
                 &state.latest_envelopes,
                 |st| self.herder_driver.borrow().get_quorum_set(st),

@@ -1,19 +1,23 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{cell::RefCell, collections::BTreeMap, rc::Rc, sync::Arc};
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    application::quorum::HQuorumSet,
+    application::{quorum::HQuorumSet, work_queue::WorkScheduler},
     crypto::types::Blake2Hashable,
     herder::herder::HerderDriver,
     scp::{
         ballot_protocol::HBallotProtocolState,
+        local_node::{self, HLocalNode},
         nomination_protocol::{HNominationProtocolState, NominationProtocol, NominationValue},
-        scp_driver::{HashValue, SlotDriver},
+        scp_driver::{HashValue, SCPEnvelope, SlotDriver},
+        scp_driver_builder::SlotDriverBuilder,
         slot::SlotIndex,
     },
 };
+
+use super::scp_driver::MockSCPDriver;
 
 // Just hold a vector u8 integers.
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
@@ -47,6 +51,44 @@ impl NominationValue for MockState {}
 
 pub struct MockStateDriver {
     quorum_set_map: BTreeMap<HashValue, HQuorumSet>,
+    pub scp_driver: MockSCPDriver,
+    pub local_node: HLocalNode<MockState>,
+    pub scheduler: WorkScheduler,
+}
+
+impl Into<Rc<RefCell<MockStateDriver>>> for MockStateDriver {
+    fn into(self) -> Rc<RefCell<MockStateDriver>> {
+        RefCell::new(self).into()
+    }
+}
+
+impl MockStateDriver {
+    pub fn new(local_node: HLocalNode<MockState>, schedular: WorkScheduler) -> Rc<RefCell<Self>> {
+        Self {
+            quorum_set_map: Default::default(),
+            scp_driver: Default::default(),
+            local_node: local_node,
+            scheduler: schedular,
+        }
+        .into()
+    }
+
+    pub fn new_slot(this: &Rc<RefCell<Self>>) -> Option<SlotDriver<MockState, MockStateDriver>> {
+        SlotDriverBuilder::<MockState, MockStateDriver>::new()
+            .slot_index(0)
+            .local_node(this.borrow().local_node.clone())
+            .timer(this.borrow().scheduler.clone())
+            .herder_driver(this.to_owned())
+            .build()
+            .ok()
+    }
+
+    // fn get_or_create_slot(&self) -> Option<SlotDriver<MockState,
+    // MockStateDriver>> { }
+
+    // pub fn recv_scp_envelvope(this: &Rc<RefCell<Self>>, envelope:
+    // &SCPEnvelope<MockState>) { let slot = this.borrow().
+    // }
 }
 
 impl HerderDriver<MockState> for MockStateDriver {
@@ -106,22 +148,10 @@ impl HerderDriver<MockState> for MockStateDriver {
     }
 }
 
-impl MockStateDriver {}
-
-impl Default for MockStateDriver {
-    fn default() -> Self {
-        Self {
-            quorum_set_map: Default::default(),
-        }
-    }
-}
-
-impl MockStateDriver {}
-
 #[cfg(test)]
 mod tests {
 
-    use std::sync::Mutex;
+    use std::{collections::BTreeSet, sync::Mutex};
 
     use crate::{
         application::{clock::VirtualClock, quorum::QuorumSet, work_queue::EventQueue},
@@ -154,9 +184,11 @@ mod tests {
             .build()
             .unwrap();
 
+        let state_driver = MockStateDriver::new(local_node.clone(), timer_handle.clone());
+
         let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
             .slot_index(0)
-            .herder_driver(Default::default())
+            .herder_driver(state_driver)
             .timer(timer_handle)
             .local_node(local_node)
             .build()
@@ -184,14 +216,53 @@ mod tests {
 
         let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
             .slot_index(0)
-            .herder_driver(Default::default())
+            .herder_driver(MockStateDriver::new(
+                local_node.clone(),
+                timer_handle.clone(),
+            ))
             .timer(timer_handle)
             .local_node(local_node)
-            .build()
+            .build_handle()
             .unwrap();
 
         let value = Arc::new(MockState::random());
         let prev_value = MockState::random();
         slot_driver.nominate(slot_driver.nomination_state().clone(), value, &prev_value);
+    }
+
+    #[test]
+    fn build_mock_herder() {
+        let node_id: NodeID = "node1".into();
+        let virtual_clock = VirtualClock::new_clock();
+
+        let mut leaders: BTreeSet<NodeID> = BTreeSet::new();
+        leaders.insert(node_id.clone());
+
+        let timer_handle = SlotTimerBuilder::new()
+            .clock(virtual_clock.clone())
+            .build()
+            .unwrap();
+
+        let quorum_set = QuorumSet::example_quorum_set();
+
+        let local_node = LocalNodeBuilder::<MockState>::new()
+            .is_validator(true)
+            .quorum_set(quorum_set)
+            .node_id(node_id)
+            .build()
+            .unwrap();
+
+        let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
+            .slot_index(0)
+            .local_node(local_node.clone())
+            .timer(timer_handle.clone())
+            .herder_driver(MockStateDriver::new(
+                local_node.clone(),
+                timer_handle.clone(),
+            ))
+            .build()
+            .unwrap();
+
+        // slot_driver.recv_scp_envelvope(envelope)
     }
 }

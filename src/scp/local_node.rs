@@ -1,7 +1,9 @@
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     f32::consts::E,
     marker::PhantomData,
+    rc::Rc,
     sync::{Arc, Mutex},
 };
 
@@ -16,7 +18,7 @@ use super::{
     statement::{HSCPStatement, SCPStatement},
 };
 
-pub type HLocalNode<N> = Arc<Mutex<LocalNode<N>>>;
+pub type HLocalNode<N> = Rc<RefCell<LocalNode<N>>>;
 pub struct LocalNode<N>
 where
     N: NominationValue + 'static,
@@ -25,6 +27,15 @@ where
     pub quorum_set: QuorumSet,
     pub node_id: NodeID,
     phantom: PhantomData<N>,
+}
+
+impl<N> Into<Rc<RefCell<LocalNode<N>>>> for LocalNode<N>
+where
+    N: NominationValue,
+{
+    fn into(self) -> Rc<RefCell<LocalNode<N>>> {
+        RefCell::new(self).into()
+    }
 }
 
 impl<N> LocalNode<N>

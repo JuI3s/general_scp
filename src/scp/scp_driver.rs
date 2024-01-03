@@ -207,7 +207,9 @@ where
         }
     }
 
-    pub fn recv_scp_envelvope(&mut self, envelope: &SCPEnvelope<N>) {}
+    pub fn recv_scp_envelvope(&mut self, envelope: &SCPEnvelope<N>) {
+        todo!()
+    }
 
     pub fn nomination_state(&self) -> &HNominationProtocolState<N> {
         &self.nomination_state_handle
@@ -240,7 +242,7 @@ where
         envelopes: &BTreeMap<NodeID, HSCPEnvelope<N>>,
     ) -> bool {
         if LocalNode::is_v_blocking_with_predicate(
-            self.local_node.lock().unwrap().get_quorum_set(),
+            self.local_node.borrow().get_quorum_set(),
             envelopes,
             &accepted_predicate,
         ) {
@@ -249,7 +251,7 @@ where
             let ratify_filter =
                 move |st: &SCPStatement<N>| accepted_predicate(st) && voted_predicate(st);
 
-            let local_node = self.local_node.lock().unwrap();
+            let local_node = self.local_node.borrow();
             if LocalNode::is_quorum_with_node_filter(
                 Some((local_node.get_quorum_set(), &local_node.node_id)),
                 envelopes,
@@ -269,7 +271,7 @@ where
         voted_predicate: impl Fn(&SCPStatement<N>) -> bool,
         envelopes: &BTreeMap<NodeID, HSCPEnvelope<N>>,
     ) -> bool {
-        let local_node = self.local_node.lock().unwrap();
+        let local_node = self.local_node.borrow();
 
         LocalNode::is_quorum_with_node_filter(
             Some((local_node.get_quorum_set(), &local_node.node_id)),
@@ -282,7 +284,7 @@ where
     pub fn create_envelope(&self, statement: SCPStatement<N>) -> SCPEnvelope<N> {
         SCPEnvelope {
             statement,
-            node_id: self.local_node.lock().unwrap().node_id.clone(),
+            node_id: self.local_node.borrow().node_id.clone(),
             slot_index: self.slot_index.clone(),
             signature: test_default_blake2(),
         }
@@ -324,7 +326,7 @@ where
             return;
         }
 
-        let local_node = self.local_node.lock().unwrap();
+        let local_node = self.local_node.borrow();
 
         // Add nodes that we have heard from.
         let mut nodes: Vec<NodeID> = Default::default();

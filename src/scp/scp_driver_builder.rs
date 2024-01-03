@@ -21,9 +21,9 @@ where
     T: HerderDriver<N>,
 {
     slot_index: Option<SlotIndex>,
-    local_node: Option<LocalNode<N>>,
+    local_node: Option<Rc<RefCell<LocalNode<N>>>>,
     timer: Option<WorkScheduler>,
-    herder_driver: Option<T>,
+    herder_driver: Option<Rc<RefCell<T>>>,
     nomination_protocol_state: Option<NominationProtocolState<N>>,
     ballot_protocol_state: Option<BallotProtocolState<N>>,
 }
@@ -59,8 +59,8 @@ where
         self
     }
 
-    pub fn local_node(mut self, local_node: LocalNode<N>) -> Self {
-        self.local_node = Some(local_node);
+    pub fn local_node(mut self, local_node: HLocalNode<N>) -> Self {
+        self.local_node = Some(local_node.into());
         self
     }
 
@@ -69,7 +69,7 @@ where
         self
     }
 
-    pub fn herder_driver(mut self, herder_driver: T) -> Self {
+    pub fn herder_driver(mut self, herder_driver: Rc<RefCell<T>>) -> Self {
         self.herder_driver = Some(herder_driver);
         self
     }
@@ -87,7 +87,7 @@ where
         self
     }
 
-    pub fn build(self) -> Result<Arc<SlotDriver<N, T>>, &'static str> {
+    pub fn build(self) -> Result<SlotDriver<N, T>, &'static str> {
         if self.slot_index.is_none() {
             return Err("Missing slot index.");
         }
@@ -104,16 +104,23 @@ where
             return Err("Missing Herder driver.");
         }
 
-        Ok(Arc::new(SlotDriver::<N, T>::new(
+        Ok(SlotDriver::<N, T>::new(
             self.slot_index.unwrap(),
-            Arc::new(Mutex::new(self.local_node.unwrap())),
+            self.local_node.unwrap().into(),
             self.timer.unwrap(),
             Arc::new(Mutex::new(
                 self.nomination_protocol_state.unwrap_or_default(),
             )),
             Arc::new(Mutex::new(self.ballot_protocol_state.unwrap_or_default())),
-            Rc::new(RefCell::new(self.herder_driver.unwrap())),
-        )))
+            self.herder_driver.unwrap(),
+        ))
+    }
+
+    pub fn build_handle(self) -> Result<Arc<SlotDriver<N, T>>, &'static str> {
+        match self.build() {
+            Ok(ret) => Ok(Arc::new(ret)),
+            Err(err) => Err(err),
+        }
     }
 }
 
