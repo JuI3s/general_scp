@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::process::id;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use typenum::U6;
@@ -85,7 +87,7 @@ where
         self
     }
 
-    pub fn build(self) -> Result<Arc<SlotDriver<N>>, &'static str> {
+    pub fn build(self) -> Result<Arc<SlotDriver<N, T>>, &'static str> {
         if self.slot_index.is_none() {
             return Err("Missing slot index.");
         }
@@ -102,7 +104,7 @@ where
             return Err("Missing Herder driver.");
         }
 
-        Ok(Arc::new(SlotDriver::<N>::new(
+        Ok(Arc::new(SlotDriver::<N, T>::new(
             self.slot_index.unwrap(),
             Arc::new(Mutex::new(self.local_node.unwrap())),
             self.timer.unwrap(),
@@ -110,7 +112,7 @@ where
                 self.nomination_protocol_state.unwrap_or_default(),
             )),
             Arc::new(Mutex::new(self.ballot_protocol_state.unwrap_or_default())),
-            Box::new(self.herder_driver.unwrap()),
+            Rc::new(RefCell::new(self.herder_driver.unwrap())),
         )))
     }
 }

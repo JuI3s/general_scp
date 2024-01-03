@@ -797,9 +797,10 @@ where
     }
 }
 
-impl<N> SlotDriver<N>
+impl<N, H> SlotDriver<N, H>
 where
     N: NominationValue + 'static,
+    H: HerderDriver<N> + 'static,
 {
     const MAXIMUM_ADVANCE_SLOT_RECURSION: u32 = 50;
 
@@ -811,7 +812,7 @@ where
     ) {
         ballot_state_handle.lock().unwrap().message_level -= 1;
         if ballot_state_handle.lock().unwrap().message_level
-            >= SlotDriver::<N>::MAXIMUM_ADVANCE_SLOT_RECURSION
+            >= SlotDriver::<N, H>::MAXIMUM_ADVANCE_SLOT_RECURSION
         {
             panic!("maximum number of transitions reached in advance_slot");
         }
@@ -1020,7 +1021,7 @@ where
                     &self.local_node.lock().unwrap().node_id,
                 )),
                 &state.latest_envelopes,
-                |st| self.herder_driver.get_quorum_set(st),
+                |st| self.herder_driver.borrow().get_quorum_set(st),
             ) {
                 let old_heard_from_quorum = state.heard_from_quorum;
                 state.heard_from_quorum = true;
@@ -1036,9 +1037,10 @@ where
     }
 }
 
-impl<N> BallotProtocol<N> for SlotDriver<N>
+impl<N, H> BallotProtocol<N> for SlotDriver<N, H>
 where
     N: NominationValue,
+    H: HerderDriver<N> + 'static,
 {
     fn attempt_accept_prepared(
         self: &Arc<Self>,

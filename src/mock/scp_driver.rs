@@ -6,10 +6,10 @@ use crate::scp::{
     slot::SlotIndex,
 };
 
-use super::state::MockState;
+use super::{herder::MockHerder, state::MockState};
 
 pub struct MockSCPDriver {
-    pub slots: HashMap<SlotIndex, SlotDriver<MockState>>,
+    pub slots: HashMap<SlotIndex, SlotDriver<MockState, MockHerder>>,
 }
 
 impl Default for MockSCPDriver {

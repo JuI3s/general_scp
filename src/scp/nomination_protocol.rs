@@ -1,5 +1,4 @@
 use std::{
-    borrow::Borrow,
     collections::hash_map::DefaultHasher,
     hash::{self, Hash, Hasher},
     ops::Deref,
@@ -184,8 +183,17 @@ where
 
     fn get_statement_values(&self, statement: &SCPStatementNominate<N>) -> Vec<N> {
         let mut ret = Vec::new();
-        SlotDriver::apply_all(statement, |value: &N| ret.push(value.clone()));
+        Self::apply_all(statement, |value: &N| ret.push(value.clone()));
         ret
+    }
+
+    fn apply_all(statement: &SCPStatementNominate<N>, mut function: impl FnMut(&N)) {
+        statement.votes.iter().for_each(|vote| function(vote));
+        // Accepted should be a subset of votes.
+        statement
+            .accepted
+            .iter()
+            .for_each(|accepted| function(accepted));
     }
 
     fn is_newer_statement_for_node(
@@ -230,6 +238,12 @@ where
             && statement.accepted.windows(2).all(|win| win[0] < win[1])
     }
 
+    fn hash_value(value: &N) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        value.hash(&mut hasher);
+        hasher.finish()
+    }
+
     fn get_new_value_form_nomination(
         &self,
         statement: &SCPStatementNominate<N>,
@@ -247,7 +261,7 @@ where
                 _ => extract_valid_value_predicate(value),
             } {
                 if !self.votes.contains(&value_to_nominate) {
-                    let new_hash = SlotDriver::<N>::hash_value(&value_to_nominate);
+                    let new_hash = Self::hash_value(&value_to_nominate);
                     if new_hash > cur_hash {
                         cur_hash = new_hash;
                         cur_value = Some(value_to_nominate);
@@ -325,9 +339,10 @@ where
     }
 }
 
-impl<N> SlotDriver<N>
+impl<N, H> SlotDriver<N, H>
 where
     N: NominationValue,
+    H: HerderDriver<N> + 'static,
 {
     fn emit_nomination(self: &Arc<Self>, state: &mut NominationProtocolState<N>) {
         // This function creats a nomination statement that contains the current
@@ -393,7 +408,9 @@ where
 
                 nomination_state.latest_envelope = Some(env.clone());
                 if self.fully_validated {
-                    self.herder_driver.emit_envelope(&env.lock().unwrap());
+                    self.herder_driver
+                        .borrow()
+                        .emit_envelope(&env.lock().unwrap());
                 }
             }
             EnvelopeState::Invalid => {
@@ -402,29 +419,15 @@ where
         }
     }
 
-    fn accept_predicat(value: &N, statement: &SCPStatement<N>) -> bool {
+    fn accept_predicate(value: &N, statement: &SCPStatement<N>) -> bool {
         statement.as_nomination_statement().accepted.contains(value)
-    }
-
-    fn apply_all(statement: &SCPStatementNominate<N>, mut function: impl FnMut(&N)) {
-        statement.votes.iter().for_each(|vote| function(vote));
-        // Accepted should be a subset of votes.
-        statement
-            .accepted
-            .iter()
-            .for_each(|accepted| function(accepted));
-    }
-
-    fn hash_value(value: &N) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        value.hash(&mut hasher);
-        hasher.finish()
     }
 }
 
-impl<N> NominationProtocol<N> for SlotDriver<N>
+impl<N, H> NominationProtocol<N> for SlotDriver<N, H>
 where
     N: NominationValue + 'static,
+    H: HerderDriver<N> + 'static,
 {
     fn nominate(
         self: &Arc<Self>,
@@ -456,7 +459,10 @@ where
         state.previous_value = previous_value.clone();
         state.round_number += 1;
 
-        let timeout: std::time::Duration = self.herder_driver.compute_timeout(state.round_number);
+        let timeout: std::time::Duration = self
+            .herder_driver
+            .borrow()
+            .compute_timeout(state.round_number);
 
         {
             let local_node = &self.local_node.lock().unwrap();
@@ -465,9 +471,13 @@ where
                 || state.gather_votes_from_round_leaders(
                     &self.slot_index,
                     &local_node.node_id,
-                    &|value| self.herder_driver.extract_valid_value(value),
-                    &|value| self.herder_driver.validate_value(value, true),
-                    &|value| self.herder_driver.nominating_value(value, &self.slot_index),
+                    &|value| self.herder_driver.borrow().extract_valid_value(value),
+                    &|value| self.herder_driver.borrow().validate_value(value, true),
+                    &|value| {
+                        self.herder_driver
+                            .borrow()
+                            .nominating_value(value, &self.slot_index)
+                    },
                 );
 
             // if we're leader, add our value if we haven't added any votes yet
@@ -475,6 +485,7 @@ where
                 state.votes.insert(value.clone().into());
                 updated = true;
                 self.herder_driver
+                    .borrow()
                     .nominating_value(&value, &self.slot_index);
             }
 
@@ -567,10 +578,10 @@ where
                 }
                 if self.federated_accept(
                     |st| st.as_nomination_statement().votes.contains(vote),
-                    |st| SlotDriver::accept_predicat(vote, st),
+                    |st| Self::accept_predicate(vote, st),
                     &state.latest_nominations,
                 ) {
-                    match self.herder_driver.validate_value(vote, true) {
+                    match self.herder_driver.borrow().validate_value(vote, true) {
                         ValidationLevel::FullyValidated => {
                             let value = Arc::new(vote.clone());
                             state.accepted.insert(value.clone());
@@ -578,7 +589,9 @@ where
                             return true;
                         }
                         _ => {
-                            if let Some(value) = self.herder_driver.extract_valid_value(vote) {
+                            if let Some(value) =
+                                self.herder_driver.borrow().extract_valid_value(vote)
+                            {
                                 state.accepted.insert(Arc::new(value.clone()));
                                 state.votes.insert(Arc::new(value.clone()));
                                 return true;
@@ -594,7 +607,7 @@ where
                     return false;
                 }
                 if self.federated_ratify(
-                    |st| SlotDriver::accept_predicat(value, st),
+                    |st| Self::accept_predicate(value, st),
                     &state.latest_nominations,
                 ) {
                     state.candidates.insert(Arc::new(value.clone()));
@@ -612,10 +625,16 @@ where
             if new_candidates {
                 // TODO: Is this correct?
 
-                if let Some(value) = self.herder_driver.combine_candidates(&state.candidates) {}
+                if let Some(value) = self
+                    .herder_driver
+                    .borrow()
+                    .combine_candidates(&state.candidates)
+                {}
 
-                *state.latest_composite_candidate.lock().unwrap() =
-                    self.herder_driver.combine_candidates(&state.candidates);
+                *state.latest_composite_candidate.lock().unwrap() = self
+                    .herder_driver
+                    .borrow()
+                    .combine_candidates(&state.candidates);
                 let _ = match state.latest_composite_candidate.lock().unwrap().as_ref() {
                     Some(val) => {
                         self.bump_state_(val, false);

@@ -51,16 +51,17 @@ pub enum ValidationLevel {
     FullyValidated,
 }
 // #[derive(WeakSelf)]
-pub struct SlotDriver<N>
+pub struct SlotDriver<N, H>
 where
     N: NominationValue + 'static,
+    H: HerderDriver<N>,
 {
     pub slot_index: SlotIndex,
     pub local_node: HLocalNode<N>,
     pub scheduler: WorkScheduler,
     nomination_state_handle: HNominationProtocolState<N>,
     ballot_state_handle: HBallotProtocolState<N>,
-    pub herder_driver: Box<dyn HerderDriver<N>>,
+    pub herder_driver: Rc<RefCell<H>>,
     pub fully_validated: bool,
     pub got_v_blocking: bool,
 }
@@ -181,9 +182,10 @@ where
     fn sign_envelope(envelope: &mut SCPEnvelope<N>);
 }
 
-impl<N> SlotDriver<N>
+impl<N, H> SlotDriver<N, H>
 where
-    N: NominationValue + 'static,
+    N: NominationValue,
+    H: HerderDriver<N> + 'static,
 {
     pub fn new(
         slot_index: SlotIndex,
@@ -191,7 +193,7 @@ where
         timer: WorkScheduler,
         nomination_state_handle: HNominationProtocolState<N>,
         ballot_state_handle: HBallotProtocolState<N>,
-        herder_driver: Box<dyn HerderDriver<N>>,
+        herder_driver: Rc<RefCell<H>>,
     ) -> Self {
         Self {
             slot_index: slot_index,
@@ -251,7 +253,7 @@ where
             if LocalNode::is_quorum_with_node_filter(
                 Some((local_node.get_quorum_set(), &local_node.node_id)),
                 envelopes,
-                |st| self.herder_driver.get_quorum_set(st),
+                |st| self.herder_driver.borrow().get_quorum_set(st),
                 ratify_filter,
             ) {
                 return true;
@@ -272,7 +274,7 @@ where
         LocalNode::is_quorum_with_node_filter(
             Some((local_node.get_quorum_set(), &local_node.node_id)),
             envelopes,
-            |st| self.herder_driver.get_quorum_set(st),
+            |st| self.herder_driver.borrow().get_quorum_set(st),
             voted_predicate,
         )
     }
@@ -340,9 +342,10 @@ where
     }
 }
 
-impl<N> SCPDriver<N> for SlotDriver<N>
+impl<N, H> SCPDriver<N> for SlotDriver<N, H>
 where
     N: NominationValue,
+    H: HerderDriver<N>,
 {
     fn nominating_value(self: &Arc<Self>, value: &N) {}
 
