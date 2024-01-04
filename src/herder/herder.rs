@@ -1,6 +1,8 @@
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     ops::Deref,
+    rc::Rc,
     sync::Arc,
     time::Duration,
 };
@@ -49,7 +51,7 @@ where
 
     fn get_quorum_set(&self, statement: &SCPStatement<N>) -> Option<HQuorumSet>;
 
-    fn recv_scp_envelope(&mut self, envelope: &SCPEnvelope<N>);
+    fn recv_scp_envelope(this: &Rc<RefCell<Self>>, envelope: &SCPEnvelope<N>);
 
     fn compute_timeout(&self, round_number: u64) -> Duration {
         const MAX_TIMEOUT_SECONDS: u64 = 30 * 60;
@@ -88,7 +90,7 @@ impl HerderDriver<SCPNominationValue> for HerderSCPDriver {
         todo!()
     }
 
-    fn recv_scp_envelope(&mut self, envelope: &SCPEnvelope<SCPNominationValue>) {
+    fn recv_scp_envelope(this: &Rc<RefCell<Self>>, envelope: &SCPEnvelope<SCPNominationValue>) {
         todo!()
     }
 }

@@ -215,14 +215,14 @@ where
     fn recv_scp_quorum_set(&mut self, quorum_set: &QuorumSet) {
         self.scp_quorum_set_fetcher
             .recv(&quorum_set.to_blake2(), &mut |env| {
-                self.herder.borrow_mut().recv_scp_envelope(env);
+                H::recv_scp_envelope(&self.herder, env);
             });
     }
 
     fn recv_nomination_value(&mut self, value: &N) {
         self.nomination_value_fetcher
             .recv(&Blake2Hasher::<N>::hash(value), &mut |env| {
-                self.herder.borrow_mut().recv_scp_envelope(env);
+                H::recv_scp_envelope(&self.herder, env);
             })
     }
 

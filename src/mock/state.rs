@@ -96,11 +96,6 @@ impl MockStateDriver {
             .or_insert(Self::new_slot(this, slot_index.to_owned()).unwrap().into())
             .to_owned()
     }
-
-    pub fn recv_scp_envelvope(this: &Rc<RefCell<Self>>, envelope: &SCPEnvelope<MockState>) {
-        let slot = Self::get_or_create_slot(this, &envelope.slot_index);
-        slot.borrow_mut().recv_scp_envelvope(envelope);
-    }
 }
 
 impl HerderDriver<MockState> for MockStateDriver {
@@ -155,8 +150,9 @@ impl HerderDriver<MockState> for MockStateDriver {
         }
     }
 
-    fn recv_scp_envelope(&mut self, envelope: &crate::scp::scp_driver::SCPEnvelope<MockState>) {
-        todo!()
+    fn recv_scp_envelope(this: &Rc<RefCell<Self>>, envelope: &SCPEnvelope<MockState>) {
+        let slot = Self::get_or_create_slot(this, &envelope.slot_index);
+        slot.borrow_mut().recv_scp_envelvope(envelope);
     }
 }
 
@@ -167,12 +163,22 @@ mod tests {
 
     use crate::{
         application::{clock::VirtualClock, quorum::QuorumSet, work_queue::EventQueue},
+        overlay::loopback_peer::{LoopbackPeer, LoopbackPeerConnection},
         scp::{
             local_node::LocalNode,
             local_node_builder::LocalNodeBuilder,
             scp::NodeID,
             scp_driver_builder::{SlotDriverBuilder, SlotTimerBuilder},
         },
+    };
+
+    use std::{cell::RefCell, rc::Rc};
+
+    use crate::{
+        application::work_queue::WorkScheduler,
+        mock::state::{MockState, MockStateDriver},
+        overlay::message::HelloEnvelope,
+        overlay::peer::SCPPeer,
     };
 
     use super::*;
@@ -276,5 +282,48 @@ mod tests {
             .unwrap();
 
         // slot_driver.recv_scp_envelvope(envelope)
+    }
+
+    #[test]
+    fn send_hello_message() {
+        let node_id: NodeID = "node1".into();
+        let virtual_clock = VirtualClock::new_clock();
+
+        let mut leaders: BTreeSet<NodeID> = BTreeSet::new();
+        leaders.insert(node_id.clone());
+
+        let timer_handle = SlotTimerBuilder::new()
+            .clock(virtual_clock.clone())
+            .build()
+            .unwrap();
+
+        let quorum_set = QuorumSet::example_quorum_set();
+
+        let local_node = LocalNodeBuilder::<MockState>::new()
+            .is_validator(true)
+            .quorum_set(quorum_set)
+            .node_id(node_id)
+            .build()
+            .unwrap();
+
+        let herder = MockStateDriver::new(local_node.clone(), timer_handle.clone());
+
+        let work_scheduler = Rc::new(RefCell::new(WorkScheduler::default()));
+        let connection =
+            LoopbackPeerConnection::<MockState, MockStateDriver>::new(&work_scheduler, &herder);
+        let msg = HelloEnvelope {};
+
+        connection.initiator.borrow_mut().send_hello(msg.clone());
+
+        assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 1);
+        LoopbackPeer::<MockState, MockStateDriver>::process_in_queue(&connection.acceptor);
+        assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 0);
+
+        connection.initiator.borrow_mut().send_hello(msg.clone());
+        connection.initiator.borrow_mut().send_hello(msg.clone());
+        assert_eq!(connection.initiator.borrow_mut().in_queue.len(), 0);
+
+        work_scheduler.borrow().excecute_main_thread_tasks();
+        assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 0);
     }
 }

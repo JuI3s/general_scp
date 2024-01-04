@@ -11,17 +11,17 @@ use crate::{application::work_queue::HWorkScheduler, scp::nomination_protocol::N
 
 use super::peer::{SCPPeer, SCPPeerState};
 
-struct LoopbackPeer<N, H>
+pub struct LoopbackPeer<N, H>
 where
     N: NominationValue,
     H: HerderDriver<N>,
 {
     work_schedular: HWorkScheduler,
     out_queue: VecDeque<SCPMessage<N>>,
-    in_queue: VecDeque<SCPMessage<N>>,
+    pub in_queue: VecDeque<SCPMessage<N>>,
     remote: Weak<RefCell<LoopbackPeer<N, H>>>,
     state: Rc<RefCell<SCPPeerState>>,
-    phantom: PhantomData<H>,
+    herder: Rc<RefCell<H>>,
 }
 
 impl<N, H> LoopbackPeer<N, H>
@@ -29,18 +29,22 @@ where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
 {
-    fn new(work_scheduler: &HWorkScheduler, we_called_remote: bool) -> Self {
+    fn new(
+        work_scheduler: &HWorkScheduler,
+        we_called_remote: bool,
+        herder: Rc<RefCell<H>>,
+    ) -> Self {
         LoopbackPeer {
             work_schedular: work_scheduler.clone(),
             out_queue: Default::default(),
             in_queue: Default::default(),
             remote: Default::default(),
             state: SCPPeerState::new(we_called_remote).into(),
-            phantom: PhantomData,
+            herder: herder,
         }
     }
 
-    fn process_in_queue(this: &Rc<RefCell<Self>>) {
+    pub fn process_in_queue(this: &Rc<RefCell<Self>>) {
         let mut peer = this.borrow_mut();
 
         if let Some(message) = peer.in_queue.pop_front() {
@@ -112,7 +116,7 @@ where
     }
 }
 
-struct LoopbackPeerConnection<N, H>
+pub struct LoopbackPeerConnection<N, H>
 where
     N: NominationValue,
     H: HerderDriver<N>,
@@ -126,9 +130,9 @@ where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
 {
-    pub fn new(work_scheduler: &HWorkScheduler) -> Self {
-        let initator = LoopbackPeer::<N, H>::new(work_scheduler, true);
-        let acceptor = LoopbackPeer::<N, H>::new(work_scheduler, false);
+    pub fn new(work_scheduler: &HWorkScheduler, herder: &Rc<RefCell<H>>) -> Self {
+        let initator = LoopbackPeer::<N, H>::new(work_scheduler, true, herder.clone());
+        let acceptor = LoopbackPeer::<N, H>::new(work_scheduler, false, herder.clone());
         let initiator_handle = Rc::new(RefCell::new(initator));
         let acceptor_handle = Rc::new(RefCell::new(acceptor));
 
@@ -163,38 +167,5 @@ where
             initiator: initiator_handle,
             acceptor: acceptor_handle,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{cell::RefCell, rc::Rc};
-
-    use crate::{
-        application::work_queue::WorkScheduler,
-        mock::state::{MockState, MockStateDriver},
-        overlay::message::HelloEnvelope,
-    };
-
-    use super::*;
-
-    #[test]
-    fn send_hello_message() {
-        let work_scheduler = Rc::new(RefCell::new(WorkScheduler::default()));
-        let connection = LoopbackPeerConnection::<MockState, MockStateDriver>::new(&work_scheduler);
-        let msg = HelloEnvelope {};
-
-        connection.initiator.borrow_mut().send_hello(msg.clone());
-
-        assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 1);
-        LoopbackPeer::<MockState, MockStateDriver>::process_in_queue(&connection.acceptor);
-        assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 0);
-
-        connection.initiator.borrow_mut().send_hello(msg.clone());
-        connection.initiator.borrow_mut().send_hello(msg.clone());
-        assert_eq!(connection.initiator.borrow_mut().in_queue.len(), 0);
-
-        work_scheduler.borrow().excecute_main_thread_tasks();
-        assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 0);
     }
 }

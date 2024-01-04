@@ -190,10 +190,7 @@ where
 
     fn recv_scp_envelope(&mut self, envelope: &SCPEnvelope<N>) {
         // We pass it to the herder
-        self.herder()
-            .as_ref()
-            .borrow_mut()
-            .recv_scp_envelope(envelope)
+        H::recv_scp_envelope(self.herder(), envelope);
     }
 }
 
