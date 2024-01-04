@@ -89,7 +89,7 @@ impl MockStateDriver {
         this: &Rc<RefCell<Self>>,
         slot_index: &SlotIndex,
     ) -> Rc<RefCell<SlotDriver<MockState, MockStateDriver>>> {
-        this.borrow()
+        this.borrow_mut()
             .scp_driver
             .slots
             .entry(*slot_index)

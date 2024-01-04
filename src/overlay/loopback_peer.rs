@@ -27,7 +27,7 @@ where
 impl<N, H> LoopbackPeer<N, H>
 where
     N: NominationValue,
-    H: HerderDriver<N>,
+    H: HerderDriver<N> + 'static,
 {
     fn new(work_scheduler: &HWorkScheduler, we_called_remote: bool) -> Self {
         LoopbackPeer {
@@ -64,7 +64,7 @@ where
 impl<N, H> SCPPeer<N, H> for LoopbackPeer<N, H>
 where
     N: NominationValue,
-    H: HerderDriver<N>,
+    H: HerderDriver<N> + 'static,
 {
     fn peer_state(&mut self) -> &std::rc::Rc<std::cell::RefCell<super::peer::SCPPeerState>> {
         &self.state
@@ -124,7 +124,7 @@ where
 impl<N, H> LoopbackPeerConnection<N, H>
 where
     N: NominationValue,
-    H: HerderDriver<N>,
+    H: HerderDriver<N> + 'static,
 {
     pub fn new(work_scheduler: &HWorkScheduler) -> Self {
         let initator = LoopbackPeer::<N, H>::new(work_scheduler, true);

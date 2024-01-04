@@ -29,7 +29,7 @@ impl ClockEvent {
 }
 
 pub type HWorkScheduler = Rc<RefCell<WorkScheduler>>;
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct WorkScheduler {
     main_thread_queue: Rc<RefCell<MainWorkQueue>>,
     event_queue: Rc<RefCell<EventQueue>>,
@@ -76,7 +76,6 @@ impl WorkScheduler {
     }
 }
 
-#[derive(Serialize, Deserialize)]
 struct MainWorkQueue {
     tasks: VecDeque<Callback>,
 }
