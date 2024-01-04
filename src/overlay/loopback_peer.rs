@@ -130,9 +130,13 @@ where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
 {
-    pub fn new(work_scheduler: &HWorkScheduler, herder: &Rc<RefCell<H>>) -> Self {
-        let initator = LoopbackPeer::<N, H>::new(work_scheduler, true, herder.clone());
-        let acceptor = LoopbackPeer::<N, H>::new(work_scheduler, false, herder.clone());
+    pub fn new(
+        work_scheduler: &HWorkScheduler,
+        herder1: Rc<RefCell<H>>,
+        herder2: Rc<RefCell<H>>,
+    ) -> Self {
+        let initator = LoopbackPeer::<N, H>::new(work_scheduler, true, herder1);
+        let acceptor = LoopbackPeer::<N, H>::new(work_scheduler, false, herder2);
         let initiator_handle = Rc::new(RefCell::new(initator));
         let acceptor_handle = Rc::new(RefCell::new(acceptor));
 

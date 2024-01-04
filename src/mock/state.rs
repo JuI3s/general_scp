@@ -284,9 +284,8 @@ mod tests {
         // slot_driver.recv_scp_envelvope(envelope)
     }
 
-    #[test]
-    fn send_hello_message() {
-        let node_id: NodeID = "node1".into();
+    fn create_test_herder(node_index: u64) -> Rc<RefCell<MockStateDriver>> {
+        let node_id: NodeID = "node".to_string() + node_index.to_string().as_ref();
         let virtual_clock = VirtualClock::new_clock();
 
         let mut leaders: BTreeSet<NodeID> = BTreeSet::new();
@@ -299,7 +298,7 @@ mod tests {
 
         let quorum_set = QuorumSet::example_quorum_set();
 
-        let local_node = LocalNodeBuilder::<MockState>::new()
+        let local_node: Rc<RefCell<LocalNode<MockState>>> = LocalNodeBuilder::<MockState>::new()
             .is_validator(true)
             .quorum_set(quorum_set)
             .node_id(node_id)
@@ -307,10 +306,20 @@ mod tests {
             .unwrap();
 
         let herder = MockStateDriver::new(local_node.clone(), timer_handle.clone());
+        herder
+    }
+
+    #[test]
+    fn loopback_peer_send_hello_message() {
+        let herder1 = create_test_herder(1);
+        let herder2 = create_test_herder(2);
 
         let work_scheduler = Rc::new(RefCell::new(WorkScheduler::default()));
-        let connection =
-            LoopbackPeerConnection::<MockState, MockStateDriver>::new(&work_scheduler, &herder);
+        let connection = LoopbackPeerConnection::<MockState, MockStateDriver>::new(
+            &work_scheduler,
+            herder1,
+            herder2,
+        );
         let msg = HelloEnvelope {};
 
         connection.initiator.borrow_mut().send_hello(msg.clone());
@@ -326,4 +335,7 @@ mod tests {
         work_scheduler.borrow().excecute_main_thread_tasks();
         assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 0);
     }
+
+    #[test]
+    fn loopback_peer_nominate() {}
 }
