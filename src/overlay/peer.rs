@@ -131,17 +131,18 @@ pub enum SCPPeerConnState {
     Closing,
 }
 
-pub trait SCPPeer<N>
+pub trait SCPPeer<N, H>
 where
     N: NominationValue,
+    H: HerderDriver<N>,
     Self: Sized,
 {
     fn id(&self) -> &NodeID;
     fn peer_state(&mut self) -> &Rc<RefCell<SCPPeerState>>;
-    fn herder(&self) -> &Rc<RefCell<dyn HerderDriver<N>>>;
+    fn herder(&self) -> &Rc<RefCell<H>>;
     fn overlay_manager(
         &self,
-    ) -> &Rc<RefCell<dyn OverlayManager<N, HP = Rc<RefCell<Self>>, P = Self>>>;
+    ) -> &Rc<RefCell<dyn OverlayManager<N, H, HP = Rc<RefCell<Self>>, P = Self>>>;
 
     // Setting state on connected
     fn set_state_on_connected(&mut self) {

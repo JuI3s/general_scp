@@ -1,8 +1,9 @@
-use crate::overlay::message::SCPMessage;
+use crate::{herder::herder::HerderDriver, overlay::message::SCPMessage};
 
 use std::{
     cell::{Ref, RefCell},
     collections::VecDeque,
+    marker::PhantomData,
     rc::{Rc, Weak},
 };
 
@@ -10,20 +11,23 @@ use crate::{application::work_queue::HWorkScheduler, scp::nomination_protocol::N
 
 use super::peer::{SCPPeer, SCPPeerState};
 
-struct LoopbackPeer<N>
+struct LoopbackPeer<N, H>
 where
     N: NominationValue,
+    H: HerderDriver<N>,
 {
     work_schedular: HWorkScheduler,
     out_queue: VecDeque<SCPMessage<N>>,
     in_queue: VecDeque<SCPMessage<N>>,
-    remote: Weak<RefCell<LoopbackPeer<N>>>,
+    remote: Weak<RefCell<LoopbackPeer<N, H>>>,
     state: Rc<RefCell<SCPPeerState>>,
+    phantom: PhantomData<H>,
 }
 
-impl<N> LoopbackPeer<N>
+impl<N, H> LoopbackPeer<N, H>
 where
     N: NominationValue,
+    H: HerderDriver<N>,
 {
     fn new(work_scheduler: &HWorkScheduler, we_called_remote: bool) -> Self {
         LoopbackPeer {
@@ -32,6 +36,7 @@ where
             in_queue: Default::default(),
             remote: Default::default(),
             state: SCPPeerState::new(we_called_remote).into(),
+            phantom: PhantomData,
         }
     }
 
@@ -56,9 +61,10 @@ where
     }
 }
 
-impl<N> SCPPeer<N> for LoopbackPeer<N>
+impl<N, H> SCPPeer<N, H> for LoopbackPeer<N, H>
 where
     N: NominationValue,
+    H: HerderDriver<N>,
 {
     fn peer_state(&mut self) -> &std::rc::Rc<std::cell::RefCell<super::peer::SCPPeerState>> {
         &self.state
@@ -68,18 +74,13 @@ where
         todo!()
     }
 
-    fn herder(
-        &self,
-    ) -> &std::rc::Rc<std::cell::RefCell<dyn crate::herder::herder::HerderDriver<N>>> {
-        todo!()
-    }
-
     fn overlay_manager(
         &self,
     ) -> &std::rc::Rc<
         std::cell::RefCell<
             dyn super::overlay_manager::OverlayManager<
                 N,
+                H,
                 HP = std::rc::Rc<std::cell::RefCell<Self>>,
                 P = Self,
             >,
@@ -105,23 +106,29 @@ where
                 }))
         }
     }
+
+    fn herder(&self) -> &Rc<RefCell<H>> {
+        todo!()
+    }
 }
 
-struct LoopbackPeerConnection<N>
+struct LoopbackPeerConnection<N, H>
 where
     N: NominationValue,
+    H: HerderDriver<N>,
 {
-    pub initiator: Rc<RefCell<LoopbackPeer<N>>>,
-    pub acceptor: Rc<RefCell<LoopbackPeer<N>>>,
+    pub initiator: Rc<RefCell<LoopbackPeer<N, H>>>,
+    pub acceptor: Rc<RefCell<LoopbackPeer<N, H>>>,
 }
 
-impl<N> LoopbackPeerConnection<N>
+impl<N, H> LoopbackPeerConnection<N, H>
 where
     N: NominationValue,
+    H: HerderDriver<N>,
 {
     pub fn new(work_scheduler: &HWorkScheduler) -> Self {
-        let initator = LoopbackPeer::<N>::new(work_scheduler, true);
-        let acceptor = LoopbackPeer::<N>::new(work_scheduler, false);
+        let initator = LoopbackPeer::<N, H>::new(work_scheduler, true);
+        let acceptor = LoopbackPeer::<N, H>::new(work_scheduler, false);
         let initiator_handle = Rc::new(RefCell::new(initator));
         let acceptor_handle = Rc::new(RefCell::new(acceptor));
 
@@ -164,7 +171,8 @@ mod tests {
     use std::{cell::RefCell, rc::Rc};
 
     use crate::{
-        application::work_queue::WorkScheduler, mock::state::MockState,
+        application::work_queue::WorkScheduler,
+        mock::state::{MockState, MockStateDriver},
         overlay::message::HelloEnvelope,
     };
 
@@ -173,13 +181,13 @@ mod tests {
     #[test]
     fn send_hello_message() {
         let work_scheduler = Rc::new(RefCell::new(WorkScheduler::default()));
-        let connection = LoopbackPeerConnection::<MockState>::new(&work_scheduler);
+        let connection = LoopbackPeerConnection::<MockState, MockStateDriver>::new(&work_scheduler);
         let msg = HelloEnvelope {};
 
         connection.initiator.borrow_mut().send_hello(msg.clone());
 
         assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 1);
-        LoopbackPeer::<MockState>::process_in_queue(&connection.acceptor);
+        LoopbackPeer::<MockState, MockStateDriver>::process_in_queue(&connection.acceptor);
         assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 0);
 
         connection.initiator.borrow_mut().send_hello(msg.clone());

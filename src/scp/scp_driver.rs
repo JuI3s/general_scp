@@ -66,6 +66,16 @@ where
     pub got_v_blocking: bool,
 }
 
+impl<N, H> Into<Rc<RefCell<SlotDriver<N, H>>>> for SlotDriver<N, H>
+where
+    N: NominationValue + 'static,
+    H: HerderDriver<N>,
+{
+    fn into(self) -> Rc<RefCell<SlotDriver<N, H>>> {
+        RefCell::new(self).into()
+    }
+}
+
 pub type HSCPEnvelope<N> = Arc<Mutex<SCPEnvelope<N>>>;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -12,6 +12,7 @@ use syn::token::Percent;
 use crate::{
     application::work_queue::{HWorkScheduler, WorkScheduler},
     crypto::types::{Blake2Hash, Blake2Hashable},
+    herder::herder::HerderDriver,
     scp::{
         nomination_protocol::NominationValue, scp::NodeID, scp_driver::SCPEnvelope, slot::SlotIndex,
     },
@@ -69,13 +70,14 @@ use super::{
 //                                            │          responded.          │
 //                                            │                              │
 //                                            └──────────────────────────────┘
-pub trait OverlayManager<N>
+pub trait OverlayManager<N, H>
 where
     N: NominationValue,
+    H: HerderDriver<N>,
 {
     // Peer handle.
     type HP;
-    type P: SCPPeer<N>;
+    type P: SCPPeer<N, H>;
 
     fn flood_gate(&self) -> &Rc<RefCell<FloodGate>>;
 

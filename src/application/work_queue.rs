@@ -8,6 +8,8 @@ use std::{
     time::SystemTime,
 };
 
+use serde_derive::{Deserialize, Serialize};
+
 use super::clock::{HVirtualClock, VirtualClock};
 
 pub type Callback = Box<dyn FnOnce()>;
@@ -27,7 +29,7 @@ impl ClockEvent {
 }
 
 pub type HWorkScheduler = Rc<RefCell<WorkScheduler>>;
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct WorkScheduler {
     main_thread_queue: Rc<RefCell<MainWorkQueue>>,
     event_queue: Rc<RefCell<EventQueue>>,
@@ -74,6 +76,7 @@ impl WorkScheduler {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 struct MainWorkQueue {
     tasks: VecDeque<Callback>,
 }

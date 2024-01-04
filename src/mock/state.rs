@@ -48,7 +48,6 @@ impl Default for MockState {
 }
 
 impl NominationValue for MockState {}
-
 pub struct MockStateDriver {
     quorum_set_map: BTreeMap<HashValue, HQuorumSet>,
     pub scp_driver: MockSCPDriver,
@@ -73,9 +72,12 @@ impl MockStateDriver {
         .into()
     }
 
-    pub fn new_slot(this: &Rc<RefCell<Self>>) -> Option<SlotDriver<MockState, MockStateDriver>> {
+    pub fn new_slot(
+        this: &Rc<RefCell<Self>>,
+        slot_index: SlotIndex,
+    ) -> Option<SlotDriver<MockState, MockStateDriver>> {
         SlotDriverBuilder::<MockState, MockStateDriver>::new()
-            .slot_index(0)
+            .slot_index(slot_index)
             .local_node(this.borrow().local_node.clone())
             .timer(this.borrow().scheduler.clone())
             .herder_driver(this.to_owned())
@@ -83,12 +85,22 @@ impl MockStateDriver {
             .ok()
     }
 
-    // fn get_or_create_slot(&self) -> Option<SlotDriver<MockState,
-    // MockStateDriver>> { }
+    fn get_or_create_slot(
+        this: &Rc<RefCell<Self>>,
+        slot_index: &SlotIndex,
+    ) -> Rc<RefCell<SlotDriver<MockState, MockStateDriver>>> {
+        this.borrow()
+            .scp_driver
+            .slots
+            .entry(*slot_index)
+            .or_insert(Self::new_slot(this, slot_index.to_owned()).unwrap().into())
+            .to_owned()
+    }
 
-    // pub fn recv_scp_envelvope(this: &Rc<RefCell<Self>>, envelope:
-    // &SCPEnvelope<MockState>) { let slot = this.borrow().
-    // }
+    pub fn recv_scp_envelvope(this: &Rc<RefCell<Self>>, envelope: &SCPEnvelope<MockState>) {
+        let slot = Self::get_or_create_slot(this, &envelope.slot_index);
+        slot.borrow_mut().recv_scp_envelvope(envelope);
+    }
 }
 
 impl HerderDriver<MockState> for MockStateDriver {

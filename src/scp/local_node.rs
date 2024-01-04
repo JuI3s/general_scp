@@ -7,6 +7,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use serde_derive::{Deserialize, Serialize};
 use syn::token::Mut;
 
 use crate::application::quorum::{HQuorumSet, QuorumSet, QuorumSlice};
@@ -19,6 +20,8 @@ use super::{
 };
 
 pub type HLocalNode<N> = Rc<RefCell<LocalNode<N>>>;
+
+#[derive(Serialize, Deserialize)]
 pub struct LocalNode<N>
 where
     N: NominationValue + 'static,
