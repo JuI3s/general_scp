@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use serde_derive::{Deserialize, Serialize};
 
@@ -13,7 +13,8 @@ use super::{
     state::{MockState, MockStateDriver},
 };
 pub struct MockSCPDriver {
-    pub slots: HashMap<SlotIndex, Rc<RefCell<SlotDriver<MockState, MockStateDriver>>>>,
+    pub slots: HashMap<SlotIndex, Arc<SlotDriver<MockState, MockStateDriver>>>,
+    // pub slots: HashMap<SlotIndex, Rc<RefCell<SlotDriver<MockState, MockStateDriver>>>>,
 }
 
 impl Default for MockSCPDriver {

@@ -12,6 +12,14 @@ use super::{
 
 pub type HSCPStatement<N> = Arc<Mutex<SCPStatement<N>>>;
 
+#[derive(PartialEq, Eq, Ord)]
+pub enum SCPStatementType {
+    Nominate,
+    Prepare,
+    Confirm,
+    Externalize,
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SCPStatement<N>
 where
@@ -78,6 +86,151 @@ where
     pub num_high: u32,
 
     pub commit_quorum_set: Option<QuorumSet>,
+}
+
+impl SCPStatementType {
+    fn value(&self) -> u64 {
+        match self {
+            SCPStatementType::Nominate => 0,
+            SCPStatementType::Prepare => 1,
+            SCPStatementType::Confirm => 2,
+            SCPStatementType::Externalize => 3,
+        }
+    }
+}
+
+impl PartialOrd for SCPStatementType {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.value().partial_cmp(&other.value())
+    }
+}
+
+impl<N> SCPStatement<N>
+where
+    N: NominationValue,
+{
+    pub fn statement_type(&self) -> SCPStatementType {
+        match self {
+            SCPStatement::Nominate(_) => SCPStatementType::Nominate,
+            SCPStatement::Prepare(_) => SCPStatementType::Prepare,
+            SCPStatement::Confirm(_) => SCPStatementType::Confirm,
+            SCPStatement::Externalize(_) => SCPStatementType::Externalize,
+        }
+    }
+
+    fn as_nominate_statement(&self) -> &SCPStatementNominate<N> {
+        match self {
+            SCPStatement::Prepare(_) | SCPStatement::Confirm(_) | SCPStatement::Externalize(_) => {
+                panic!()
+            }
+            SCPStatement::Nominate(self_st) => self_st,
+        }
+    }
+
+    fn as_prepare_statement(&self) -> &SCPStatementPrepare<N> {
+        match self {
+            SCPStatement::Nominate(_) | SCPStatement::Confirm(_) | SCPStatement::Externalize(_) => {
+                panic!()
+            }
+            SCPStatement::Prepare(st) => st,
+        }
+    }
+
+    fn as_confirm_statement(&self) -> &SCPStatementConfirm<N> {
+        match self {
+            SCPStatement::Nominate(_) | SCPStatement::Externalize(_) | SCPStatement::Prepare(_) => {
+                panic!()
+            }
+            SCPStatement::Confirm(st) => st,
+        }
+    }
+
+    fn as_externalize_statement(&self) -> &SCPStatementExternalize<N> {
+        match self {
+            SCPStatement::Prepare(_) | SCPStatement::Confirm(_) | SCPStatement::Nominate(_) => {
+                panic!()
+            }
+            SCPStatement::Externalize(st) => st,
+        }
+    }
+
+    pub fn is_newer_than(&self, other: &Self) -> bool {
+        let self_type = self.statement_type();
+        let other_type = other.statement_type();
+
+        if self_type != other_type {
+            return self_type > other_type;
+        }
+
+        match self_type {
+            SCPStatementType::Nominate => {
+                let self_st = self.as_nominate_statement();
+                let other_st = other.as_nominate_statement();
+                !self_st.is_older_than(other_st)
+            }
+            SCPStatementType::Prepare => {
+                let self_st = self.as_prepare_statement();
+                let other_st = other.as_prepare_statement();
+                self_st.is_newer_than(other_st)
+            }
+            SCPStatementType::Confirm => {
+                let self_st = self.as_confirm_statement();
+                let other_st = other.as_confirm_statement();
+                self_st.is_newer_than(other_st)
+            }
+            SCPStatementType::Externalize => {
+                // can't have duplicate EXTERNALIZE statements
+                false
+            }
+        }
+    }
+}
+
+impl<N> SCPStatementPrepare<N>
+where
+    N: NominationValue,
+{
+    fn is_newer_than(&self, other: &Self) -> bool {
+        // Lexicographical order between PREPARE statements:
+        // (b, p, p', h)
+        if other.ballot < self.ballot {
+            true
+        } else if self.ballot == self.ballot {
+            if other.prepared < self.prepared {
+                true
+            } else if other.prepared == self.prepared {
+                if other.prepared_prime < self.prepared_prime {
+                    true
+                } else {
+                    other.num_high < self.num_high
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+}
+
+impl<N> SCPStatementConfirm<N>
+where
+    N: NominationValue,
+{
+    fn is_newer_than(&self, other: &Self) -> bool {
+        // sorted by (b, p, p', h) (p' = 0 implicitly)
+        if other.ballot < self.ballot {
+            true
+        } else if other.ballot == self.ballot {
+            if other.num_prepared == self.num_prepared {
+                other.num_high < self.num_high
+            } else {
+                other.num_prepared < self.num_prepared
+            }
+        } else {
+            false
+        }
+    }
 }
 
 impl<N> SCPStatementNominate<N>

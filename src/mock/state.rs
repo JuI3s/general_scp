@@ -88,7 +88,7 @@ impl MockStateDriver {
     fn get_or_create_slot(
         this: &Rc<RefCell<Self>>,
         slot_index: &SlotIndex,
-    ) -> Rc<RefCell<SlotDriver<MockState, MockStateDriver>>> {
+    ) -> Arc<SlotDriver<MockState, MockStateDriver>> {
         this.borrow_mut()
             .scp_driver
             .slots
@@ -152,7 +152,8 @@ impl HerderDriver<MockState> for MockStateDriver {
 
     fn recv_scp_envelope(this: &Rc<RefCell<Self>>, envelope: &SCPEnvelope<MockState>) {
         let slot = Self::get_or_create_slot(this, &envelope.slot_index);
-        slot.borrow_mut().recv_scp_envelvope(envelope);
+        // slot.
+        slot.recv_scp_envelvope(envelope);
     }
 }
 
@@ -337,5 +338,21 @@ mod tests {
     }
 
     #[test]
-    fn loopback_peer_nominate() {}
+    fn loopback_peer_nominate() {
+        let herder1 = create_test_herder(1);
+        let herder2 = create_test_herder(2);
+
+        let work_scheduler = Rc::new(RefCell::new(WorkScheduler::default()));
+        let connection = LoopbackPeerConnection::<MockState, MockStateDriver>::new(
+            &work_scheduler,
+            herder1,
+            herder2,
+        );
+
+        let value = Arc::new(MockState::random());
+        let prev_value = MockState::random();
+
+        todo!()
+        // Creating nomination envelope and pass to loopback peer.
+    }
 }

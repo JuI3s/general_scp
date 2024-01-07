@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     collections::hash_map::DefaultHasher,
     hash::{self, Hash, Hasher},
     ops::Deref,
@@ -47,8 +48,6 @@ where
 
     fn update_round_learders(&mut self);
 
-    fn get_json_info(&self);
-
     fn process_envelope(
         self: &Arc<Self>,
         state_handle: &HNominationProtocolState<N>,
@@ -74,8 +73,6 @@ pub type HLatestCompositeCandidateValue<N> = Arc<Mutex<Option<N>>>;
 pub type SCPNominationValueSet<N> = BTreeSet<HSCPNominationValue<N>>;
 
 pub type HNominationProtocolState<N> = Arc<Mutex<NominationProtocolState<N>>>;
-// TODO: double check these fields are correct
-// #[derive(WeakSelf)]
 pub struct NominationProtocolState<N>
 where
     N: NominationValue,
@@ -312,6 +309,7 @@ where
                 .insert(node_id.to_string(), envelope.clone());
         }
         // TODO: record statement
+        todo!()
     }
 
     fn set_state_from_envelope(&mut self, envelope: &HSCPEnvelope<N>) {
@@ -538,10 +536,6 @@ where
 
         let max_leader_count = &self.local_node.borrow().quorum_set;
 
-        todo!()
-    }
-
-    fn get_json_info(&self) {
         todo!()
     }
 

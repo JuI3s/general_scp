@@ -118,10 +118,36 @@ mod tests {
             }
         }
 
+        #[derive(Debug, PartialEq, Eq)]
+        struct C {
+            a: u64,
+            b: u64,
+        }
+
+        impl C {
+            pub fn new(a: u64, b: u64) -> Self {
+                Self { a: a, b: b }
+            }
+
+            pub fn modify(a: &mut u64, mut b: &mut u64) {
+                *a += 1;
+                *b += 1;
+            }
+
+            pub fn self_modify(&mut self) {
+                Self::modify(&mut self.a, &mut self.b);
+            }
+        }
+
         let a = A::new();
         A::get_b_to_say_hello(&a, 1);
         A::get_b_to_say_hello(&a, 2);
         A::get_b_to_say_hello(&a, 1);
+
+        let mut c = C::new(0, 1);
+        // C::modify(&mut c.a, &mut c.b);
+        c.self_modify();
+        assert_eq!(c, C::new(1, 2));
 
         assert_eq!(a.borrow().val, 3);
     }

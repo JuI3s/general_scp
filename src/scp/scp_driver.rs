@@ -217,7 +217,7 @@ where
         }
     }
 
-    pub fn recv_scp_envelvope(&mut self, envelope: &SCPEnvelope<N>) {
+    pub fn recv_scp_envelvope(self: &Arc<Self>, envelope: &SCPEnvelope<N>) {
         todo!()
     }
 

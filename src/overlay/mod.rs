@@ -1,3 +1,4 @@
+pub mod in_memory_peer;
 pub mod loopback_peer;
 pub mod message;
 pub mod outgate;

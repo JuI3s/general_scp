@@ -1,6 +1,6 @@
 use std::{
-    borrow::{BorrowMut, Cow},
     collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
+    env,
     hash::Hash,
     marker::PhantomData,
     sync::{Arc, Mutex},
@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     nomination_protocol::{HNominationProtocolState, NominationValue},
-    scp::NodeID,
+    scp::{EnvelopeState, NodeID},
     scp_driver::{HSCPEnvelope, HashValue, SCPEnvelope, SlotDriver},
     statement::{SCPStatement, SCPStatementConfirm, SCPStatementExternalize, SCPStatementPrepare},
 };
@@ -299,6 +299,28 @@ impl<N> BallotProtocolState<N>
 where
     N: NominationValue,
 {
+    pub fn send_latest_message(
+        &mut self,
+        slot_fully_validated: bool,
+        callback: impl FnOnce(&SCPEnvelope<N>),
+    ) {
+        if let Some(last_envelope) = self.last_envelope.as_ref() {
+            if self.current_message_level == 0 && slot_fully_validated {
+                if self.last_envelope_emitted.as_ref().is_some_and(|env| {
+                    env.lock()
+                        .unwrap()
+                        .eq(std::borrow::Borrow::borrow(&last_envelope.lock().unwrap()))
+                }) {
+                    return;
+                }
+                self.last_envelope_emitted = self.last_envelope.clone();
+                callback(std::borrow::Borrow::borrow(
+                    &self.last_envelope_emitted.as_ref().unwrap().lock().unwrap(),
+                ))
+            }
+        }
+    }
+
     // TODO: needs to figure out how it works....
     fn find_extended_interval(
         boundaries: &BTreeSet<u32>,
@@ -843,11 +865,20 @@ where
     }
 
     fn emit_current_state_statement(self: &Arc<Self>, state: &mut BallotProtocolState<N>) {
+        if !state.current_ballot.lock().unwrap().is_some() {
+            return;
+        }
+
         let statement =
             state.create_statement(self.local_node.borrow().get_quorum_set().hash_value());
-
-        let mut can_emit = state.current_ballot.lock().unwrap().is_some();
         let local_node_id = self.local_node.borrow().node_id.clone();
+        // TODO:
+        let envelope = SCPEnvelope::<N>::new(
+            statement,
+            local_node_id.to_owned(),
+            self.slot_index,
+            [0; 64],
+        );
 
         // if we generate the same envelope, don't process it again
         // this can occur when updating h in PREPARE phase
@@ -856,9 +887,25 @@ where
             .latest_envelopes
             .values()
             .find(|envelope| envelope.lock().unwrap().node_id == local_node_id)
-        {}
+        {
+            if last_envelope.lock().unwrap().eq(&envelope) {
+                // If the envelope is the same as the last emitted envelope, then return.
+                return;
+            }
 
-        todo!()
+            let _ = match self.process_envelope(state, &envelope) {
+                EnvelopeState::Valid => {
+                    // If last emitted envelope is newer than the envelope to
+                    // emit, then return.
+                    // if state.last_envelope.is_some_and(|env|
+                    // envelope.get_statement().
+                    // env.lock().unwrap().get_statement(). )
+                }
+                EnvelopeState::Invalid => {
+                    panic!("Bad state");
+                }
+            };
+        }
     }
 
     fn has_v_blocking_subset_strictly_ahead_of(
@@ -868,9 +915,11 @@ where
         counter: u32,
     ) -> bool {
         let local_node = self.local_node.borrow();
-        LocalNode::is_v_blocking_with_predicate(&local_node.quorum_set, envelopes, &|st| {
-            st.ballot_counter() > counter
-        })
+        LocalNode::is_v_blocking_with_predicate(
+            &self.local_node.borrow().quorum_set,
+            envelopes,
+            &|st| st.ballot_counter() > counter,
+        )
     }
 
     // This method abandons the current ballot and sets the state according to state
@@ -990,8 +1039,9 @@ where
         self: &Arc<Self>,
         state: &mut BallotProtocolState<N>,
         envelope: &SCPEnvelope<N>,
-    ) {
+    ) -> EnvelopeState {
         assert!(envelope.slot_index == self.slot_index);
+        todo!()
     }
 
     fn check_heard_from_quorum(self: &Arc<Self>, state: &mut BallotProtocolState<N>) {
