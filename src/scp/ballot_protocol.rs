@@ -3,6 +3,7 @@ use std::{
     env,
     hash::Hash,
     marker::PhantomData,
+    os::macos::raw::stat,
     sync::{Arc, Mutex},
 };
 
@@ -864,12 +865,36 @@ where
         if did_work {}
     }
 
+    fn maybe_send_latest_envelope(self: &Arc<Self>, state: &mut BallotProtocolState<N>) {
+        if state.current_message_level != 0 {
+            return;
+        }
+
+        if !self.fully_validated {
+            return;
+        }
+
+        if let Some(last_envelope) = &state.last_envelope {
+            if state.last_envelope_emitted.as_ref().is_some_and(|env| {
+                env.lock()
+                    .unwrap()
+                    .eq(std::borrow::Borrow::borrow(&last_envelope.lock().unwrap()))
+            }) {
+                return;
+            }
+            state.last_envelope_emitted = state.last_envelope.to_owned();
+            self.herder_driver
+                .borrow()
+                .emit_envelope(&last_envelope.lock().unwrap())
+        }
+    }
+
     fn emit_current_state_statement(self: &Arc<Self>, state: &mut BallotProtocolState<N>) {
         if !state.current_ballot.lock().unwrap().is_some() {
             return;
         }
 
-        let statement =
+        let statement: SCPStatement<N> =
             state.create_statement(self.local_node.borrow().get_quorum_set().hash_value());
         let local_node_id = self.local_node.borrow().node_id.clone();
         // TODO:
@@ -888,23 +913,26 @@ where
             .values()
             .find(|envelope| envelope.lock().unwrap().node_id == local_node_id)
         {
+            // If last emitted envelope is newer than the envelope to
+            // emit, then return.
             if last_envelope.lock().unwrap().eq(&envelope) {
                 // If the envelope is the same as the last emitted envelope, then return.
                 return;
             }
 
-            let _ = match self.process_envelope(state, &envelope) {
-                EnvelopeState::Valid => {
-                    // If last emitted envelope is newer than the envelope to
-                    // emit, then return.
-                    // if state.last_envelope.is_some_and(|env|
-                    // envelope.get_statement().
-                    // env.lock().unwrap().get_statement(). )
-                }
-                EnvelopeState::Invalid => {
-                    panic!("Bad state");
-                }
+            if !envelope
+                .get_statement()
+                .is_newer_than(last_envelope.lock().unwrap().get_statement())
+            {
+                return;
+            }
+
+            if self.process_envelope(state, &envelope) == EnvelopeState::Invalid {
+                panic!("Bad state");
             };
+
+            state.last_envelope = Some(envelope.into());
+            self.maybe_send_latest_envelope(state);
         }
     }
 

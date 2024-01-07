@@ -93,6 +93,15 @@ where
 
 impl<N> Blake2Hashable for SCPEnvelope<N> where N: NominationValue + Serialize {}
 
+impl<N> Into<Arc<Mutex<SCPEnvelope<N>>>> for SCPEnvelope<N>
+where
+    N: NominationValue,
+{
+    fn into(self) -> Arc<Mutex<SCPEnvelope<N>>> {
+        Mutex::new(self).into()
+    }
+}
+
 impl<N> SCPEnvelope<N>
 where
     N: NominationValue,
