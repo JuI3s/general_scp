@@ -42,7 +42,7 @@ where
         }
     }
 
-    fn is_statement_sane(&self) -> bool {
+    fn is_statement_sane(&self, from_self: bool) -> bool {
         match self {
             SCPStatement::Prepare(st) => {
                 // Statement from self is allowed to have b = 0 (as long as it never gets
@@ -1069,6 +1069,7 @@ where
         envelope: &SCPEnvelope<N>,
     ) -> EnvelopeState {
         assert!(envelope.slot_index == self.slot_index);
+
         todo!()
     }
 
@@ -1101,12 +1102,26 @@ where
                 if !old_heard_from_quorum {
                     // if we transition from not heard -> heard, we start the
                     // timer
-                    todo!()
+                    if state.phase != SCPPhase::PhaseExternalize {
+                        self.start_ballot_protocol_timer()
+                    }
+                }
+                if state.phase == SCPPhase::PhaseExternalize {
+                    self.stop_ballot_protocol_timer()
                 }
             } else {
                 state.heard_from_quorum = false;
+                self.stop_ballot_protocol_timer()
             }
         }
+    }
+
+    fn start_ballot_protocol_timer(self: &Arc<Self>) {
+        todo!()
+    }
+
+    fn stop_ballot_protocol_timer(self: &Arc<Self>) {
+        todo!()
     }
 }
 
