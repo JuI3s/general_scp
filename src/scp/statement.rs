@@ -56,7 +56,6 @@ where
     pub prepared_prime: Option<SCPBallot<N>>,
     pub num_commit: u32,
     pub num_high: u32,
-    pub from_self: bool,
 
     pub quorum_set: Option<QuorumSet>,
 }

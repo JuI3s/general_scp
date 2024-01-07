@@ -47,7 +47,7 @@ where
             SCPStatement::Prepare(st) => {
                 // Statement from self is allowed to have b = 0 (as long as it never gets
                 // emitted)
-                if !(st.from_self || st.ballot.counter > 0) {
+                if !(from_self || st.ballot.counter > 0) {
                     return false;
                 }
 
