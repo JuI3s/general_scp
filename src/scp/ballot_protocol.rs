@@ -10,6 +10,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    application::quorum::QuorumSet,
     herder::herder::HerderDriver,
     scp::{local_node::LocalNode, nomination_protocol::NominationProtocol, scp_driver::SCPDriver},
 };
@@ -673,7 +674,6 @@ where
                     prepared_prime: self.prepared_prime.lock().unwrap().clone(),
                     num_commit: num_commit,
                     num_high: num_high,
-                    from_self: true,
                     quorum_set: None,
                 })
             }
@@ -826,6 +826,25 @@ where
     H: HerderDriver<N> + 'static,
 {
     const MAXIMUM_ADVANCE_SLOT_RECURSION: u32 = 50;
+
+    fn is_quorum_set_sane(self: &Arc<Self>, quorum_set: &QuorumSet) -> bool {
+        true
+    }
+
+    fn is_statement_sane(self: &Arc<Self>, st: &SCPStatement<N>, from_self: bool) -> bool {
+        if !self
+            .herder_driver
+            .borrow()
+            .get_quorum_set(st)
+            .is_some_and(|qs| {
+                self.is_quorum_set_sane(std::borrow::Borrow::borrow(&qs.lock().unwrap()))
+            })
+        {
+            return false;
+        }
+
+        st.is_statement_sane(from_self)
+    }
 
     fn advance_slot(
         self: &Arc<Self>,
