@@ -1180,7 +1180,14 @@ where
 
         debug_assert_eq!(ballot_state.phase, SCPPhase::PhaseExternalize);
 
-        todo!()
+        let commit = ballot_state.commit.lock().unwrap();
+        debug_assert!(commit.is_some());
+
+        if commit.unwrap().value == st.working_ballot().value {
+            EnvelopeState::Valid
+        } else {
+            EnvelopeState::Invalid
+        }
     }
 
     fn check_heard_from_quorum(self: &Arc<Self>, state: &mut BallotProtocolState<N>) {
