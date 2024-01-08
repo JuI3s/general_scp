@@ -103,7 +103,6 @@ where
         SCPBallot {
             counter: self.num_high,
             value: self.ballot.value.clone(),
-            phantom: PhantomData,
         }
     }
 }
@@ -116,7 +115,6 @@ where
         SCPBallot {
             counter: self.num_high,
             value: self.ballot.value.clone(),
-            phantom: PhantomData,
         }
     }
 }
@@ -129,7 +127,6 @@ where
         SCPBallot {
             counter: self.num_high,
             value: self.commit.value.clone(),
-            phantom: PhantomData,
         }
     }
 }
@@ -143,15 +140,20 @@ where
 {
     pub counter: u32,
     pub value: N,
-    phantom: PhantomData<N>,
 }
 
 impl<N: NominationValue> SCPBallot<N> {
+    pub fn new(counter: u32, value: N) -> Self {
+        Self {
+            counter: counter,
+            value: value,
+        }
+    }
+
     pub fn make_ballot(other: &Self) -> Self {
         SCPBallot {
             counter: other.counter,
             value: other.value.clone(),
-            phantom: PhantomData,
         }
     }
 
@@ -173,12 +175,11 @@ impl<N: NominationValue> Default for SCPBallot<N> {
         Self {
             counter: Default::default(),
             value: Default::default(),
-            phantom: PhantomData,
         }
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum SCPPhase {
     PhasePrepare,
     PhaseConfirm,
@@ -428,19 +429,16 @@ where
                 hint_ballots.insert(SCPBallot {
                     counter: st.num_prepared,
                     value: st.ballot.value.clone(),
-                    phantom: PhantomData,
                 });
                 hint_ballots.insert(SCPBallot {
                     counter: std::u32::MAX,
                     value: st.ballot.value.clone(),
-                    phantom: PhantomData,
                 });
             }
             SCPStatement::Externalize(st) => {
                 hint_ballots.insert(SCPBallot {
                     counter: std::u32::MAX,
                     value: st.commit.value.clone(),
-                    phantom: PhantomData,
                 });
             }
             SCPStatement::Nominate(_) => {
@@ -481,7 +479,6 @@ where
                                 candidates.insert(SCPBallot {
                                     counter: st.num_prepared,
                                     value: top_vote.value.clone(),
-                                    phantom: PhantomData,
                                 });
                             }
                         }
@@ -835,7 +832,6 @@ where
             SCPStatement::Confirm(st) => ballot.less_and_compatible(&SCPBallot {
                 counter: st.num_prepared,
                 value: st.ballot.value.clone(),
-                phantom: PhantomData,
             }),
             SCPStatement::Externalize(st) => ballot.compatible(&st.commit),
             SCPStatement::Nominate(_) => {
@@ -1087,7 +1083,6 @@ where
         let mut new_ballot = SCPBallot {
             counter: n,
             value: value,
-            phantom: PhantomData,
         };
 
         let mut updated = self.update_current_value(state, &new_ballot);
@@ -1151,7 +1146,7 @@ where
 
     fn process_envelope(
         self: &Arc<Self>,
-        state: &mut BallotProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         envelope: &SCPEnvelope<N>,
         from_self: bool,
@@ -1165,7 +1160,7 @@ where
             return EnvelopeState::Invalid;
         }
 
-        if !state.is_newer_statement_for_node(node_ide, st) {
+        if !ballot_state.is_newer_statement_for_node(node_ide, st) {
             return EnvelopeState::Invalid;
         }
 
@@ -1175,11 +1170,15 @@ where
             return EnvelopeState::Invalid;
         }
 
-        if state.phase != SCPPhase::PhaseExternalize {
+        if ballot_state.phase != SCPPhase::PhaseExternalize {
             if validation_level != ValidationLevel::FullyValidated {
                 self.slot_state.borrow_mut().fully_validated = false;
             }
+            self.advance_slot(ballot_state, nomination_state, st);
+            return EnvelopeState::Valid;
         }
+
+        debug_assert_eq!(ballot_state.phase, SCPPhase::PhaseExternalize);
 
         todo!()
     }
@@ -1558,12 +1557,10 @@ where
                 let commit_ballot = SCPBallot {
                     counter: candidate.0,
                     value: ballot.value.clone(),
-                    phantom: PhantomData,
                 };
                 let high_ballot = SCPBallot {
                     counter: candidate.1,
                     value: ballot.value.clone(),
-                    phantom: PhantomData,
                 };
                 self.set_accept_commit(state, nomination_state, &commit_ballot, &high_ballot)
             } else {
@@ -1680,12 +1677,10 @@ where
             let commit_ballot = SCPBallot {
                 counter: candidate.0,
                 value: ballot.value.clone(),
-                phantom: PhantomData,
             };
             let high_ballot = SCPBallot {
                 counter: candidate.1,
                 value: ballot.value.clone(),
-                phantom: PhantomData,
             };
             self.set_confirm_commit(ballot_state, nomination_state, &commit_ballot, &high_ballot)
         } else {

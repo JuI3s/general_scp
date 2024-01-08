@@ -134,6 +134,20 @@ where
         }
     }
 
+    pub fn working_ballot(&self) -> SCPBallot<N> {
+        // TODO: not important but can return a COW?
+        match self {
+            SCPStatement::Prepare(st) => st.ballot.to_owned(),
+            SCPStatement::Confirm(st) => {
+                SCPBallot::<N>::new(st.num_commit.to_owned(), st.ballot.value.to_owned())
+            }
+            SCPStatement::Externalize(st) => st.commit.to_owned(),
+            SCPStatement::Nominate(st) => {
+                panic!("Nominate statement does not have a working ballot.")
+            }
+        }
+    }
+
     pub fn get_nomination_values(&self) -> HashSet<N> {
         // Called in the ballot protocol phase. Return nomination values in contained in
         // statement which is assumed to be not a nominate statement.
