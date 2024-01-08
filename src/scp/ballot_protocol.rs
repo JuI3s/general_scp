@@ -208,12 +208,14 @@ where
     fn attempt_accept_prepared(
         self: &Arc<Self>,
         state_handle: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
     ) -> bool;
     // prepared: ballot that should be prepared
     fn set_accept_prepared(
         self: &Arc<Self>,
         state_handle: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         ballot: &SCPBallot<N>,
     ) -> bool;
 
@@ -221,13 +223,15 @@ where
     // ballot is the candidate to record as 'confirmed prepared'
     fn attempt_confirm_prepared(
         self: &Arc<Self>,
-        state: &mut BallotProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
     ) -> bool;
     // newC, newH : low/high bounds prepared confirmed
     fn set_confirm_prepared(
         self: &Arc<Self>,
-        state_handle: &mut BallotProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         newC: &SCPBallot<N>,
         newH: &SCPBallot<N>,
     ) -> bool;
@@ -235,13 +239,15 @@ where
     // step (4 and 6)+8 from the SCP paper
     fn attempt_accept_commit(
         self: &Arc<Self>,
-        state_handle: &mut BallotProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
     ) -> bool;
     // new values for c and h
     fn set_accept_commit(
         self: &Arc<Self>,
-        state_handle: &mut BallotProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         c: &SCPBallot<N>,
         h: &SCPBallot<N>,
     ) -> bool;
@@ -249,20 +255,24 @@ where
     // step 7+8 from the SCP paper
     fn attempt_confirm_commit(
         self: &Arc<Self>,
-        nomination_state_handle: &mut NominationProtocolState<N>,
-        state_handle: &mut BallotProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
     ) -> bool;
     fn set_confirm_commit(
         self: &Arc<Self>,
-        ballot_state_handle: &mut BallotProtocolState<N>,
-        nomination_state_handle: &mut NominationProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         acceptCommitLow: &SCPBallot<N>,
         acceptCommitHigh: &SCPBallot<N>,
     ) -> bool;
 
     // step 9 from the SCP paper
-    fn attempt_bump(self: &Arc<Self>, state_handle: &mut BallotProtocolState<N>) -> bool;
+    fn attempt_bump(
+        self: &Arc<Self>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+    ) -> bool;
 }
 
 pub type HBallot<N> = Arc<Mutex<Option<SCPBallot<N>>>>;
@@ -895,28 +905,27 @@ where
 
     fn advance_slot(
         self: &Arc<Self>,
-        ballot_state_handle: &mut BallotProtocolState<N>,
-        nomination_state_handle: &mut NominationProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
     ) {
-        ballot_state_handle.message_level -= 1;
-        if ballot_state_handle.message_level >= SlotDriver::<N, H>::MAXIMUM_ADVANCE_SLOT_RECURSION {
+        ballot_state.message_level -= 1;
+        if ballot_state.message_level >= SlotDriver::<N, H>::MAXIMUM_ADVANCE_SLOT_RECURSION {
             panic!("maximum number of transitions reached in advance_slot");
         }
 
         let mut did_work = false;
 
-        did_work = self.attempt_accept_commit(ballot_state_handle, hint) || did_work;
-        did_work = self.attempt_confirm_prepared(ballot_state_handle, hint) || did_work;
-        did_work = self.attempt_accept_commit(ballot_state_handle, hint) || did_work;
-        did_work = self.attempt_confirm_commit(nomination_state_handle, ballot_state_handle, hint)
-            || did_work;
+        did_work = self.attempt_accept_commit(ballot_state, nomination_state, hint) || did_work;
+        did_work = self.attempt_confirm_prepared(ballot_state, nomination_state, hint) || did_work;
+        did_work = self.attempt_accept_commit(ballot_state, nomination_state, hint) || did_work;
+        did_work = self.attempt_confirm_commit(ballot_state, nomination_state, hint) || did_work;
 
         // only bump after we're done with everything else
-        if ballot_state_handle.message_level == 1 {
+        if ballot_state.message_level == 1 {
             let mut did_bump = false;
             loop {
-                did_bump = self.attempt_bump(ballot_state_handle);
+                did_bump = self.attempt_bump(ballot_state, nomination_state);
                 did_work = did_bump || did_work;
                 if !did_bump {
                     break;
@@ -924,7 +933,7 @@ where
             }
         }
 
-        ballot_state_handle.message_level -= 1;
+        ballot_state.message_level -= 1;
 
         if did_work {}
     }
@@ -953,7 +962,11 @@ where
         }
     }
 
-    fn emit_current_state_statement(self: &Arc<Self>, state: &mut BallotProtocolState<N>) {
+    fn emit_current_state_statement(
+        self: &Arc<Self>,
+        state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+    ) {
         if !state.current_ballot.lock().unwrap().is_some() {
             return;
         }
@@ -991,7 +1004,9 @@ where
                 return;
             }
 
-            if self.process_envelope(state, &envelope, true) == EnvelopeState::Invalid {
+            if self.process_envelope(state, nomination_state, &envelope, true)
+                == EnvelopeState::Invalid
+            {
                 panic!("Bad state");
             };
 
@@ -1016,13 +1031,18 @@ where
 
     // This method abandons the current ballot and sets the state according to state
     // counter n.
-    fn abandon_ballot(self: &Arc<Self>, state: &mut BallotProtocolState<N>, n: u32) -> bool {
+    fn abandon_ballot(
+        self: &Arc<Self>,
+        state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+        n: u32,
+    ) -> bool {
         match self.get_latest_composite_value().lock().unwrap().as_ref() {
             Some(value) => {
                 if n == 0 {
-                    self.bump_state(state, value, true)
+                    self.bump_state(state, nomination_state, value, true)
                 } else {
-                    self.bump_state_with_counter(state, value, n)
+                    self.bump_state_with_counter(state, nomination_state, value, n)
                 }
             }
             None => false,
@@ -1032,6 +1052,7 @@ where
     pub fn bump_state(
         self: &Arc<Self>,
         state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         nomination_value: &N,
         force: bool,
     ) -> bool {
@@ -1043,13 +1064,14 @@ where
             } else {
                 1
             };
-            self.bump_state_with_counter(state, nomination_value, n)
+            self.bump_state_with_counter(state, nomination_state, nomination_value, n)
         }
     }
 
     fn bump_state_with_counter(
         self: &Arc<Self>,
         state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         nomination_value: &N,
         n: u32,
     ) -> bool {
@@ -1071,7 +1093,7 @@ where
         let mut updated = self.update_current_value(state, &new_ballot);
 
         if updated {
-            self.emit_current_state_statement(state);
+            self.emit_current_state_statement(state, nomination_state);
             self.check_heard_from_quorum(state);
         }
 
@@ -1130,6 +1152,7 @@ where
     fn process_envelope(
         self: &Arc<Self>,
         state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         envelope: &SCPEnvelope<N>,
         from_self: bool,
     ) -> EnvelopeState {
@@ -1221,6 +1244,7 @@ where
     fn attempt_accept_prepared(
         self: &Arc<Self>,
         state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
     ) -> bool {
         if state.phase != SCPPhase::PhasePrepare && state.phase != SCPPhase::PhaseConfirm {
@@ -1285,7 +1309,7 @@ where
                 |st| BallotProtocolUtils::has_prepared_ballot(&candidate, st),
                 &state.latest_envelopes,
             ) {
-                return self.set_accept_prepared(state, &candidate);
+                return self.set_accept_prepared(state, nomination_state, &candidate);
             }
         }
         false
@@ -1294,6 +1318,7 @@ where
     fn set_accept_prepared(
         self: &Arc<Self>,
         state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         ballot: &SCPBallot<N>,
     ) -> bool {
         let mut did_work = state.set_prepared(ballot);
@@ -1312,7 +1337,7 @@ where
         }
         if did_work {
             self.accepted_ballot_prepared(&self.slot_index, ballot);
-            self.emit_current_state_statement(state);
+            self.emit_current_state_statement(state, nomination_state);
         }
         did_work
     }
@@ -1320,6 +1345,7 @@ where
     fn attempt_confirm_prepared(
         self: &Arc<Self>,
         state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
     ) -> bool {
         if state.phase != SCPPhase::PhasePrepare {
@@ -1388,7 +1414,7 @@ where
                         }
                     }
                 }
-                return self.set_confirm_prepared(state, &new_commit, new_high);
+                return self.set_confirm_prepared(state, nomination_state, &new_commit, new_high);
             }
             false
         } else {
@@ -1399,6 +1425,7 @@ where
     fn set_confirm_prepared(
         self: &Arc<Self>,
         state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         new_commit: &SCPBallot<N>,
         new_high: &SCPBallot<N>,
     ) -> bool {
@@ -1432,7 +1459,7 @@ where
         did_work = did_work || state.update_current_if_needed(new_high);
 
         if did_work {
-            self.emit_current_state_statement(state);
+            self.emit_current_state_statement(state, nomination_state);
         }
 
         did_work
@@ -1441,6 +1468,7 @@ where
     fn attempt_accept_commit(
         self: &Arc<Self>,
         state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
     ) -> bool {
         if state.phase != SCPPhase::PhasePrepare && state.phase != SCPPhase::PhaseConfirm {
@@ -1537,7 +1565,7 @@ where
                     value: ballot.value.clone(),
                     phantom: PhantomData,
                 };
-                self.set_accept_commit(state, &commit_ballot, &high_ballot)
+                self.set_accept_commit(state, nomination_state, &commit_ballot, &high_ballot)
             } else {
                 false
             }
@@ -1549,6 +1577,7 @@ where
     fn set_accept_commit(
         self: &Arc<Self>,
         state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         commit: &SCPBallot<N>,
         high: &SCPBallot<N>,
     ) -> bool {
@@ -1594,7 +1623,7 @@ where
         if did_work {
             state.update_current_if_needed(high);
             self.accepted_commit(&self.slot_index, high);
-            self.emit_current_state_statement(state);
+            self.emit_current_state_statement(state, nomination_state);
         }
 
         did_work
@@ -1602,15 +1631,17 @@ where
 
     fn attempt_confirm_commit(
         self: &Arc<Self>,
-        nomination_state_handle: &mut NominationProtocolState<N>,
-        state: &mut BallotProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
     ) -> bool {
-        if state.phase != SCPPhase::PhaseConfirm {
+        if ballot_state.phase != SCPPhase::PhaseConfirm {
             return false;
         }
 
-        if state.high_ballot.lock().unwrap().is_none() || state.commit.lock().unwrap().is_none() {
+        if ballot_state.high_ballot.lock().unwrap().is_none()
+            || ballot_state.commit.lock().unwrap().is_none()
+        {
             return false;
         }
 
@@ -1625,7 +1656,7 @@ where
             }
         };
 
-        if !state
+        if !ballot_state
             .commit
             .lock()
             .unwrap()
@@ -1636,12 +1667,12 @@ where
             return false;
         }
 
-        let boundaries = state.get_commit_boundaries_from_statements(&ballot);
+        let boundaries = ballot_state.get_commit_boundaries_from_statements(&ballot);
         let mut candidate: Interval = (0, 0);
         let predicate = |cur: &Interval| {
             self.federated_ratify(
                 |statement| BallotProtocolUtils::commit_predicate(&ballot, cur, statement),
-                &state.latest_envelopes,
+                &ballot_state.latest_envelopes,
             )
         };
 
@@ -1656,7 +1687,7 @@ where
                 value: ballot.value.clone(),
                 phantom: PhantomData,
             };
-            self.set_confirm_commit(state, nomination_state_handle, &commit_ballot, &high_ballot)
+            self.set_confirm_commit(ballot_state, nomination_state, &commit_ballot, &high_ballot)
         } else {
             false
         }
@@ -1675,7 +1706,7 @@ where
 
         state.phase = SCPPhase::PhaseExternalize;
 
-        self.emit_current_state_statement(state);
+        self.emit_current_state_statement(state, nomination_state);
 
         self.stop_nomination(nomination_state);
 
@@ -1703,7 +1734,11 @@ where
     //   threshold may include ballots from SCPCommit messages as well as
     //   SCPExternalize messages, which implicitly have an infinite ballot
     //   counter.
-    fn attempt_bump(self: &Arc<Self>, state: &mut BallotProtocolState<N>) -> bool {
+    fn attempt_bump(
+        self: &Arc<Self>,
+        state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+    ) -> bool {
         if state.phase == SCPPhase::PhasePrepare || state.phase == SCPPhase::PhaseConfirm {
             let local_counter = match state.current_ballot.lock().unwrap().as_ref() {
                 Some(local_ballot) => local_ballot.counter,
@@ -1732,7 +1767,7 @@ where
             // order, starting from the smallest.
             for counter in all_counters {
                 if !self.has_v_blocking_subset_strictly_ahead_of(&state.latest_envelopes, counter) {
-                    return self.abandon_ballot(state, counter);
+                    return self.abandon_ballot(state, nomination_state, counter);
                 }
             }
 
