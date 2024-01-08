@@ -675,6 +675,7 @@ where
                     num_commit: num_commit,
                     num_high: num_high,
                     quorum_set: None,
+                    node_id: "".into(),
                 })
             }
             SCPPhase::PhaseConfirm => SCPStatement::Confirm(SCPStatementConfirm {
@@ -711,6 +712,7 @@ where
                     .counter
                     .clone(),
                 quorum_set: None,
+                node_id: "".into(),
             }),
             SCPPhase::PhaseExternalize => SCPStatement::Externalize(SCPStatementExternalize {
                 commit_quorum_set_hash: local_quorum_set_hash,
@@ -730,6 +732,7 @@ where
                     .counter
                     .clone(),
                 commit_quorum_set: None,
+                node_id: "".into(),
             }),
         }
     }
@@ -946,7 +949,7 @@ where
                 return;
             }
 
-            if self.process_envelope(state, &envelope) == EnvelopeState::Invalid {
+            if self.process_envelope(state, &envelope, true) == EnvelopeState::Invalid {
                 panic!("Bad state");
             };
 
@@ -1086,8 +1089,16 @@ where
         self: &Arc<Self>,
         state: &mut BallotProtocolState<N>,
         envelope: &SCPEnvelope<N>,
+        from_self: bool,
     ) -> EnvelopeState {
         assert!(envelope.slot_index == self.slot_index);
+
+        let st = envelope.get_statement();
+        let node_ide = st.node_id();
+
+        if !self.is_statement_sane(st, from_self) {
+            return EnvelopeState::Invalid;
+        }
 
         todo!()
     }

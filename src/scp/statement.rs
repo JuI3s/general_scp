@@ -7,6 +7,7 @@ use crate::application::quorum::QuorumSet;
 use super::{
     ballot_protocol::SCPBallot,
     nomination_protocol::{NominationProtocol, NominationValue, SCPNominationValue},
+    scp::NodeID,
     scp_driver::HashValue,
 };
 
@@ -36,6 +37,7 @@ pub struct SCPStatementNominate<N>
 where
     N: NominationValue,
 {
+    pub node_id: NodeID,
     #[serde(with = "serde_bytes")]
     pub quorum_set_hash: HashValue,
     pub votes: Vec<N>,
@@ -49,6 +51,7 @@ pub struct SCPStatementPrepare<N>
 where
     N: NominationValue,
 {
+    pub node_id: NodeID,
     #[serde(with = "serde_bytes")]
     pub quorum_set_hash: HashValue,
     pub ballot: SCPBallot<N>,
@@ -64,6 +67,7 @@ pub struct SCPStatementConfirm<N>
 where
     N: NominationValue,
 {
+    pub node_id: NodeID,
     #[serde(with = "serde_bytes")]
     pub quorum_set_hash: HashValue,
     pub ballot: SCPBallot<N>,
@@ -79,6 +83,7 @@ pub struct SCPStatementExternalize<N>
 where
     N: NominationValue,
 {
+    pub node_id: NodeID,
     #[serde(with = "serde_bytes")]
     pub commit_quorum_set_hash: HashValue,
     pub commit: SCPBallot<N>,
@@ -108,6 +113,15 @@ impl<N> SCPStatement<N>
 where
     N: NominationValue,
 {
+    pub fn node_id(&self) -> &NodeID {
+        match self {
+            SCPStatement::Prepare(st) => &st.node_id,
+            SCPStatement::Confirm(st) => &st.node_id,
+            SCPStatement::Externalize(st) => &st.node_id,
+            SCPStatement::Nominate(st) => &st.node_id,
+        }
+    }
+
     pub fn statement_type(&self) -> SCPStatementType {
         match self {
             SCPStatement::Nominate(_) => SCPStatementType::Nominate,
@@ -242,6 +256,7 @@ where
             votes: Default::default(),
             accepted: Default::default(),
             quorum_set: None,
+            node_id: "".into(),
         }
     }
 
