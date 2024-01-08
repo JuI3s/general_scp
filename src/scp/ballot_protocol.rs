@@ -190,7 +190,12 @@ pub trait BallotProtocol<N>
 where
     N: NominationValue,
 {
-    fn advance_slot(self: &Arc<Self>, state: &HNominationProtocolState<N>, hint: &SCPStatement<N>);
+    fn advance_slot(
+        self: &Arc<Self>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+        hint: &SCPStatement<N>,
+    );
 
     // `attempt*` methods are called by `advanceSlot` internally call the
     //  the `set*` methods.
@@ -897,41 +902,6 @@ where
         }
 
         st.is_statement_sane(from_self)
-    }
-
-    fn advance_slot(
-        self: &Arc<Self>,
-        ballot_state: &mut BallotProtocolState<N>,
-        nomination_state: &mut NominationProtocolState<N>,
-        hint: &SCPStatement<N>,
-    ) {
-        ballot_state.message_level -= 1;
-        if ballot_state.message_level >= SlotDriver::<N, H>::MAXIMUM_ADVANCE_SLOT_RECURSION {
-            panic!("maximum number of transitions reached in advance_slot");
-        }
-
-        let mut did_work = false;
-
-        did_work = self.attempt_accept_commit(ballot_state, nomination_state, hint) || did_work;
-        did_work = self.attempt_confirm_prepared(ballot_state, nomination_state, hint) || did_work;
-        did_work = self.attempt_accept_commit(ballot_state, nomination_state, hint) || did_work;
-        did_work = self.attempt_confirm_commit(ballot_state, nomination_state, hint) || did_work;
-
-        // only bump after we're done with everything else
-        if ballot_state.message_level == 1 {
-            let mut did_bump = false;
-            loop {
-                did_bump = self.attempt_bump(ballot_state, nomination_state);
-                did_work = did_bump || did_work;
-                if !did_bump {
-                    break;
-                }
-            }
-        }
-
-        ballot_state.message_level -= 1;
-
-        if did_work {}
     }
 
     fn maybe_send_latest_envelope(self: &Arc<Self>, state: &mut BallotProtocolState<N>) {
@@ -1780,7 +1750,40 @@ where
         }
     }
 
-    fn advance_slot(self: &Arc<Self>, state: &HNominationProtocolState<N>, hint: &SCPStatement<N>) {
-        todo!()
+    fn advance_slot(
+        self: &Arc<Self>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+        hint: &SCPStatement<N>,
+    ) {
+        ballot_state.message_level -= 1;
+        if ballot_state.message_level >= SlotDriver::<N, H>::MAXIMUM_ADVANCE_SLOT_RECURSION {
+            panic!("maximum number of transitions reached in advance_slot");
+        }
+
+        let mut did_work = false;
+
+        did_work = self.attempt_accept_commit(ballot_state, nomination_state, hint) || did_work;
+        did_work = self.attempt_confirm_prepared(ballot_state, nomination_state, hint) || did_work;
+        did_work = self.attempt_accept_commit(ballot_state, nomination_state, hint) || did_work;
+        did_work = self.attempt_confirm_commit(ballot_state, nomination_state, hint) || did_work;
+
+        // only bump after we're done with everything else
+        if ballot_state.message_level == 1 {
+            let mut did_bump = false;
+            loop {
+                did_bump = self.attempt_bump(ballot_state, nomination_state);
+                did_work = did_bump || did_work;
+                if !did_bump {
+                    break;
+                }
+            }
+        }
+
+        ballot_state.message_level -= 1;
+
+        if did_work {
+            todo!()
+        }
     }
 }
