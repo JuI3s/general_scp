@@ -44,6 +44,7 @@ pub enum EnvelopeState {
     Valid,
 }
 
+#[derive(PartialEq, Eq)]
 pub enum ValidationLevel {
     Invalid,
     MaybeValid,
@@ -62,8 +63,21 @@ where
     nomination_state_handle: HNominationProtocolState<N>,
     ballot_state_handle: HBallotProtocolState<N>,
     pub herder_driver: Rc<RefCell<H>>,
+    pub slot_state: RefCell<SlotState>,
+}
+
+pub struct SlotState {
     pub fully_validated: bool,
     pub got_v_blocking: bool,
+}
+
+impl Default for SlotState {
+    fn default() -> Self {
+        Self {
+            fully_validated: Default::default(),
+            got_v_blocking: Default::default(),
+        }
+    }
 }
 
 impl<N, H> Into<Rc<RefCell<SlotDriver<N, H>>>> for SlotDriver<N, H>
@@ -140,7 +154,7 @@ where
                 num_commit: 0,
                 num_high: 0,
                 quorum_set: None,
-                node_id,
+                node_id: node_id.to_owned(),
             }),
             node_id: node_id,
             slot_index: 0,
@@ -158,7 +172,7 @@ where
                 num_commit: 0,
                 num_high: 0,
                 quorum_set: None,
-                node_id,
+                node_id: node_id.to_owned(),
             }),
             node_id: node_id,
             slot_index: 0,
@@ -221,8 +235,7 @@ where
             nomination_state_handle: nomination_state_handle,
             ballot_state_handle: ballot_state_handle,
             herder_driver: herder_driver,
-            fully_validated: true,
-            got_v_blocking: false,
+            slot_state: Default::default(),
         }
     }
 
@@ -341,7 +354,7 @@ where
         // Called when we process an envelope or set state from an envelope and maybe we
         // hear from a v-blocking set for the first time.
 
-        if self.got_v_blocking {
+        if self.slot_state.borrow().got_v_blocking {
             return;
         }
 
@@ -358,7 +371,7 @@ where
         });
 
         if LocalNode::<N>::is_v_blocking(&local_node.quorum_set, &nodes) {
-            self.got_v_blocking = true;
+            self.slot_state.borrow_mut().got_v_blocking = true;
         }
     }
 }

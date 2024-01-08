@@ -405,7 +405,7 @@ where
                 }
 
                 nomination_state.latest_envelope = Some(env.clone());
-                if self.fully_validated {
+                if self.slot_state.borrow().fully_validated {
                     self.herder_driver
                         .borrow()
                         .emit_envelope(&env.lock().unwrap());

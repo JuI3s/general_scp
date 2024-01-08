@@ -18,7 +18,7 @@ use crate::{
 use super::{
     nomination_protocol::{HNominationProtocolState, NominationValue},
     scp::{EnvelopeState, NodeID},
-    scp_driver::{HSCPEnvelope, HashValue, SCPEnvelope, SlotDriver},
+    scp_driver::{HSCPEnvelope, HashValue, SCPEnvelope, SlotDriver, ValidationLevel},
     statement::{SCPStatement, SCPStatementConfirm, SCPStatementExternalize, SCPStatementPrepare},
 };
 
@@ -141,8 +141,8 @@ pub struct SCPBallot<N>
 where
     N: NominationValue,
 {
-    counter: u32,
-    value: N,
+    pub counter: u32,
+    pub value: N,
     phantom: PhantomData<N>,
 }
 
@@ -301,6 +301,18 @@ impl<N> BallotProtocolState<N>
 where
     N: NominationValue,
 {
+    fn is_newer_statement_for_node(&self, node_id: &NodeID, st: &SCPStatement<N>) -> bool {
+        if self
+            .latest_envelopes
+            .get(node_id)
+            .is_some_and(|latest_st| latest_st.lock().unwrap().get_statement().is_newer_than(st))
+        {
+            false
+        } else {
+            true
+        }
+    }
+
     pub fn send_latest_message(
         &mut self,
         slot_fully_validated: bool,
@@ -830,6 +842,38 @@ where
 {
     const MAXIMUM_ADVANCE_SLOT_RECURSION: u32 = 50;
 
+    fn validate_values(self: &Arc<Self>, st: &SCPStatement<N>) -> ValidationLevel {
+        // Helper function for validating that the statement contains valid values.
+        // First get all nomination values from the statement, then call the herder
+        // validation function on each value. Return valid if all values are
+        // valid.
+
+        let values = st.get_nomination_values();
+        if values.is_empty() {
+            // This shouldn't happen.
+            return ValidationLevel::Invalid;
+        }
+
+        let mut contains_maybe_valid = false;
+
+        for value in &values {
+            let res = self.herder_driver.borrow().validate_value(value, false);
+            if res == ValidationLevel::Invalid {
+                return ValidationLevel::Invalid;
+            }
+
+            if res == ValidationLevel::MaybeValid && !contains_maybe_valid {
+                contains_maybe_valid = true;
+            }
+        }
+
+        if contains_maybe_valid {
+            ValidationLevel::MaybeValid
+        } else {
+            ValidationLevel::FullyValidated
+        }
+    }
+
     fn is_quorum_set_sane(self: &Arc<Self>, quorum_set: &QuorumSet) -> bool {
         true
     }
@@ -892,7 +936,7 @@ where
             return;
         }
 
-        if !self.fully_validated {
+        if !self.slot_state.borrow().fully_validated {
             return;
         }
 
@@ -1098,6 +1142,22 @@ where
 
         if !self.is_statement_sane(st, from_self) {
             return EnvelopeState::Invalid;
+        }
+
+        if !state.is_newer_statement_for_node(node_ide, st) {
+            return EnvelopeState::Invalid;
+        }
+
+        let validation_level = self.validate_values(st);
+
+        if validation_level == ValidationLevel::Invalid {
+            return EnvelopeState::Invalid;
+        }
+
+        if state.phase != SCPPhase::PhaseExternalize {
+            if validation_level != ValidationLevel::FullyValidated {
+                self.slot_state.borrow_mut().fully_validated = false;
+            }
         }
 
         todo!()

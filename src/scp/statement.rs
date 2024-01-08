@@ -1,11 +1,14 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashSet,
+    sync::{Arc, Mutex},
+};
 
 use serde::{Deserialize, Serialize};
 
 use crate::application::quorum::QuorumSet;
 
 use super::{
-    ballot_protocol::SCPBallot,
+    ballot_protocol::{SCPBallot, ToBallot},
     nomination_protocol::{NominationProtocol, NominationValue, SCPNominationValue},
     scp::NodeID,
     scp_driver::HashValue,
@@ -129,6 +132,40 @@ where
             SCPStatement::Confirm(_) => SCPStatementType::Confirm,
             SCPStatement::Externalize(_) => SCPStatementType::Externalize,
         }
+    }
+
+    pub fn get_nomination_values(&self) -> HashSet<N> {
+        // Called in the ballot protocol phase. Return nomination values in contained in
+        // statement which is assumed to be not a nominate statement.
+
+        let mut ret = HashSet::new();
+
+        match self {
+            SCPStatement::Prepare(st) => {
+                let ballot = &st.ballot;
+
+                if ballot.counter != 0 {
+                    ret.insert(ballot.value.to_owned());
+                }
+
+                if let Some(prepared) = &st.prepared {
+                    ret.insert(prepared.value.to_owned());
+                }
+
+                if let Some(prepared_prime) = &st.prepared_prime {
+                    ret.insert(prepared_prime.value.to_owned());
+                }
+            }
+            SCPStatement::Confirm(st) => {
+                ret.insert(st.ballot.value.to_owned());
+            }
+            SCPStatement::Externalize(st) => {
+                ret.insert(st.commit.value.to_owned());
+            }
+            SCPStatement::Nominate(st) => {}
+        }
+
+        ret
     }
 
     fn as_nominate_statement(&self) -> &SCPStatementNominate<N> {
