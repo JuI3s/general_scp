@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     env,
     os::fd::RawFd,
     rc::Rc,
@@ -16,7 +16,7 @@ use syn::token::Mut;
 use crate::{
     application::{
         quorum::{QuorumSet, QuorumSetHash},
-        work_queue::{self, ClockEvent, WorkScheduler},
+        work_queue::{self, ClockEvent, HClockEvent, WorkScheduler},
     },
     crypto::types::{test_default_blake2, Blake2Hashable},
     herder::herder::HerderDriver,
@@ -66,9 +66,16 @@ where
     pub slot_state: RefCell<SlotState>,
 }
 
+#[derive(PartialEq, Eq, Hash)]
+pub enum SlotStateTimer {
+    BallotProtocol,
+    NominationProtocol,
+}
+
 pub struct SlotState {
     pub fully_validated: bool,
     pub got_v_blocking: bool,
+    pub ballot_timer: HashMap<SlotStateTimer, HClockEvent>,
 }
 
 impl Default for SlotState {
@@ -76,7 +83,21 @@ impl Default for SlotState {
         Self {
             fully_validated: Default::default(),
             got_v_blocking: Default::default(),
+            ballot_timer: Default::default(),
         }
+    }
+}
+
+impl SlotState {
+    pub fn restart_timer(&mut self, timer_type: SlotStateTimer, event: HClockEvent) {
+        debug_assert!(event.borrow().is_some());
+
+        // cancel old event
+        if let Some(old_timer) = self.ballot_timer.get(&timer_type) {
+            old_timer.replace(None);
+        }
+
+        self.ballot_timer.insert(timer_type, event);
     }
 }
 
