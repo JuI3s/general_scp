@@ -66,11 +66,10 @@ impl Peer {
                 }
             };
         });
-        let clock_event = ClockEvent {
-            timestamp: SystemTime::now(),
-            callback: callback,
-        };
-        work_queue.add_task(clock_event);
+
+        let timestamp = SystemTime::now();
+        let clock_event = ClockEvent::new(timestamp, callback);
+        work_queue.add_task(&timestamp, clock_event.into());
     }
 }
 
@@ -100,11 +99,10 @@ impl State {
                 }
             };
         });
-        let clock_event = ClockEvent {
-            timestamp: SystemTime::now(),
-            callback: callback,
-        };
-        work_queue.add_task(clock_event);
+
+        let timestamp = SystemTime::now();
+        let clock_event = ClockEvent::new(timestamp.to_owned(), callback);
+        work_queue.add_task(&timestamp, clock_event.into());
     }
 
     pub fn to_callback<'a>(&'a mut self) -> impl FnMut() + 'a {

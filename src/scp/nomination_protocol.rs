@@ -513,9 +513,10 @@ where
             None => todo!(),
         };
 
-        let clock_event =
-            ClockEvent::new(SystemTime::now() + timeout, Box::new(re_nominate_callback));
-        self.scheduler.post_clock_event(clock_event);
+        let timestamp = SystemTime::now() + timeout;
+        let clock_event = ClockEvent::new(timestamp.to_owned(), Box::new(re_nominate_callback));
+        self.scheduler
+            .post_clock_event(&timestamp, clock_event.into());
 
         if updated {
             println!("Updated");

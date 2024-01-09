@@ -1,4 +1,5 @@
 use std::{
+    borrow::BorrowMut,
     collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
     env,
     hash::Hash,
@@ -1153,20 +1154,20 @@ where
         let commit = ballot_state.commit.lock().unwrap();
         debug_assert!(commit.is_some());
 
-        if commit.unwrap().value == st.working_ballot().value {
+        if commit.as_ref().unwrap().value == st.working_ballot().value {
             EnvelopeState::Valid
         } else {
             EnvelopeState::Invalid
         }
     }
 
-    fn check_heard_from_quorum(self: &Arc<Self>, state: &mut BallotProtocolState<N>) {
+    fn check_heard_from_quorum(self: &Arc<Self>, ballot_state: &mut BallotProtocolState<N>) {
         // this method is safe to call regardless of the transitions of the
         // other nodes on the network: we guarantee that other nodes can only
         // transition to higher counters (messages are ignored upstream)
         // therefore the local node will not flip flop between "seen" and "not
         // seen" for a given counter on the local node
-        if let Some(current_ballot) = state.current_ballot.lock().unwrap().as_ref() {
+        if let Some(current_ballot) = ballot_state.current_ballot.lock().unwrap().as_ref() {
             let heard_predicate = |statement: &SCPStatement<N>| match statement {
                 SCPStatement::Prepare(st) => current_ballot.counter <= st.ballot.counter,
                 SCPStatement::Confirm(_) => true,
@@ -1181,33 +1182,54 @@ where
                     &self.local_node.borrow().quorum_set,
                     &self.local_node.borrow().node_id,
                 )),
-                &state.latest_envelopes,
+                &ballot_state.latest_envelopes,
                 |st| self.herder_driver.borrow().get_quorum_set(st),
             ) {
-                let old_heard_from_quorum = state.heard_from_quorum;
-                state.heard_from_quorum = true;
+                let old_heard_from_quorum = ballot_state.heard_from_quorum;
+                ballot_state.heard_from_quorum = true;
                 if !old_heard_from_quorum {
                     // if we transition from not heard -> heard, we start the
                     // timer
-                    if state.phase != SCPPhase::PhaseExternalize {
-                        self.start_ballot_protocol_timer()
+                    if ballot_state.phase != SCPPhase::PhaseExternalize {
+                        self.start_ballot_protocol_timer(&ballot_state)
                     }
                 }
-                if state.phase == SCPPhase::PhaseExternalize {
-                    self.stop_ballot_protocol_timer()
+                if ballot_state.phase == SCPPhase::PhaseExternalize {
+                    self.stop_ballot_protocol_timer(&ballot_state)
                 }
             } else {
-                state.heard_from_quorum = false;
-                self.stop_ballot_protocol_timer()
+                ballot_state.heard_from_quorum = false;
+                self.stop_ballot_protocol_timer(&ballot_state)
             }
         }
     }
 
-    fn start_ballot_protocol_timer(self: &Arc<Self>) {
+    fn ballot_protocol_expired(self: &Arc<Self>) {
+        // TODO: this does not cause deadlock issues?
+        self.abandon_ballot(
+            self.ballot_state().lock().unwrap().borrow_mut(),
+            self.nomination_state().lock().unwrap().borrow_mut(),
+            0,
+        );
+    }
+
+    fn start_ballot_protocol_timer(self: &Arc<Self>, ballot_state: &BallotProtocolState<N>) {
+        let timeout = self.herder_driver.borrow().compute_timeout(
+            ballot_state
+                .current_ballot
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .counter
+                .to_owned()
+                .into(),
+        );
+
         todo!()
     }
 
-    fn stop_ballot_protocol_timer(self: &Arc<Self>) {
+    fn stop_ballot_protocol_timer(self: &Arc<Self>, ballot_state: &BallotProtocolState<N>) {
         todo!()
     }
 }

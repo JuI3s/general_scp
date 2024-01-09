@@ -14,9 +14,16 @@ use super::clock::{HVirtualClock, VirtualClock};
 
 pub type Callback = Box<dyn FnOnce()>;
 
+pub type HClockEvent = Rc<RefCell<Option<ClockEvent>>>;
 pub struct ClockEvent {
     pub timestamp: SystemTime,
     pub callback: Callback,
+}
+
+impl Into<HClockEvent> for ClockEvent {
+    fn into(self) -> HClockEvent {
+        RefCell::new(self.into()).into()
+    }
 }
 
 impl ClockEvent {
@@ -25,6 +32,10 @@ impl ClockEvent {
             timestamp: timestamp,
             callback: callback,
         }
+    }
+
+    pub fn to_handle(self) -> HClockEvent {
+        self.into()
     }
 }
 
@@ -71,8 +82,10 @@ impl WorkScheduler {
         // self.main_thread_queue.borrow_mut().execute_tasks()
     }
 
-    pub fn post_clock_event(&self, clock_event: ClockEvent) {
-        self.event_queue.borrow_mut().add_task(clock_event)
+    pub fn post_clock_event(&self, timestamp: &SystemTime, clock_event: HClockEvent) {
+        self.event_queue
+            .borrow_mut()
+            .add_task(timestamp, clock_event)
     }
 }
 
@@ -118,7 +131,7 @@ impl MainWorkQueue {
 
 pub struct EventQueue {
     clock: HVirtualClock,
-    tasks: BTreeMap<SystemTime, Vec<Callback>>,
+    tasks: BTreeMap<SystemTime, Vec<HClockEvent>>,
 }
 
 impl Into<Rc<RefCell<EventQueue>>> for EventQueue {
@@ -135,11 +148,11 @@ impl EventQueue {
         }
     }
 
-    pub fn add_task(&mut self, event: ClockEvent) -> () {
-        if let Some(callbacks) = self.tasks.get_mut(&event.timestamp) {
-            callbacks.push(event.callback);
+    pub fn add_task(&mut self, timestamp: &SystemTime, event: HClockEvent) -> () {
+        if let Some(callbacks) = self.tasks.get_mut(&timestamp) {
+            callbacks.push(event);
         } else {
-            self.tasks.insert(event.timestamp, vec![event.callback]);
+            self.tasks.insert(*timestamp, vec![event]);
         }
         // self.tasks.push_back(callback);
     }
@@ -159,9 +172,11 @@ impl EventQueue {
         }
 
         for ts in elapsed_timestamps {
-            let callbacks: Vec<Box<dyn FnOnce()>> = self.tasks.remove(&ts).unwrap();
+            let callbacks = self.tasks.remove(&ts).unwrap();
             for cb in callbacks {
-                cb();
+                if let Some(event) = cb.replace(None) {
+                    (event.callback)();
+                }
             }
         }
     }

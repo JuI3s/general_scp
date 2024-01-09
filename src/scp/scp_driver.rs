@@ -254,6 +254,7 @@ where
     pub fn bump_state_(self: &Arc<Self>, nomination_value: &N, force: bool) -> bool {
         self.bump_state(
             &mut self.ballot_state_handle.lock().unwrap(),
+            &mut self.nomination_state().lock().unwrap(),
             nomination_value,
             force,
         )
