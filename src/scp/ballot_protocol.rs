@@ -6,14 +6,19 @@ use std::{
     marker::PhantomData,
     os::macos::raw::stat,
     sync::{Arc, Mutex},
+    time::SystemTime,
 };
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    application::quorum::QuorumSet,
+    application::{quorum::QuorumSet, work_queue::ClockEvent},
     herder::herder::HerderDriver,
-    scp::{local_node::LocalNode, nomination_protocol::NominationProtocol, scp_driver::SCPDriver},
+    scp::{
+        local_node::LocalNode,
+        nomination_protocol::NominationProtocol,
+        scp_driver::{SCPDriver, SlotStateTimer},
+    },
 };
 
 use super::{
@@ -1226,7 +1231,22 @@ where
                 .into(),
         );
 
-        todo!()
+        let weak = Arc::downgrade(&self);
+        let callback = move || {
+            if let Some(this) = weak.upgrade() {
+                this.abandon_ballot(
+                    this.ballot_state().lock().unwrap().borrow_mut(),
+                    this.nomination_state().lock().unwrap().borrow_mut(),
+                    0,
+                );
+            }
+        };
+
+        // Restart ballot protocol after timeout.
+        let event = ClockEvent::new(SystemTime::now() + timeout, Box::new(callback));
+        self.slot_state
+            .borrow_mut()
+            .restart_timer(SlotStateTimer::BallotProtocol, event.into());
     }
 
     fn stop_ballot_protocol_timer(self: &Arc<Self>, ballot_state: &BallotProtocolState<N>) {
