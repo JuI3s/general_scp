@@ -29,7 +29,9 @@ use crate::{
 
 use super::{
     scp::{EnvelopeState, NodeID},
-    scp_driver::{HSCPEnvelope, SCPDriver, SCPEnvelope, SlotDriver, ValidationLevel},
+    scp_driver::{
+        HSCPEnvelope, SCPDriver, SCPEnvelope, SlotDriver, SlotStateTimer, ValidationLevel,
+    },
     slot::{Slot, SlotIndex},
     statement::{SCPStatement, SCPStatementNominate},
 };
@@ -308,8 +310,9 @@ where
             self.latest_nominations
                 .insert(node_id.to_string(), envelope.clone());
         }
+
         // TODO: record statement
-        todo!()
+        // I think it's not needed for SCP - just some routine bookkeeping.
     }
 
     fn set_state_from_envelope(&mut self, envelope: &HSCPEnvelope<N>) {
@@ -508,15 +511,16 @@ where
                 Some(state) => {
                     slot_driver.nominate(state, value_copy, &prev_value_copy);
                 }
-                None => todo!(),
+                None => {}
             },
-            None => todo!(),
+            None => {}
         };
 
         let timestamp = SystemTime::now() + timeout;
         let clock_event = ClockEvent::new(timestamp.to_owned(), Box::new(re_nominate_callback));
-        self.scheduler
-            .post_clock_event(&timestamp, clock_event.into());
+        self.slot_state
+            .borrow_mut()
+            .restart_timer(SlotStateTimer::NominationProtocol, clock_event.into());
 
         if updated {
             println!("Updated");
@@ -601,15 +605,24 @@ where
                 if state.candidates.contains(value) {
                     return false;
                 }
+
                 if self.federated_ratify(
                     |st| Self::accept_predicate(value, st),
                     &state.latest_nominations,
                 ) {
                     state.candidates.insert(Arc::new(value.clone()));
-                    todo!();
-                    // Stop timer.
+
+                    // Stop the timer, as there's no need to continue nominating,
+                    // per the whitepaper:
+                    // "As soon as `v` has a candidate value, however, it must cease
+                    // voting to nominate `x` for any new values `x`"
+                    self.slot_state
+                        .borrow_mut()
+                        .stop_timer(&SlotStateTimer::NominationProtocol);
+
                     return true;
                 }
+
                 false
             });
 

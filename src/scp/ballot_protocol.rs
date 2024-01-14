@@ -1250,7 +1250,9 @@ where
     }
 
     fn stop_ballot_protocol_timer(self: &Arc<Self>, ballot_state: &BallotProtocolState<N>) {
-        self.slot_state.borrow_mut().stop_timer(&SlotStateTimer::BallotProtocol)        
+        self.slot_state
+            .borrow_mut()
+            .stop_timer(&SlotStateTimer::BallotProtocol)
     }
 }
 
