@@ -89,13 +89,17 @@ impl Default for SlotState {
 }
 
 impl SlotState {
+    pub fn stop_timer(&mut self, timer_type: &SlotStateTimer) {
+        if let Some(old_timer) = self.ballot_timer.get(timer_type) {
+            old_timer.replace(None);
+        }
+    }
+
     pub fn restart_timer(&mut self, timer_type: SlotStateTimer, event: HClockEvent) {
         debug_assert!(event.borrow().is_some());
 
-        // cancel old event
-        if let Some(old_timer) = self.ballot_timer.get(&timer_type) {
-            old_timer.replace(None);
-        }
+        // cancel old eventp
+        self.stop_timer(&timer_type);
 
         self.ballot_timer.insert(timer_type, event);
     }

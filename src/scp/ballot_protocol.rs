@@ -1250,7 +1250,7 @@ where
     }
 
     fn stop_ballot_protocol_timer(self: &Arc<Self>, ballot_state: &BallotProtocolState<N>) {
-        todo!()
+        self.slot_state.borrow_mut().stop_timer(&SlotStateTimer::BallotProtocol)        
     }
 }
 
@@ -1825,7 +1825,7 @@ where
         ballot_state.message_level -= 1;
 
         if did_work {
-            todo!()
+            self.maybe_send_latest_envelope(ballot_state);
         }
     }
 }
