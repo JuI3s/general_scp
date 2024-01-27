@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, ops::Deref, rc::Rc};
 
 use crate::{
     application::work_queue::WorkScheduler,
@@ -15,52 +15,6 @@ pub struct MockHerder {
     pub scheduler: WorkScheduler,
 }
 
-impl MockHerder {
-    fn new_slot(
-        this: &Rc<RefCell<Self>>,
-        slot_index: SlotIndex,
-    ) -> SlotDriver<MockState, MockHerder> {
-        SlotDriver::<MockState, MockHerder>::new(
-            slot_index,
-            this.borrow().local_node.clone(),
-            this.borrow().scheduler.clone(),
-            Default::default(),
-            Default::default(),
-            this.clone(),
-        )
-    }
-}
-
-impl HerderDriver<MockState> for MockHerder {
-    fn combine_candidates(
-        &self,
-        candidates: &std::collections::BTreeSet<std::sync::Arc<MockState>>,
-    ) -> Option<MockState> {
-        todo!()
-    }
-
-    fn emit_envelope(&self, envelope: &crate::scp::scp_driver::SCPEnvelope<MockState>) {}
-
-    fn extract_valid_value(&self, value: &MockState) -> Option<MockState> {
-        Some(value.to_owned())
-    }
-
-    fn get_quorum_set(
-        &self,
-        statement: &crate::scp::statement::SCPStatement<MockState>,
-    ) -> Option<crate::application::quorum::HQuorumSet> {
-        todo!()
-    }
-
-    fn recv_scp_envelope(
-        this: &Rc<RefCell<Self>>,
-        envelope: &crate::scp::scp_driver::SCPEnvelope<MockState>,
-    ) {
-        todo!()
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
