@@ -196,6 +196,14 @@ pub trait BallotProtocol<N>
 where
     N: NominationValue,
 {
+    fn process_ballot_envelope(
+        self: &Arc<Self>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+        envelope: &SCPEnvelope<N>,
+        from_self: bool,
+    ) -> EnvelopeState;
+
     fn advance_slot(
         self: &Arc<Self>,
         ballot_state: &mut BallotProtocolState<N>,
@@ -976,7 +984,7 @@ where
                 return;
             }
 
-            if self.process_envelope(state, nomination_state, &envelope, true)
+            if self.process_ballot_envelope(state, nomination_state, &envelope, true)
                 == EnvelopeState::Invalid
             {
                 panic!("Bad state");
@@ -1120,52 +1128,6 @@ where
         updated
     }
 
-    fn process_envelope(
-        self: &Arc<Self>,
-        ballot_state: &mut BallotProtocolState<N>,
-        nomination_state: &mut NominationProtocolState<N>,
-        envelope: &SCPEnvelope<N>,
-        from_self: bool,
-    ) -> EnvelopeState {
-        assert!(envelope.slot_index == self.slot_index);
-
-        let st = envelope.get_statement();
-        let node_ide = st.node_id();
-
-        if !self.is_statement_sane(st, from_self) {
-            return EnvelopeState::Invalid;
-        }
-
-        if !ballot_state.is_newer_statement_for_node(node_ide, st) {
-            return EnvelopeState::Invalid;
-        }
-
-        let validation_level = self.validate_values(st);
-
-        if validation_level == ValidationLevel::Invalid {
-            return EnvelopeState::Invalid;
-        }
-
-        if ballot_state.phase != SCPPhase::PhaseExternalize {
-            if validation_level != ValidationLevel::FullyValidated {
-                self.slot_state.borrow_mut().fully_validated = false;
-            }
-            self.advance_slot(ballot_state, nomination_state, st);
-            return EnvelopeState::Valid;
-        }
-
-        debug_assert_eq!(ballot_state.phase, SCPPhase::PhaseExternalize);
-
-        let commit = ballot_state.commit.lock().unwrap();
-        debug_assert!(commit.is_some());
-
-        if commit.as_ref().unwrap().value == st.working_ballot().value {
-            EnvelopeState::Valid
-        } else {
-            EnvelopeState::Invalid
-        }
-    }
-
     fn check_heard_from_quorum(self: &Arc<Self>, ballot_state: &mut BallotProtocolState<N>) {
         // this method is safe to call regardless of the transitions of the
         // other nodes on the network: we guarantee that other nodes can only
@@ -1261,6 +1223,52 @@ where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
 {
+    fn process_ballot_envelope(
+        self: &Arc<Self>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+        envelope: &SCPEnvelope<N>,
+        from_self: bool,
+    ) -> EnvelopeState {
+        assert!(envelope.slot_index == self.slot_index);
+
+        let st = envelope.get_statement();
+        let node_ide = st.node_id();
+
+        if !self.is_statement_sane(st, from_self) {
+            return EnvelopeState::Invalid;
+        }
+
+        if !ballot_state.is_newer_statement_for_node(node_ide, st) {
+            return EnvelopeState::Invalid;
+        }
+
+        let validation_level = self.validate_values(st);
+
+        if validation_level == ValidationLevel::Invalid {
+            return EnvelopeState::Invalid;
+        }
+
+        if ballot_state.phase != SCPPhase::PhaseExternalize {
+            if validation_level != ValidationLevel::FullyValidated {
+                self.slot_state.borrow_mut().fully_validated = false;
+            }
+            self.advance_slot(ballot_state, nomination_state, st);
+            return EnvelopeState::Valid;
+        }
+
+        debug_assert_eq!(ballot_state.phase, SCPPhase::PhaseExternalize);
+
+        let commit = ballot_state.commit.lock().unwrap();
+        debug_assert!(commit.is_some());
+
+        if commit.as_ref().unwrap().value == st.working_ballot().value {
+            EnvelopeState::Valid
+        } else {
+            EnvelopeState::Invalid
+        }
+    }
+
     fn attempt_accept_prepared(
         self: &Arc<Self>,
         state: &mut BallotProtocolState<N>,

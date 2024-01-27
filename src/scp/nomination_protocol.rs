@@ -50,7 +50,7 @@ where
 
     fn update_round_learders(&mut self);
 
-    fn process_envelope(
+    fn process_nominationo_envelope(
         self: &Arc<Self>,
         state_handle: &HNominationProtocolState<N>,
         envelope: &HSCPEnvelope<N>,
@@ -378,7 +378,7 @@ where
         let env = self.create_envelope(st).to_handle();
 
         // Process the envelope. This may triggers more envelops being emitted.
-        match self.process_envelope(&self.nomination_state(), &env) {
+        match self.process_nominationo_envelope(&self.nomination_state(), &env) {
             EnvelopeState::Valid => {
                 let mut nomination_state = self.nomination_state().lock().unwrap();
                 if !nomination_state
@@ -544,7 +544,7 @@ where
         todo!()
     }
 
-    fn process_envelope(
+    fn process_nominationo_envelope(
         self: &Arc<Self>,
         state_handle: &HNominationProtocolState<N>,
         envelope: &HSCPEnvelope<N>,

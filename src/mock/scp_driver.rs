@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, env, rc::Rc, sync::Arc};
 
 use serde_derive::{Deserialize, Serialize};
 
@@ -21,6 +21,15 @@ impl Default for MockSCPDriver {
     fn default() -> Self {
         Self {
             slots: Default::default(),
+        }
+    }
+}
+
+impl MockSCPDriver {
+    fn recv_scp_message(mut self, envelope: &SCPEnvelope<MockState>) {
+        let slot = envelope.slot_index;
+        if let Some(slot_driver) = self.slots.get(&slot) {
+            slot_driver.recv_scp_envelvope(envelope)
         }
     }
 }

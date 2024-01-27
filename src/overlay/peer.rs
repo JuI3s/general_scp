@@ -165,6 +165,10 @@ where
         self.send_message(&SCPMessage::Hello(envelope))
     }
 
+    fn send_scp_msg(&mut self, envelope: SCPEnvelope<N>) {
+        self.send_message(&SCPMessage::SCP(envelope))
+    }
+
     fn recv_message(&mut self, msg: &SCPMessage<N>) {
         // if msg.is_boardcast_msg() {
         //     self.overlay_manager()

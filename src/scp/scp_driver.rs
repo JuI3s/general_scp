@@ -21,7 +21,7 @@ use crate::{
     crypto::types::{test_default_blake2, Blake2Hashable},
     herder::herder::HerderDriver,
     overlay::overlay_manager::OverlayManager,
-    scp::ballot_protocol::SCPPhase,
+    scp::{ballot_protocol::SCPPhase, nomination_protocol::NominationProtocol},
     utils::weak_self::WeakSelf,
 };
 
@@ -265,15 +265,30 @@ where
     }
 
     pub fn recv_scp_envelvope(self: &Arc<Self>, envelope: &SCPEnvelope<N>) {
-        todo!()
+        match envelope.get_statement() {
+            SCPStatement::Prepare(_) | SCPStatement::Confirm(_) | SCPStatement::Externalize(_) => {
+                let mut ballot_state = self.ballot_state().lock().unwrap();
+                let mut nomination_state = self.nomination_state().lock().unwrap();
+                self.process_ballot_envelope(
+                    &mut ballot_state,
+                    &mut nomination_state,
+                    envelope,
+                    true,
+                );
+            }
+            SCPStatement::Nominate(st) => {
+                let new_envelope: Arc<Mutex<SCPEnvelope<N>>> = envelope.clone().into();
+                self.process_nominationo_envelope(&self.nomination_state_handle, &new_envelope);
+            }
+        };
     }
 
     pub fn nomination_state(&self) -> &HNominationProtocolState<N> {
         &self.nomination_state_handle
     }
 
-    pub fn ballot_state(&self) -> HBallotProtocolState<N> {
-        self.ballot_state().clone()
+    pub fn ballot_state(&self) -> &HBallotProtocolState<N> {
+        &self.ballot_state_handle
     }
 
     pub fn bump_state_(self: &Arc<Self>, nomination_value: &N, force: bool) -> bool {
@@ -299,7 +314,7 @@ where
         accepted_predicate: impl Fn(&SCPStatement<N>) -> bool,
         envelopes: &BTreeMap<NodeID, HSCPEnvelope<N>>,
     ) -> bool {
-        if LocalNode::is_v_blocking_with_predicate(
+        if LocalNode::<N>::is_v_blocking_with_predicate(
             self.local_node.borrow().get_quorum_set(),
             envelopes,
             &accepted_predicate,
