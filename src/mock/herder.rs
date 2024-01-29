@@ -9,11 +9,6 @@ use crate::{
 
 use super::{scp_driver::MockSCPDriver, state::MockState};
 
-pub struct MockHerder {
-    pub scp_driver: MockSCPDriver,
-    pub local_node: HLocalNode<MockState>,
-    pub scheduler: WorkScheduler,
-}
 
 mod tests {
     use std::collections::HashMap;

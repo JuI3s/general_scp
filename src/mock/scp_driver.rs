@@ -9,7 +9,6 @@ use crate::scp::{
 };
 
 use super::{
-    herder::MockHerder,
     state::{MockState, MockStateDriver},
 };
 pub struct MockSCPDriver {
