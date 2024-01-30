@@ -9,11 +9,7 @@ use std::{
 use crate::{
     application::work_queue::{ClockEvent, EventQueue},
     herder::herder::HerderDriver,
-    scp::{
-        nomination_protocol::NominationValue,
-        scp::{EnvelopeState, NodeID},
-        scp_driver::{HSCPEnvelope, SCPEnvelope},
-    },
+    scp::{envelope::SCPEnvelope, nomination_protocol::NominationValue, scp::NodeID},
 };
 
 use super::{

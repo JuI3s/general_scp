@@ -27,6 +27,7 @@ use crate::{
 
 use super::{
     ballot_protocol::{BallotProtocol, BallotProtocolState, HBallotProtocolState, SCPBallot},
+    envelope::SCPEnvelope,
     local_node::{HLocalNode, LocalNode},
     nomination_protocol::{
         HLatestCompositeCandidateValue, HNominationProtocolState, HSCPNominationValue,
@@ -116,19 +117,6 @@ where
 }
 
 pub type HSCPEnvelope<N> = Arc<Mutex<SCPEnvelope<N>>>;
-
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SCPEnvelope<N>
-where
-    N: NominationValue,
-{
-    pub statement: SCPStatement<N>,
-    pub node_id: NodeID,
-    pub slot_index: SlotIndex,
-
-    #[serde(with = "serde_bytes")]
-    pub signature: HashValue,
-}
 
 impl<N> Blake2Hashable for SCPEnvelope<N> where N: NominationValue + Serialize {}
 

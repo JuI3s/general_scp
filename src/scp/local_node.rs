@@ -225,8 +225,7 @@ mod tests {
     use crate::{
         application::quorum::QuorumNode,
         scp::{
-            nomination_protocol::SCPNominationValue,
-            scp_driver::{HashValue, SCPEnvelope},
+            envelope::SCPEnvelope, nomination_protocol::SCPNominationValue, scp_driver::HashValue,
         },
     };
 

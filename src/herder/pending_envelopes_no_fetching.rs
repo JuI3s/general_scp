@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     application::quorum::QuorumSet,
-    scp::{nomination_protocol::NominationValue, scp_driver::SCPEnvelope, slot::SlotIndex},
+    scp::{envelope::SCPEnvelope, nomination_protocol::NominationValue, slot::SlotIndex},
 };
 
 use super::{herder::HerderEnvelopeStatus, pending_envelope_manager::PendingEnvelopeManager};

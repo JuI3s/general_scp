@@ -13,9 +13,7 @@ use crate::{
     application::work_queue::{HWorkScheduler, WorkScheduler},
     crypto::types::{Blake2Hash, Blake2Hashable},
     herder::herder::HerderDriver,
-    scp::{
-        nomination_protocol::NominationValue, scp::NodeID, scp_driver::SCPEnvelope, slot::SlotIndex,
-    },
+    scp::{nomination_protocol::NominationValue, scp::NodeID, slot::SlotIndex},
 };
 
 use super::{

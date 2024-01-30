@@ -9,9 +9,10 @@ use crate::{
     herder::herder::HerderDriver,
     scp::{
         ballot_protocol::HBallotProtocolState,
+        envelope::SCPEnvelope,
         local_node::{self, HLocalNode},
         nomination_protocol::{HNominationProtocolState, NominationProtocol, NominationValue},
-        scp_driver::{HashValue, SCPEnvelope, SlotDriver},
+        scp_driver::{HashValue, SlotDriver},
         scp_driver_builder::SlotDriverBuilder,
         slot::SlotIndex,
         statement::{MakeStatement, SCPStatementNominate},
@@ -121,7 +122,7 @@ impl HerderDriver<MockState> for MockStateDriver {
         Some(state)
     }
 
-    fn emit_envelope(&self, envelope: &crate::scp::scp_driver::SCPEnvelope<MockState>) {}
+    fn emit_envelope(&self, envelope: &SCPEnvelope<MockState>) {}
 
     fn extract_valid_value(&self, value: &MockState) -> Option<MockState> {
         Some(value.clone())

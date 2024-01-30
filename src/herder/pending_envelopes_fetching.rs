@@ -10,9 +10,9 @@ use crate::{
     application::quorum::{QuorumSet, QuorumSetHash},
     crypto::types::{Blake2Hash, Blake2Hashable, Blake2Hasher},
     scp::{
+        envelope::SCPEnvelope,
         nomination_protocol::NominationValue,
         scp::EnvelopeState,
-        scp_driver::SCPEnvelope,
         slot::{self, SlotIndex},
     },
 };

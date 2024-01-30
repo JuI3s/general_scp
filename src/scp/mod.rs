@@ -1,4 +1,5 @@
 pub mod ballot_protocol;
+pub mod envelope;
 pub mod local_node;
 pub mod local_node_builder;
 pub mod nomination_protocol;

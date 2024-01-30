@@ -10,8 +10,9 @@ use std::{
 use crate::{
     application::quorum::HQuorumSet,
     scp::{
+        envelope::SCPEnvelope,
         nomination_protocol::{NominationValue, SCPNominationValue, SCPNominationValueSet},
-        scp_driver::{HashValue, SCPEnvelope, ValidationLevel},
+        scp_driver::{HashValue, ValidationLevel},
         slot::SlotIndex,
         statement::{HSCPStatement, SCPStatement},
     },

@@ -22,9 +22,10 @@ use crate::{
 };
 
 use super::{
+    envelope::SCPEnvelope,
     nomination_protocol::{HNominationProtocolState, NominationProtocolState, NominationValue},
     scp::{EnvelopeState, NodeID},
-    scp_driver::{HSCPEnvelope, HashValue, SCPEnvelope, SlotDriver, ValidationLevel},
+    scp_driver::{HSCPEnvelope, HashValue, SlotDriver, ValidationLevel},
     statement::{SCPStatement, SCPStatementConfirm, SCPStatementExternalize, SCPStatementPrepare},
 };
 

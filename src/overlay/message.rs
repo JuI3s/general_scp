@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use crate::{
     crypto::types::Blake2Hashable,
-    scp::{nomination_protocol::NominationValue, scp_driver::SCPEnvelope},
+    scp::{envelope::SCPEnvelope, nomination_protocol::NominationValue},
 };
 
 #[derive(Clone, Serialize)]

@@ -3,8 +3,7 @@ use std::{cell::RefCell, collections::HashMap, env, rc::Rc, sync::Arc};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::scp::{
-    nomination_protocol::NominationValue,
-    scp_driver::{SCPEnvelope, SlotDriver},
+    envelope::SCPEnvelope, nomination_protocol::NominationValue, scp_driver::SlotDriver,
     slot::SlotIndex,
 };
 
