@@ -5,6 +5,13 @@ use super::{
     statement::SCPStatement,
 };
 
+pub trait MakeEnvelope<N>
+where
+    N: NominationValue,
+{
+    fn new_nomination_envelope(&self, slot_index: usize) -> SCPEnvelope<N>;
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SCPEnvelope<N>
 where

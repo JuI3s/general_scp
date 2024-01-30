@@ -2,7 +2,7 @@ use crate::{
     herder::herder::HerderDriver,
     mock::state::{MockState, MockStateDriver},
     overlay::message::SCPMessage,
-    scp::statement::MakeStatement,
+    scp::{envelope::MakeEnvelope, statement::MakeStatement},
 };
 
 use std::{
@@ -22,6 +22,14 @@ impl MakeStatement<MockState> for LoopbackPeer<MockState, MockStateDriver> {
     }
 }
 
+impl MakeEnvelope<MockState> for LoopbackPeer<MockState, MockStateDriver> {
+    fn new_nomination_envelope(
+        &self,
+        slot_index: usize,
+    ) -> crate::scp::envelope::SCPEnvelope<MockState> {
+        self.herder.borrow().new_nomination_envelope(slot_index)
+    }
+}
 pub struct LoopbackPeer<N, H>
 where
     N: NominationValue,

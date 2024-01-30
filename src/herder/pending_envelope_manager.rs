@@ -1,4 +1,3 @@
-
 use crate::{
     application::quorum::QuorumSet,
     scp::{envelope::SCPEnvelope, nomination_protocol::NominationValue, slot::SlotIndex},

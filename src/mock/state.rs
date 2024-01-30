@@ -8,8 +8,9 @@ use crate::{
     crypto::types::Blake2Hashable,
     herder::herder::HerderDriver,
     scp::{
+        self,
         ballot_protocol::HBallotProtocolState,
-        envelope::SCPEnvelope,
+        envelope::{MakeEnvelope, SCPEnvelope},
         local_node::{self, HLocalNode},
         nomination_protocol::{HNominationProtocolState, NominationProtocol, NominationValue},
         scp_driver::{HashValue, SlotDriver},
@@ -69,6 +70,18 @@ impl MakeStatement<MockState> for MockStateDriver {
     }
 }
 
+impl MakeEnvelope<MockState> for MockStateDriver {
+    fn new_nomination_envelope(&self, slot_index: usize) -> SCPEnvelope<MockState> {
+        let statement = self.new_nominate_statement();
+        SCPEnvelope::<MockState>::new(
+            scp::statement::SCPStatement::Nominate(statement),
+            self.local_node.borrow().node_id.clone(),
+            slot_index.try_into().unwrap(),
+            self.signature_for_testing(),
+        )
+    }
+}
+
 impl MockStateDriver {
     pub fn new(local_node: HLocalNode<MockState>, schedular: WorkScheduler) -> Rc<RefCell<Self>> {
         Self {
@@ -78,6 +91,10 @@ impl MockStateDriver {
             scheduler: schedular,
         }
         .into()
+    }
+
+    fn signature_for_testing(&self) -> [u8; 64] {
+        [0; 64]
     }
 
     pub fn new_slot(
@@ -362,6 +379,8 @@ mod tests {
 
         // Make a nomination statement.
         let nominate_statement = connection.initiator.borrow().new_nominate_statement();
+
+        let envelope = connection.initiator.borrow().new_nomination_envelope(0);
 
         todo!()
 
