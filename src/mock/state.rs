@@ -14,6 +14,7 @@ use crate::{
         scp_driver::{HashValue, SCPEnvelope, SlotDriver},
         scp_driver_builder::SlotDriverBuilder,
         slot::SlotIndex,
+        statement::{MakeStatement, SCPStatementNominate},
     },
 };
 
@@ -58,6 +59,12 @@ pub struct MockStateDriver {
 impl Into<Rc<RefCell<MockStateDriver>>> for MockStateDriver {
     fn into(self) -> Rc<RefCell<MockStateDriver>> {
         RefCell::new(self).into()
+    }
+}
+
+impl MakeStatement<MockState> for MockStateDriver {
+    fn new_nominate_statement(&self) -> crate::scp::statement::SCPStatementNominate<MockState> {
+        SCPStatementNominate::<MockState>::new(&self.local_node.borrow().quorum_set)
     }
 }
 
@@ -353,6 +360,8 @@ mod tests {
         let prev_value = MockState::random();
 
         todo!()
+
+        // connection.initiator.borrow_mut().send_scp_msg(envelope);
         // Creating nomination envelope and pass to loopback peer.
     }
 }

@@ -9,7 +9,6 @@ use crate::{
 
 use super::{scp_driver::MockSCPDriver, state::MockState};
 
-
 mod tests {
     use std::collections::HashMap;
 

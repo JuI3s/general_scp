@@ -8,9 +8,7 @@ use crate::scp::{
     slot::SlotIndex,
 };
 
-use super::{
-    state::{MockState, MockStateDriver},
-};
+use super::state::{MockState, MockStateDriver};
 pub struct MockSCPDriver {
     pub slots: HashMap<SlotIndex, Arc<SlotDriver<MockState, MockStateDriver>>>,
     // pub slots: HashMap<SlotIndex, Rc<RefCell<SlotDriver<MockState, MockStateDriver>>>>,

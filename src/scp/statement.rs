@@ -16,6 +16,18 @@ use super::{
 
 pub type HSCPStatement<N> = Arc<Mutex<SCPStatement<N>>>;
 
+pub trait MakeStatement<N>
+where
+    N: NominationValue,
+{
+    // The struct implementing this trait is responsible for passing the relevant
+    // bookkeeping information to make a new scp statement, e.g. local node id,
+    // quorum set or quorum set hash, etc.
+
+    // Make a new scp nominate statement with empty votes and accepts fields.
+    fn new_nominate_statement(&self) -> SCPStatementNominate<N>;
+}
+
 #[derive(PartialEq, Eq, Ord)]
 pub enum SCPStatementType {
     Nominate,
