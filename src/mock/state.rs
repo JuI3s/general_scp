@@ -382,6 +382,8 @@ mod tests {
 
         let envelope = connection.initiator.borrow().new_nomination_envelope(0);
 
+        connection.initiator.borrow_mut().send_scp_msg(envelope);
+
         todo!()
 
         // connection.initiator.borrow_mut().send_scp_msg(envelope);
