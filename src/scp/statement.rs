@@ -318,7 +318,7 @@ where
             quorum_set_hash: quorum_set.hash_value(),
             votes: Default::default(),
             accepted: Default::default(),
-            quorum_set: None,
+            quorum_set: Some(quorum_set.clone()),
             node_id: "".into(),
         }
     }
