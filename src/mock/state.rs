@@ -359,6 +359,9 @@ mod tests {
         let value = Arc::new(MockState::random());
         let prev_value = MockState::random();
 
+        // Make a nomination statement.
+        let nominate_statement = connection.initiator.borrow().new_nominate_statement();
+
         todo!()
 
         // connection.initiator.borrow_mut().send_scp_msg(envelope);

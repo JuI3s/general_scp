@@ -1,4 +1,9 @@
-use crate::{herder::herder::HerderDriver, overlay::message::SCPMessage};
+use crate::{
+    herder::herder::HerderDriver,
+    mock::state::{MockState, MockStateDriver},
+    overlay::message::SCPMessage,
+    scp::statement::MakeStatement,
+};
 
 use std::{
     cell::{Ref, RefCell},
@@ -10,6 +15,12 @@ use std::{
 use crate::{application::work_queue::HWorkScheduler, scp::nomination_protocol::NominationValue};
 
 use super::peer::{SCPPeer, SCPPeerState};
+
+impl MakeStatement<MockState> for LoopbackPeer<MockState, MockStateDriver> {
+    fn new_nominate_statement(&self) -> crate::scp::statement::SCPStatementNominate<MockState> {
+        self.herder.borrow().new_nominate_statement()
+    }
+}
 
 pub struct LoopbackPeer<N, H>
 where
