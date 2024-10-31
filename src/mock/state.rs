@@ -396,10 +396,6 @@ mod tests {
         println!("{:?}", envelope);
         connection.initiator.borrow_mut().send_scp_msg(envelope);
 
-        let bt = Backtrace::new();
-
-        LoopbackPeer::process_in_queue(&connection.acceptor);
-
         // println!("{:?}", bt);
 
         // connection.initiator.borrow_mut().send_scp_msg(envelope);
