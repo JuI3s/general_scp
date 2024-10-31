@@ -253,6 +253,7 @@ where
     }
 
     pub fn recv_scp_envelvope(self: &Arc<Self>, envelope: &SCPEnvelope<N>) {
+        println!("Received an envelope {:?}", envelope);
         match envelope.get_statement() {
             SCPStatement::Prepare(_) | SCPStatement::Confirm(_) | SCPStatement::Externalize(_) => {
                 let mut ballot_state = self.ballot_state().lock().unwrap();

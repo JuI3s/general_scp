@@ -36,7 +36,7 @@ pub enum SCPStatementType {
     Externalize,
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum SCPStatement<N>
 where
     N: NominationValue,
@@ -47,7 +47,7 @@ where
     Nominate(SCPStatementNominate<N>),
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct SCPStatementNominate<N>
 where
     N: NominationValue,
@@ -61,7 +61,7 @@ where
     pub quorum_set: Option<QuorumSet>,
 }
 
-#[derive(Clone, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct SCPStatementPrepare<N>
 where
     N: NominationValue,
@@ -77,7 +77,7 @@ where
 
     pub quorum_set: Option<QuorumSet>,
 }
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct SCPStatementConfirm<N>
 where
     N: NominationValue,
@@ -93,7 +93,7 @@ where
     pub quorum_set: Option<QuorumSet>,
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct SCPStatementExternalize<N>
 where
     N: NominationValue,

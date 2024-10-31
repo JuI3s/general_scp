@@ -77,7 +77,7 @@ where
         todo!()
     }
 
-    fn herder(&self) -> &Rc<RefCell<H>> {
+    fn herder(&self) -> Rc<RefCell<H>> {
         todo!()
     }
 

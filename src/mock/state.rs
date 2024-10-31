@@ -23,7 +23,7 @@ use crate::{
 use super::scp_driver::MockSCPDriver;
 
 // Just hold a vector u8 integers.
-#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize, Debug)]
 pub struct MockState(Vec<[u8; 32]>);
 
 impl MockState {
@@ -114,12 +114,20 @@ impl MockStateDriver {
         this: &Rc<RefCell<Self>>,
         slot_index: &SlotIndex,
     ) -> Arc<SlotDriver<MockState, MockStateDriver>> {
+        let slot = this.borrow_mut().scp_driver.slots.get(slot_index).cloned();
+        if slot.is_some() {
+            return slot.unwrap();
+        }
+
+        println!("create slot");
+
+        let slot: Arc<SlotDriver<MockState, MockStateDriver>> =
+            Self::new_slot(this, slot_index.to_owned()).unwrap().into();
         this.borrow_mut()
             .scp_driver
             .slots
-            .entry(*slot_index)
-            .or_insert(Self::new_slot(this, slot_index.to_owned()).unwrap().into())
-            .to_owned()
+            .insert(slot_index.to_owned(), slot.clone());
+        slot
     }
 }
 
@@ -208,6 +216,8 @@ mod tests {
     };
 
     use super::*;
+
+    use backtrace::Backtrace;
 
     #[test]
     fn slot_driver_builder() {
@@ -380,11 +390,17 @@ mod tests {
         // Make a nomination statement.
         let nominate_statement = connection.initiator.borrow().new_nominate_statement();
 
-        let envelope = connection.initiator.borrow().new_nomination_envelope(0);
+        let envelope: SCPEnvelope<MockState> =
+            connection.initiator.borrow().new_nomination_envelope(0);
 
+        println!("{:?}", envelope);
         connection.initiator.borrow_mut().send_scp_msg(envelope);
 
-        todo!()
+        let bt = Backtrace::new();
+
+        LoopbackPeer::process_in_queue(&connection.acceptor);
+
+        // println!("{:?}", bt);
 
         // connection.initiator.borrow_mut().send_scp_msg(envelope);
         // Creating nomination envelope and pass to loopback peer.

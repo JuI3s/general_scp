@@ -42,7 +42,7 @@ impl SCPPeer<MockState, MockStateDriver> for MockPeer {
         todo!()
     }
 
-    fn herder(&self) -> &Rc<RefCell<MockStateDriver>> {
-        &self.herder
+    fn herder(&self) -> Rc<RefCell<MockStateDriver>> {
+        self.herder.clone()
     }
 }

@@ -133,7 +133,7 @@ where
 {
     fn id(&self) -> &NodeID;
     fn peer_state(&mut self) -> &Rc<RefCell<SCPPeerState>>;
-    fn herder(&self) -> &Rc<RefCell<H>>;
+    fn herder(&self) -> Rc<RefCell<H>>;
     fn overlay_manager(
         &self,
     ) -> &Rc<RefCell<dyn OverlayManager<N, H, HP = Rc<RefCell<Self>>, P = Self>>>;
@@ -173,6 +173,8 @@ where
         //         .recv_flooded_message(msg, self)
         // }
 
+        println!("Received a message");
+
         match msg {
             SCPMessage::SCP(scp_envelope) => self.recv_scp_envelope(scp_envelope),
             SCPMessage::Hello(hello) => self.recv_hello_envelope(hello),
@@ -187,8 +189,9 @@ where
     }
 
     fn recv_scp_envelope(&mut self, envelope: &SCPEnvelope<N>) {
+        println!("Received an SCP envelope");
         // We pass it to the herder
-        H::recv_scp_envelope(self.herder(), envelope);
+        H::recv_scp_envelope(&self.herder(), envelope);
     }
 }
 

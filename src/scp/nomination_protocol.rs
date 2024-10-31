@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::hash_map::DefaultHasher,
+    fmt::Debug,
     hash::{self, Hash, Hasher},
     ops::Deref,
     sync::Weak,
@@ -59,7 +60,7 @@ type HNominationEnvelope = Arc<Mutex<NominationEnvelope>>;
 struct NominationEnvelope {}
 
 pub trait NominationValue:
-    Clone + PartialEq + PartialOrd + Eq + Ord + Hash + Default + Serialize + 'static
+    Clone + PartialEq + PartialOrd + Eq + Ord + Hash + Default + Serialize + 'static + Default + Debug
 {
 }
 

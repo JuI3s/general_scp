@@ -113,7 +113,7 @@ where
     }
 
     fn send_message(&mut self, msg: &SCPMessage<N>) {
-        print!("Sending a message");
+        println!("Sending a message");
 
         if let Some(remote) = self.remote.upgrade() {
             remote.borrow_mut().in_queue.push_back(msg.to_owned());
@@ -126,12 +126,12 @@ where
                     if let Some(peer) = remote_clone.upgrade() {
                         LoopbackPeer::process_in_queue(&peer);
                     }
-                }))
+                }));
         }
     }
 
-    fn herder(&self) -> &Rc<RefCell<H>> {
-        todo!()
+    fn herder(&self) -> Rc<RefCell<H>> {
+        self.herder.clone()
     }
 }
 

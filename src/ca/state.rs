@@ -31,7 +31,7 @@ pub struct CAState {
     tables: BTreeMap<RootEntryKey, BTreeMap<String, HTable>>,
 }
 
-#[derive(Hash, Default, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize)]
+#[derive(Hash, Default, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Debug)]
 pub struct CANominationValue {}
 
 pub type CAStateOpResult<T> = std::result::Result<T, CAStateOpError>;
