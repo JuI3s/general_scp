@@ -25,7 +25,7 @@ where
     // quorum set or quorum set hash, etc.
 
     // Make a new scp nominate statement with empty votes and accepts fields.
-    fn new_nominate_statement(&self) -> SCPStatementNominate<N>;
+    fn new_nominate_statement(&self, vote: N) -> SCPStatementNominate<N>;
 }
 
 #[derive(PartialEq, Eq, Ord)]
@@ -313,10 +313,10 @@ impl<N> SCPStatementNominate<N>
 where
     N: NominationValue,
 {
-    pub fn new(quorum_set: &QuorumSet) -> Self {
+    pub fn new(quorum_set: &QuorumSet, votes: Vec<N>) -> Self {
         SCPStatementNominate {
             quorum_set_hash: quorum_set.hash_value(),
-            votes: Default::default(),
+            votes,
             accepted: Default::default(),
             quorum_set: Some(quorum_set.clone()),
             node_id: "".into(),

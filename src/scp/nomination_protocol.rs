@@ -15,7 +15,8 @@ use std::{
     time::SystemTime,
 };
 
-use log::debug;
+use bincode::de;
+use log::{debug, info};
 use serde::{Deserialize, Deserializer, Serialize};
 use tokio::time::timeout;
 
@@ -49,7 +50,7 @@ where
 
     fn update_round_learders(&mut self);
 
-    fn process_nominationo_envelope(
+    fn process_nomination_envelope(
         self: &Arc<Self>,
         state_handle: &HNominationProtocolState<N>,
         envelope: &HSCPEnvelope<N>,
@@ -231,6 +232,8 @@ where
     }
 
     fn is_sane(&self, statement: &SCPStatementNominate<N>) -> bool {
+        info!("Checking if statement is sane");
+        info!("Total votes: {}", statement.votes.len() + statement.accepted.len());
         (statement.votes.len() + statement.accepted.len() != 0)
             && statement.votes.windows(2).all(|win| win[0] < win[1])
             && statement.accepted.windows(2).all(|win| win[0] < win[1])
@@ -300,6 +303,7 @@ where
     // only called after a call to isNewerStatement so safe to replace the
     // mLatestNomination
     fn record_envelope(&mut self, envelope: &HSCPEnvelope<N>) {
+        info!("Recording envelope");
         let nomination_env = envelope.lock().unwrap();
         let node_id = &nomination_env.node_id;
         if let Some(old_nomination) = self.latest_nominations.get(node_id).borrow_mut() {
@@ -351,9 +355,9 @@ where
 
         let local_node = self.local_node.borrow();
 
-        // Creating the nomination statement
-        let mut nom_st: SCPStatementNominate<N> =
-            SCPStatementNominate::<N>::new(&local_node.quorum_set);
+
+        let mut votes = vec![];
+
 
         self.nomination_state()
             .lock()
@@ -361,7 +365,7 @@ where
             .votes
             .iter()
             .for_each(|vote: &Arc<N>| {
-                nom_st.votes.push(vote.as_ref().clone());
+                votes.push(vote.as_ref().clone());
             });
         self.nomination_state()
             .lock()
@@ -369,15 +373,24 @@ where
             .accepted
             .iter()
             .for_each(|accepted| {
-                nom_st.votes.push(accepted.as_ref().clone());
+               votes.push(accepted.as_ref().clone());
             });
+
+                // Creating the nomination statement
+        let nom_st= SCPStatementNominate::<N>::new(&local_node.quorum_set, votes);
+    
 
         // Creating the envelop
         let st = SCPStatement::Nominate(nom_st);
         let env = self.create_envelope(st).to_handle();
 
+
         // Process the envelope. This may triggers more envelops being emitted.
-        match self.process_nominationo_envelope(&self.nomination_state(), &env) {
+        let processed_result: EnvelopeState = self.process_nomination_envelope(&self.nomination_state(), &env);
+        
+        info!("Processed result: {:?}", processed_result);
+
+        match processed_result {
             EnvelopeState::Valid => {
                 let mut nomination_state = self.nomination_state().lock().unwrap();
                 if !nomination_state
@@ -543,11 +556,12 @@ where
         todo!()
     }
 
-    fn process_nominationo_envelope(
+    fn process_nomination_envelope(
         self: &Arc<Self>,
         state_handle: &HNominationProtocolState<N>,
         envelope: &HSCPEnvelope<N>,
     ) -> EnvelopeState {
+        info!("Processing nomination envelope");
         let env = envelope.lock().unwrap();
         let node_id = &env.node_id;
         let statement = env.get_statement().as_nomination_statement();
@@ -558,15 +572,22 @@ where
         // since the validity of values might have changed
         // (e.g., tx set fetch)
 
+        info!("br1");
+
         if state.processed_newer_statement(&node_id, statement) {
             return EnvelopeState::Invalid;
         }
 
+
         if !state.is_sane(statement) {
+            info!("br1.2");
             return EnvelopeState::Invalid;
         }
 
+        info!("br2");
         state.record_envelope(envelope);
+
+        info!("br3");
 
         if state.nomination_started {
             // Whether we have modified nomination state.

@@ -17,8 +17,11 @@ use crate::{application::work_queue::HWorkScheduler, scp::nomination_protocol::N
 use super::peer::{SCPPeer, SCPPeerState};
 
 impl MakeStatement<MockState> for LoopbackPeer<MockState, MockStateDriver> {
-    fn new_nominate_statement(&self) -> crate::scp::statement::SCPStatementNominate<MockState> {
-        self.herder.borrow().new_nominate_statement()
+    fn new_nominate_statement(
+        &self,
+        vote: MockState,
+    ) -> crate::scp::statement::SCPStatementNominate<MockState> {
+        self.herder.borrow().new_nominate_statement(vote)
     }
 }
 
@@ -26,8 +29,11 @@ impl MakeEnvelope<MockState> for LoopbackPeer<MockState, MockStateDriver> {
     fn new_nomination_envelope(
         &self,
         slot_index: usize,
+        vote: MockState,
     ) -> crate::scp::envelope::SCPEnvelope<MockState> {
-        self.herder.borrow().new_nomination_envelope(slot_index)
+        self.herder
+            .borrow()
+            .new_nomination_envelope(slot_index, vote)
     }
 }
 pub struct LoopbackPeer<N, H>

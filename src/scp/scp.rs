@@ -27,7 +27,7 @@ pub type NodeID = String;
 //     pub fn name(&'_ self) {}
 // }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum EnvelopeState {
     Valid,
     Invalid,

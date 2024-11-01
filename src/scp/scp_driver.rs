@@ -10,6 +10,7 @@ use std::{
 // pub type HashValue = Vec<u8>;
 pub type HashValue = [u8; 64];
 
+use log::info;
 use serde::{Deserialize, Serialize};
 use syn::token::Mut;
 
@@ -253,7 +254,7 @@ where
     }
 
     pub fn recv_scp_envelvope(self: &Arc<Self>, envelope: &SCPEnvelope<N>) {
-        println!("Received an envelope {:?}", envelope);
+        info!("Received an envelope {:?}", envelope);
         match envelope.get_statement() {
             SCPStatement::Prepare(_) | SCPStatement::Confirm(_) | SCPStatement::Externalize(_) => {
                 let mut ballot_state = self.ballot_state().lock().unwrap();
@@ -267,7 +268,7 @@ where
             }
             SCPStatement::Nominate(st) => {
                 let new_envelope: Arc<Mutex<SCPEnvelope<N>>> = envelope.clone().into();
-                self.process_nominationo_envelope(&self.nomination_state_handle, &new_envelope);
+                self.process_nomination_envelope(&self.nomination_state_handle, &new_envelope);
             }
         };
     }

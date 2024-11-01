@@ -65,14 +65,21 @@ impl Into<Rc<RefCell<MockStateDriver>>> for MockStateDriver {
 }
 
 impl MakeStatement<MockState> for MockStateDriver {
-    fn new_nominate_statement(&self) -> crate::scp::statement::SCPStatementNominate<MockState> {
-        SCPStatementNominate::<MockState>::new(&self.local_node.borrow().quorum_set)
+    fn new_nominate_statement(
+        &self,
+        votes: MockState,
+    ) -> crate::scp::statement::SCPStatementNominate<MockState> {
+        SCPStatementNominate::<MockState>::new(&self.local_node.borrow().quorum_set, vec![votes])
     }
 }
 
 impl MakeEnvelope<MockState> for MockStateDriver {
-    fn new_nomination_envelope(&self, slot_index: usize) -> SCPEnvelope<MockState> {
-        let statement = self.new_nominate_statement();
+    fn new_nomination_envelope(
+        &self,
+        slot_index: usize,
+        vote: MockState,
+    ) -> SCPEnvelope<MockState> {
+        let statement = self.new_nominate_statement(vote);
         SCPEnvelope::<MockState>::new(
             scp::statement::SCPStatement::Nominate(statement),
             self.local_node.borrow().node_id.clone(),
@@ -193,6 +200,8 @@ impl HerderDriver<MockState> for MockStateDriver {
 #[cfg(test)]
 mod tests {
 
+    use env_logger;
+    use log::debug;
     use std::{collections::BTreeSet, sync::Mutex};
 
     use crate::{
@@ -374,6 +383,8 @@ mod tests {
 
     #[test]
     fn loopback_peer_nominate() {
+        env_logger::init();
+
         let herder1 = create_test_herder(1);
         let herder2 = create_test_herder(2);
 
@@ -384,17 +395,22 @@ mod tests {
             herder2,
         );
 
-        let value = Arc::new(MockState::random());
+        let value = MockState::random();
         let prev_value = MockState::random();
 
         // Make a nomination statement.
-        let nominate_statement = connection.initiator.borrow().new_nominate_statement();
 
-        let envelope: SCPEnvelope<MockState> =
-            connection.initiator.borrow().new_nomination_envelope(0);
+        let envelope: SCPEnvelope<MockState> = connection
+            .initiator
+            .borrow()
+            .new_nomination_envelope(0, value);
 
         println!("{:?}", envelope);
         connection.initiator.borrow_mut().send_scp_msg(envelope);
+
+        LoopbackPeer::process_in_queue(&connection.acceptor);
+
+        todo!();
 
         // println!("{:?}", bt);
 
