@@ -1,3 +1,4 @@
+use super::envelope::SCPEnvelopeID;
 use super::nomination_protocol::{
     HLatestCompositeCandidateValue, NominationProtocolState, NominationValue, SCPNominationValueSet,
 };
@@ -14,9 +15,9 @@ where
     votes: Option<SCPNominationValueSet<N>>,
     accepted: Option<SCPNominationValueSet<N>>,
     candidates: Option<SCPNominationValueSet<N>>,
-    latest_nominations: Option<BTreeMap<String, HSCPEnvelope<N>>>,
+    latest_nominations: Option<BTreeMap<String, SCPEnvelopeID>>,
 
-    latest_envelope: Option<HSCPEnvelope<N>>,
+    latest_envelope: Option<SCPEnvelopeID>,
     round_leaders: Option<BTreeSet<String>>,
 
     nomination_started: Option<bool>,
@@ -79,13 +80,13 @@ where
 
     pub fn latest_nominations(
         mut self,
-        latest_nomination: BTreeMap<String, HSCPEnvelope<N>>,
+        latest_nomination: BTreeMap<String, SCPEnvelopeID>,
     ) -> Self {
         self.latest_nominations = Some(latest_nomination);
         self
     }
 
-    pub fn latest_envelope(mut self, latest_envelope: HSCPEnvelope<N>) -> Self {
+    pub fn latest_envelope(mut self, latest_envelope: SCPEnvelopeID) -> Self {
         self.latest_envelope = Some(latest_envelope);
         self
     }

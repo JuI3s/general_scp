@@ -10,7 +10,7 @@ use crate::{
     application::quorum::{QuorumSet, QuorumSetHash},
     crypto::types::{Blake2Hash, Blake2Hashable, Blake2Hasher},
     scp::{
-        envelope::SCPEnvelope,
+        envelope::{SCPEnvelope, SCPEnvelopeController},
         nomination_protocol::NominationValue,
         scp::EnvelopeState,
         slot::{self, SlotIndex},
@@ -212,10 +212,14 @@ where
         HerderEnvelopeStatus::EnvelopeStatusFetching
     }
 
-    fn recv_scp_quorum_set(&mut self, quorum_set: &QuorumSet) {
+    fn recv_scp_quorum_set(
+        &mut self,
+        quorum_set: &QuorumSet,
+        envelope_controller: &mut SCPEnvelopeController<N>,
+    ) {
         self.scp_quorum_set_fetcher
             .recv(&quorum_set.to_blake2(), &mut |env| {
-                H::recv_scp_envelope(&self.herder, env);
+                H::recv_scp_envelope(&self.herder, env, &envelope_controller);
             });
     }
 

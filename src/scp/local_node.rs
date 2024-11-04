@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
+    env,
     f32::consts::E,
     marker::PhantomData,
     rc::Rc,
@@ -13,6 +14,7 @@ use syn::token::Mut;
 use crate::application::quorum::{HQuorumSet, QuorumSet, QuorumSlice};
 
 use super::{
+    envelope::{SCPEnvelopeController, SCPEnvelopeID},
     nomination_protocol::NominationValue,
     scp::NodeID,
     scp_driver::HSCPEnvelope,
@@ -96,12 +98,14 @@ where
 
     pub fn is_v_blocking_with_predicate(
         quorum_set: &QuorumSet,
-        envelope_map: &BTreeMap<NodeID, HSCPEnvelope<N>>,
+        envelope_map: &BTreeMap<NodeID, SCPEnvelopeID>,
         filter: &impl Fn(&SCPStatement<N>) -> bool,
+        envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
         let mut nodes: Vec<NodeID> = vec![];
         envelope_map.iter().for_each(|entry| {
-            if filter(entry.1.lock().unwrap().get_statement()) {
+            let env = envelope_controller.get_envelope(entry.1).unwrap();
+            if filter(env.get_statement()) {
                 nodes.push(entry.0.clone());
             }
         });
@@ -133,16 +137,17 @@ where
 
     pub fn is_quorum_with_node_filter(
         local_quorum: Option<(&QuorumSet, &NodeID)>,
-        envelopes: &BTreeMap<NodeID, HSCPEnvelope<N>>,
+        envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
         get_quorum_set_predicate: impl Fn(&SCPStatement<N>) -> Option<HQuorumSet>,
         node_filter: impl Fn(&SCPStatement<N>) -> bool,
+        envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
         // let mut nodes: Vec<NodeID> = vec![];
 
         let mut nodes: Vec<NodeID> = envelopes
             .iter()
-            .map(|entry| {
-                let envelope = entry.1.lock().unwrap();
+            .map(|entry: (&String, &std::time::SystemTime)| {
+                let envelope = envelope_controller.get_envelope(entry.1).unwrap();
 
                 if node_filter(&envelope.statement) {
                     Some(entry.0.to_owned())
@@ -165,9 +170,11 @@ where
             false
         } else {
             nodes.iter().all(|node| {
-                if let Some(quorum_set) = get_quorum_set_predicate(
-                    envelopes.get(node).unwrap().lock().unwrap().get_statement(),
-                ) {
+                let env_id = envelopes.get(node).unwrap();
+                let env = envelope_controller.get_envelope(env_id).unwrap();
+                let statement = env.get_statement();
+
+                if let Some(quorum_set) = get_quorum_set_predicate(statement) {
                     LocalNode::<N>::nodes_fill_one_quorum_slice_in_quorum_set(
                         &quorum_set.lock().unwrap(),
                         &nodes,
@@ -192,14 +199,16 @@ where
 
     pub fn is_quorum(
         local_quorum: Option<(&QuorumSet, &NodeID)>,
-        envelopes: &BTreeMap<NodeID, HSCPEnvelope<N>>,
+        envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
         get_quorum_set_predicate: impl Fn(&SCPStatement<N>) -> Option<HQuorumSet>,
+        envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
         LocalNode::is_quorum_with_node_filter(
             local_quorum,
             envelopes,
             get_quorum_set_predicate,
             |_| true,
+            envelope_controller,
         )
     }
 }
@@ -259,6 +268,8 @@ mod tests {
         //     └─────────│ 1  │──────────┘
         //               └────┘
 
+        let mut env_controller = SCPEnvelopeController::<SCPNominationValue>::new();
+
         let (node_id1, node1) = create_test_node(1);
         let (node_id2, node2) = create_test_node(2);
         let (node_id3, node3) = create_test_node(3);
@@ -272,16 +283,32 @@ mod tests {
         let quorum1 = QuorumSet::from([quorum_slice1]);
         let quorum2 = QuorumSet::from([quorum_slice2.clone()]);
 
-        let mut envelopes: BTreeMap<NodeID, HSCPEnvelope<SCPNominationValue>> = BTreeMap::new();
-        let env1 = SCPEnvelope::test_make_scp_envelope_from_quorum(node_id1.to_owned(), &quorum1);
-        let env2 = SCPEnvelope::test_make_scp_envelope_from_quorum(node_id2.to_owned(), &quorum2);
-        let env3 = SCPEnvelope::test_make_scp_envelope_from_quorum(node_id3.to_owned(), &quorum2);
-        let env4 = SCPEnvelope::test_make_scp_envelope_from_quorum(node_id4.to_owned(), &quorum2);
+        let mut envelopes = BTreeMap::new();
+        let env1 = SCPEnvelope::test_make_scp_envelope_from_quorum(
+            node_id1.to_owned(),
+            &quorum1,
+            &mut env_controller,
+        );
+        let env2 = SCPEnvelope::test_make_scp_envelope_from_quorum(
+            node_id2.to_owned(),
+            &quorum2,
+            &mut env_controller,
+        );
+        let env3 = SCPEnvelope::test_make_scp_envelope_from_quorum(
+            node_id3.to_owned(),
+            &quorum2,
+            &mut env_controller,
+        );
+        let env4 = SCPEnvelope::test_make_scp_envelope_from_quorum(
+            node_id4.to_owned(),
+            &quorum2,
+            &mut env_controller,
+        );
 
-        envelopes.insert(node_id1.to_owned(), Arc::new(Mutex::new(env1)));
-        envelopes.insert(node_id2.to_owned(), Arc::new(Mutex::new(env2)));
-        envelopes.insert(node_id3.to_owned(), Arc::new(Mutex::new(env3)));
-        envelopes.insert(node_id4.to_owned(), Arc::new(Mutex::new(env4)));
+        envelopes.insert(node_id1.to_owned(), env1);
+        envelopes.insert(node_id2.to_owned(), env2);
+        envelopes.insert(node_id3.to_owned(), env3);
+        envelopes.insert(node_id4.to_owned(), env4);
 
         let mut quorum_map: BTreeMap<HashValue, HQuorumSet> = BTreeMap::new();
         quorum_map.insert(quorum1.hash_value(), Arc::new(Mutex::new(quorum1.clone())));
@@ -294,14 +321,14 @@ mod tests {
         };
 
         assert_eq!(
-            LocalNode::is_quorum(None, &envelopes, get_quorum_set_predicate),
+            LocalNode::is_quorum(None, &envelopes, get_quorum_set_predicate, &env_controller),
             true
         );
         envelopes.remove(&node_id2);
         envelopes.remove(&node_id3);
         envelopes.remove(&node_id4);
         assert_eq!(
-            LocalNode::is_quorum(None, &envelopes, get_quorum_set_predicate),
+            LocalNode::is_quorum(None, &envelopes, get_quorum_set_predicate, &env_controller),
             false
         );
     }

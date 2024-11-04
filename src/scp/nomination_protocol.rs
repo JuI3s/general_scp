@@ -1,7 +1,6 @@
 use std::{
     cell::RefCell,
     collections::hash_map::DefaultHasher,
-    env,
     fmt::Debug,
     hash::{self, Hash, Hasher},
     ops::Deref,
@@ -16,8 +15,7 @@ use std::{
     time::SystemTime,
 };
 
-use bincode::de;
-use log::{debug, info};
+use log::debug;
 use serde::{Deserialize, Deserializer, Serialize};
 use tokio::time::timeout;
 
@@ -31,8 +29,8 @@ use crate::{
 };
 
 use super::{
-    envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
-    scp::{EnvelopeState, NodeID},
+    envelope::{self, SCPEnvelopeController, SCPEnvelopeID},
+    scp::{EnvelopeState, NodeID, SCP},
     scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver, SlotStateTimer, ValidationLevel},
     slot::{Slot, SlotIndex},
     statement::{SCPStatement, SCPStatementNominate},
@@ -47,16 +45,17 @@ where
         state: HNominationProtocolState<N>,
         value: HSCPNominationValue<N>,
         previous_value: &N,
+        envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool;
     fn stop_nomination(self: &Arc<Self>, state: &mut NominationProtocolState<N>);
 
     fn update_round_learders(&mut self);
 
-    fn process_nomination_envelope(
+    fn process_nominationo_envelope(
         self: &Arc<Self>,
         state_handle: &HNominationProtocolState<N>,
-        envelope_id: &SCPEnvelopeID,
-        envelope: &SCPEnvelope<N>,
+        envelope: &SCPEnvelopeID,
+        envelope_controller: &SCPEnvelopeController<N>,
     ) -> EnvelopeState;
 }
 
@@ -159,17 +158,18 @@ where
         extract_valid_value_predicate: &impl Fn(&N) -> Option<N>,
         validate_value_predicate: &impl Fn(&N) -> ValidationLevel,
         nominating_value_predicate: &impl Fn(&N),
+        envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
         let mut updated = false;
 
         for leader in &self.round_leaders {
-            if let Some(nomination) = self.latest_nominations.get(leader) {
+            if let Some(nomination) = self
+                .latest_nominations
+                .get(leader)
+                .and_then(|env_id| envelope_controller.get_envelope(env_id))
+            {
                 if let Some(new_value) = self.get_new_value_form_nomination(
-                    nomination
-                        .lock()
-                        .unwrap()
-                        .get_statement()
-                        .as_nomination_statement(),
+                    nomination.get_statement().as_nomination_statement(),
                     |value| extract_valid_value_predicate(value),
                     |value| validate_value_predicate(value),
                 ) {
@@ -202,10 +202,11 @@ where
         &self,
         node_id: &NodeID,
         statement: &SCPStatementNominate<N>,
+        envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
-        if let Some(envelope) = self.latest_nominations.get(node_id) {
-            envelope
-                .lock()
+        if let Some(env_id) = self.latest_nominations.get(node_id) {
+            envelope_controller
+                .get_envelope(env_id)
                 .unwrap()
                 .get_statement()
                 .as_nomination_statement()
@@ -220,11 +221,12 @@ where
         &self,
         node_id: &NodeID,
         statement: &SCPStatementNominate<N>,
+        envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
-        if let Some(envelope) = self.latest_nominations.get(node_id) {
+        if let Some(env_id) = self.latest_nominations.get(node_id) {
             statement.is_older_than(
-                envelope
-                    .lock()
+                envelope_controller
+                    .get_envelope(env_id)
                     .unwrap()
                     .get_statement()
                     .as_nomination_statement(),
@@ -235,11 +237,6 @@ where
     }
 
     fn is_sane(&self, statement: &SCPStatementNominate<N>) -> bool {
-        info!("Checking if statement is sane");
-        info!(
-            "Total votes: {}",
-            statement.votes.len() + statement.accepted.len()
-        );
         (statement.votes.len() + statement.accepted.len() != 0)
             && statement.votes.windows(2).all(|win| win[0] < win[1])
             && statement.accepted.windows(2).all(|win| win[0] < win[1])
@@ -308,23 +305,36 @@ where
 
     // only called after a call to isNewerStatement so safe to replace the
     // mLatestNomination
-    fn record_envelope(&mut self, env_id: &SCPEnvelopeID, nomination_env: &SCPEnvelope<N>) {
-        info!("Recording envelope");
+    fn record_envelope(
+        &mut self,
+        env_id: &SCPEnvelopeID,
+        envelope_controller: &SCPEnvelopeController<N>,
+    ) {
+        let nomination_env = envelope_controller.get_envelope(env_id).unwrap();
         let node_id = &nomination_env.node_id;
-
-        self.latest_nominations.insert(node_id.clone(), *env_id);
+        if let Some(old_nomination) = self.latest_nominations.get(node_id).borrow_mut() {
+            *old_nomination = &env_id.clone()
+            // TODO: is this right?
+        } else {
+            self.latest_nominations
+                .insert(node_id.to_string(), env_id.clone());
+        }
 
         // TODO: record statement
         // I think it's not needed for SCP - just some routine bookkeeping.
     }
 
-    fn set_state_from_envelope(&mut self, envelope: &HSCPEnvelope<N>) {
+    fn set_state_from_envelope(
+        &mut self,
+        env_id: &SCPEnvelopeID,
+        envelope_controller: &SCPEnvelopeController<N>,
+    ) {
         if self.nomination_started {
             panic!("Cannot set state after nomination is started.")
         }
 
-        self.record_envelope(envelope);
-        let nomination_env = envelope.lock().unwrap();
+        self.record_envelope(env_id, envelope_controller);
+        let nomination_env = envelope_controller.get_envelope(env_id).unwrap();
         let nomination_statement = nomination_env.get_statement();
         nomination_statement
             .get_accepted()
@@ -339,7 +349,7 @@ where
                 self.votes.insert(Arc::new(statement));
             });
 
-        self.latest_envelope = Some(envelope.clone());
+        self.latest_envelope = Some(env_id.clone());
     }
 }
 
@@ -348,15 +358,8 @@ where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
 {
-    fn emit_nomination(self: &Arc<Self>, state: &mut NominationProtocolState<N>) {
-        // This function creats a nomination statement that contains the current
-        // nomination value. The statement is then wrapped in an SCP envelope which is
-        // checked for validity before being passed to Herder for broadcasting.
-
-        let local_node = self.local_node.borrow();
-
+    fn get_current_votes(&self) -> Vec<N> {
         let mut votes = vec![];
-
         self.nomination_state()
             .lock()
             .unwrap()
@@ -373,35 +376,44 @@ where
             .for_each(|accepted| {
                 votes.push(accepted.as_ref().clone());
             });
+        votes
+    }
+
+    fn emit_nomination(
+        self: &Arc<Self>,
+        state: &mut NominationProtocolState<N>,
+        envelope_controller: &SCPEnvelopeController<N>,
+    ) {
+        // This function creats a nomination statement that contains the current
+        // nomination value. The statement is then wrapped in an SCP envelope which is
+        // checked for validity before being passed to Herder for broadcasting.
+
+        let local_node = self.local_node.borrow();
+        let votes = self.get_current_votes();
 
         // Creating the nomination statement
-        let nom_st = SCPStatementNominate::<N>::new(&local_node.quorum_set, votes);
+        let nom_st: SCPStatementNominate<N> =
+            SCPStatementNominate::<N>::new(&local_node.quorum_set, votes);
 
         // Creating the envelop
         let st = SCPStatement::Nominate(nom_st);
-        let env = self.create_envelope(st).to_handle();
+        let env_id = self.create_envelope(st, envelope_controller);
 
         // Process the envelope. This may triggers more envelops being emitted.
-        let processed_result: EnvelopeState =
-            self.process_nomination_envelope(&self.nomination_state(), &env);
-
-        info!("Processed result: {:?}", processed_result);
-
-        match processed_result {
+        match self.process_nominationo_envelope(
+            &self.nomination_state(),
+            &env_id,
+            envelope_controller,
+        ) {
             EnvelopeState::Valid => {
                 let mut nomination_state = self.nomination_state().lock().unwrap();
                 if !nomination_state
                     .latest_envelope
                     .as_ref()
-                    .is_some_and(|env| match &env.lock().unwrap().statement {
+                    .and_then(|env_id| envelope_controller.get_envelope(env_id))
+                    .is_some_and(|env| match &env.statement {
                         SCPStatement::Nominate(st) => {
-                            if env
-                                .lock()
-                                .unwrap()
-                                .statement
-                                .as_nomination_statement()
-                                .is_older_than(&st)
-                            {
+                            if env.statement.as_nomination_statement().is_older_than(&st) {
                                 false
                             } else {
                                 true
@@ -416,11 +428,10 @@ where
                     return;
                 }
 
-                nomination_state.latest_envelope = Some(env.clone());
+                nomination_state.latest_envelope = Some(env_id.clone());
+                let env_to_emit = envelope_controller.get_envelope(&env_id).unwrap();
                 if self.slot_state.borrow().fully_validated {
-                    self.herder_driver
-                        .borrow()
-                        .emit_envelope(&env.lock().unwrap());
+                    self.herder_driver.borrow().emit_envelope(env_to_emit);
                 }
             }
             EnvelopeState::Invalid => {
@@ -444,6 +455,7 @@ where
         state_handle: HNominationProtocolState<N>,
         value: HSCPNominationValue<N>,
         previous_value: &N,
+        envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
         let mut state = state_handle.lock().unwrap();
         if !state.candidates.is_empty() {
@@ -488,6 +500,7 @@ where
                             .borrow()
                             .nominating_value(value, &self.slot_index)
                     },
+                    envelope_controller,
                 );
 
             // if we're leader, add our value if we haven't added any votes yet
@@ -518,7 +531,7 @@ where
         let re_nominate_callback = move || match weak_self.upgrade() {
             Some(slot_driver) => match weak_state.upgrade() {
                 Some(state) => {
-                    slot_driver.nominate(state, value_copy, &prev_value_copy);
+                    slot_driver.nominate(state, value_copy, &prev_value_copy, envelope_controller);
                 }
                 None => {}
             },
@@ -533,7 +546,7 @@ where
 
         if updated {
             println!("Updated");
-            self.emit_nomination(&mut state);
+            self.emit_nomination(&mut state, envelope_controller);
         } else {
             debug!("NominationProtocol::nominate (SKIPPED");
         }
@@ -553,15 +566,15 @@ where
         todo!()
     }
 
-    fn process_nomination_envelope(
+    fn process_nominationo_envelope(
         self: &Arc<Self>,
         state_handle: &HNominationProtocolState<N>,
-        envelope_id: &SCPEnvelopeID,
-        envelope: &SCPEnvelope<N>,
+        envelope: &SCPEnvelopeID,
+        envelope_controller: &SCPEnvelopeController<N>,
     ) -> EnvelopeState {
-        info!("Processing nomination envelope");
-        let node_id = &envelope.node_id;
-        let statement = envelope.get_statement().as_nomination_statement();
+        let env = envelope_controller.get_envelope(envelope).unwrap();
+        let node_id = &env.node_id;
+        let statement = env.get_statement().as_nomination_statement();
         let mut state = state_handle.lock().unwrap();
 
         // TODO: this comment seems to be wrong
@@ -569,21 +582,15 @@ where
         // since the validity of values might have changed
         // (e.g., tx set fetch)
 
-        info!("br1");
-
-        if state.processed_newer_statement(&node_id, statement) {
+        if state.processed_newer_statement(&node_id, statement, envelope_controller) {
             return EnvelopeState::Invalid;
         }
 
         if !state.is_sane(statement) {
-            info!("br1.2");
             return EnvelopeState::Invalid;
         }
 
-        info!("br2");
-        state.record_envelope(envelope);
-
-        info!("br3");
+        state.record_envelope(envelope, envelope_controller);
 
         if state.nomination_started {
             // Whether we have modified nomination state.
@@ -595,6 +602,7 @@ where
                     |st| st.as_nomination_statement().votes.contains(vote),
                     |st| Self::accept_predicate(vote, st),
                     &state.latest_nominations,
+                    envelope_controller,
                 ) {
                     match self.herder_driver.borrow().validate_value(vote, true) {
                         ValidationLevel::FullyValidated => {
@@ -625,6 +633,7 @@ where
                 if self.federated_ratify(
                     |st| Self::accept_predicate(value, st),
                     &state.latest_nominations,
+                    envelope_controller,
                 ) {
                     state.candidates.insert(Arc::new(value.clone()));
 
@@ -643,7 +652,7 @@ where
             });
 
             if modified {
-                self.emit_nomination(&mut state);
+                self.emit_nomination(&mut state, envelope_controller);
             }
 
             if new_candidates {
@@ -661,7 +670,7 @@ where
                     .combine_candidates(&state.candidates);
                 let _ = match state.latest_composite_candidate.lock().unwrap().as_ref() {
                     Some(val) => {
-                        self.bump_state_(val, false);
+                        self.bump_state_(val, false, envelope_controller);
                     }
                     None => {}
                 };

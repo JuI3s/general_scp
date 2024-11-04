@@ -2,7 +2,10 @@ use crate::{
     herder::herder::HerderDriver,
     mock::state::{MockState, MockStateDriver},
     overlay::message::SCPMessage,
-    scp::{envelope::MakeEnvelope, statement::MakeStatement},
+    scp::{
+        envelope::{MakeEnvelope, SCPEnvelopeController},
+        statement::MakeStatement,
+    },
 };
 
 use std::{
@@ -47,6 +50,7 @@ where
     remote: Weak<RefCell<LoopbackPeer<N, H>>>,
     state: Rc<RefCell<SCPPeerState>>,
     herder: Rc<RefCell<H>>,
+    other_envs: Rc<RefCell<SCPEnvelopeController<N>>>,
 }
 
 impl<N, H> LoopbackPeer<N, H>
@@ -58,6 +62,7 @@ where
         work_scheduler: &HWorkScheduler,
         we_called_remote: bool,
         herder: Rc<RefCell<H>>,
+        other_envs: Rc<RefCell<SCPEnvelopeController<N>>>,
     ) -> Self {
         LoopbackPeer {
             work_schedular: work_scheduler.clone(),
@@ -66,14 +71,18 @@ where
             remote: Default::default(),
             state: SCPPeerState::new(we_called_remote).into(),
             herder: herder,
+            other_envs,
         }
     }
 
-    pub fn process_in_queue(this: &Rc<RefCell<Self>>) {
+    pub fn process_in_queue(
+        this: &Rc<RefCell<Self>>,
+        envelope_controller: &mut SCPEnvelopeController<N>,
+    ) {
         let mut peer = this.borrow_mut();
 
         if let Some(message) = peer.in_queue.pop_front() {
-            peer.recv_message(&message);
+            peer.recv_message(message, envelope_controller);
         }
 
         // If we have more messages, process them on the main thread.
@@ -83,7 +92,7 @@ where
                 .borrow()
                 .post_on_main_thread(Box::new(move || {
                     if let Some(p) = self_clone.upgrade() {
-                        LoopbackPeer::process_in_queue(&p);
+                        LoopbackPeer::process_in_queue(&p, envelope_controller);
                     }
                 }))
         }
@@ -130,7 +139,7 @@ where
                 .borrow()
                 .post_on_main_thread(Box::new(move || {
                     if let Some(peer) = remote_clone.upgrade() {
-                        LoopbackPeer::process_in_queue(&peer);
+                        LoopbackPeer::process_in_queue(&peer, &mut self.other_envs.borrow_mut());
                     }
                 }));
         }
@@ -148,6 +157,8 @@ where
 {
     pub initiator: Rc<RefCell<LoopbackPeer<N, H>>>,
     pub acceptor: Rc<RefCell<LoopbackPeer<N, H>>>,
+    pub initiator_envs: Rc<RefCell<SCPEnvelopeController<N>>>,
+    pub acceptor_envs: Rc<RefCell<SCPEnvelopeController<N>>>,
 }
 
 impl<N, H> LoopbackPeerConnection<N, H>
@@ -160,8 +171,12 @@ where
         herder1: Rc<RefCell<H>>,
         herder2: Rc<RefCell<H>>,
     ) -> Self {
-        let initator = LoopbackPeer::<N, H>::new(work_scheduler, true, herder1);
-        let acceptor = LoopbackPeer::<N, H>::new(work_scheduler, false, herder2);
+        let initiator_envs = Rc::new(RefCell::new(SCPEnvelopeController::new()));
+        let acceptor_envs = Rc::new(RefCell::new(SCPEnvelopeController::new()));
+        let initator =
+            LoopbackPeer::<N, H>::new(work_scheduler, true, herder1, acceptor_envs.clone());
+        let acceptor =
+            LoopbackPeer::<N, H>::new(work_scheduler, false, herder2, initiator_envs.clone());
         let initiator_handle = Rc::new(RefCell::new(initator));
         let acceptor_handle = Rc::new(RefCell::new(acceptor));
 
@@ -195,6 +210,8 @@ where
         LoopbackPeerConnection {
             initiator: initiator_handle,
             acceptor: acceptor_handle,
+            initiator_envs,
+            acceptor_envs,
         }
     }
 }

@@ -10,7 +10,7 @@ use std::{
 use crate::{
     application::quorum::HQuorumSet,
     scp::{
-        envelope::SCPEnvelope,
+        envelope::{self, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
         nomination_protocol::{NominationValue, SCPNominationValue, SCPNominationValueSet},
         scp_driver::{HashValue, ValidationLevel},
         slot::SlotIndex,
@@ -52,7 +52,11 @@ where
 
     fn get_quorum_set(&self, statement: &SCPStatement<N>) -> Option<HQuorumSet>;
 
-    fn recv_scp_envelope(this: &Rc<RefCell<Self>>, envelope: &SCPEnvelope<N>);
+    fn recv_scp_envelope(
+        this: &Rc<RefCell<Self>>,
+        envelope: &SCPEnvelopeID,
+        envelope_controller: &SCPEnvelopeController<N>,
+    );
 
     fn compute_timeout(&self, round_number: u64) -> Duration {
         const MAX_TIMEOUT_SECONDS: u64 = 30 * 60;
@@ -91,7 +95,11 @@ impl HerderDriver<SCPNominationValue> for HerderSCPDriver {
         todo!()
     }
 
-    fn recv_scp_envelope(this: &Rc<RefCell<Self>>, envelope: &SCPEnvelope<SCPNominationValue>) {
+    fn recv_scp_envelope(
+        this: &Rc<RefCell<Self>>,
+        envelope: &SCPEnvelopeID,
+        envelope_controller: &SCPEnvelopeController<SCPNominationValue>,
+    ) {
         todo!()
     }
 }

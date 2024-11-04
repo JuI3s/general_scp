@@ -5,12 +5,12 @@ use std::{
     os::fd::RawFd,
     rc::Rc,
     sync::{Arc, Mutex, Weak},
+    time::SystemTime,
 };
 
 // pub type HashValue = Vec<u8>;
 pub type HashValue = [u8; 64];
 
-use log::info;
 use serde::{Deserialize, Serialize};
 use syn::token::Mut;
 
@@ -28,7 +28,7 @@ use crate::{
 
 use super::{
     ballot_protocol::{BallotProtocol, BallotProtocolState, HBallotProtocolState, SCPBallot},
-    envelope::SCPEnvelope,
+    envelope::{self, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
     local_node::{HLocalNode, LocalNode},
     nomination_protocol::{
         HLatestCompositeCandidateValue, HNominationProtocolState, HSCPNominationValue,
@@ -176,8 +176,12 @@ where
         }
     }
 
-    pub fn test_make_scp_envelope_from_quorum(node_id: NodeID, quorum_set: &QuorumSet) -> Self {
-        SCPEnvelope {
+    pub fn test_make_scp_envelope_from_quorum(
+        node_id: NodeID,
+        quorum_set: &QuorumSet,
+        envelope_controller: &mut SCPEnvelopeController<N>,
+    ) -> SCPEnvelopeID {
+        let env = SCPEnvelope {
             statement: SCPStatement::Prepare(super::statement::SCPStatementPrepare {
                 quorum_set_hash: quorum_set.hash_value(),
                 ballot: SCPBallot::default(),
@@ -191,7 +195,8 @@ where
             node_id: node_id,
             slot_index: 0,
             signature: test_default_blake2(),
-        }
+        };
+        envelope_controller.add_envelope(env)
     }
 
     pub fn test_make_scp_envelope_handle(node_id: NodeID) -> HSCPEnvelope<N> {
@@ -253,22 +258,31 @@ where
         }
     }
 
-    pub fn recv_scp_envelvope(self: &Arc<Self>, envelope: &SCPEnvelope<N>) {
-        info!("Received an envelope {:?}", envelope);
-        match envelope.get_statement() {
+    pub fn recv_scp_envelvope(
+        self: &Arc<Self>,
+        env_id: &SCPEnvelopeID,
+        envelope_controller: &SCPEnvelopeController<N>,
+    ) {
+        let env = envelope_controller.get_envelope(env_id).unwrap();
+        println!("Received an envelope: {:?}", env_id);
+        match env.get_statement() {
             SCPStatement::Prepare(_) | SCPStatement::Confirm(_) | SCPStatement::Externalize(_) => {
                 let mut ballot_state = self.ballot_state().lock().unwrap();
                 let mut nomination_state = self.nomination_state().lock().unwrap();
                 self.process_ballot_envelope(
                     &mut ballot_state,
                     &mut nomination_state,
-                    envelope,
+                    env,
                     true,
+                    envelope_controller,
                 );
             }
             SCPStatement::Nominate(st) => {
-                let new_envelope: Arc<Mutex<SCPEnvelope<N>>> = envelope.clone().into();
-                self.process_nomination_envelope(&self.nomination_state_handle, &new_envelope);
+                self.process_nominationo_envelope(
+                    &self.nomination_state_handle,
+                    &env_id,
+                    envelope_controller,
+                );
             }
         };
     }
@@ -281,12 +295,18 @@ where
         &self.ballot_state_handle
     }
 
-    pub fn bump_state_(self: &Arc<Self>, nomination_value: &N, force: bool) -> bool {
+    pub fn bump_state_(
+        self: &Arc<Self>,
+        nomination_value: &N,
+        force: bool,
+        envelope_controller: &SCPEnvelopeController<N>,
+    ) -> bool {
         self.bump_state(
             &mut self.ballot_state_handle.lock().unwrap(),
             &mut self.nomination_state().lock().unwrap(),
             nomination_value,
             force,
+            envelope_controller,
         )
     }
 
@@ -302,12 +322,14 @@ where
         &self,
         voted_predicate: impl Fn(&SCPStatement<N>) -> bool,
         accepted_predicate: impl Fn(&SCPStatement<N>) -> bool,
-        envelopes: &BTreeMap<NodeID, HSCPEnvelope<N>>,
+        envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
+        envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
         if LocalNode::<N>::is_v_blocking_with_predicate(
             self.local_node.borrow().get_quorum_set(),
             envelopes,
             &accepted_predicate,
+            envelope_controller,
         ) {
             true
         } else {
@@ -320,6 +342,7 @@ where
                 envelopes,
                 |st| self.herder_driver.borrow().get_quorum_set(st),
                 ratify_filter,
+                envelope_controller,
             ) {
                 return true;
             }
@@ -332,7 +355,8 @@ where
     pub fn federated_ratify(
         &self,
         voted_predicate: impl Fn(&SCPStatement<N>) -> bool,
-        envelopes: &BTreeMap<NodeID, HSCPEnvelope<N>>,
+        envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
+        envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
         let local_node = self.local_node.borrow();
 
@@ -341,19 +365,25 @@ where
             envelopes,
             |st| self.herder_driver.borrow().get_quorum_set(st),
             voted_predicate,
+            envelope_controller,
         )
     }
 
-    pub fn create_envelope(&self, statement: SCPStatement<N>) -> SCPEnvelope<N> {
-        SCPEnvelope {
+    pub fn create_envelope(
+        &self,
+        statement: SCPStatement<N>,
+        envelope_controller: &SCPEnvelopeController<N>,
+    ) -> SCPEnvelopeID {
+        let env = SCPEnvelope {
             statement,
             node_id: self.local_node.borrow().node_id.clone(),
             slot_index: self.slot_index.clone(),
             signature: test_default_blake2(),
-        }
+        };
+        envelope_controller.add_envelope(env)
     }
 
-    fn get_latest_message(&self, node_id: &NodeID) -> Option<HSCPEnvelope<N>> {
+    fn get_latest_message(&self, node_id: &NodeID) -> Option<SCPEnvelopeID> {
         // Return the latest message we have heard from the node with node_id. Start
         // searching in the ballot protocol state and then the nomination protocol
         // state. If nothing is found, return None.

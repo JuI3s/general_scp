@@ -1,15 +1,22 @@
 use std::{
     borrow::{Borrow, BorrowMut},
     cell::RefCell,
+    env,
     rc::{Rc, Weak},
     sync::{Arc, Mutex},
     time::SystemTime,
 };
 
+use log::info;
+
 use crate::{
     application::work_queue::{ClockEvent, EventQueue},
     herder::herder::HerderDriver,
-    scp::{envelope::SCPEnvelope, nomination_protocol::NominationValue, scp::NodeID},
+    scp::{
+        envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
+        nomination_protocol::NominationValue,
+        scp::NodeID,
+    },
 };
 
 use super::{
@@ -165,7 +172,11 @@ where
         self.send_message(&SCPMessage::SCP(envelope))
     }
 
-    fn recv_message(&mut self, msg: &SCPMessage<N>) {
+    fn recv_message(
+        &mut self,
+        msg: SCPMessage<N>,
+        envelope_controller: &mut SCPEnvelopeController<N>,
+    ) {
         // if msg.is_boardcast_msg() {
         //     self.overlay_manager()
         //         .as_ref()
@@ -173,11 +184,15 @@ where
         //         .recv_flooded_message(msg, self)
         // }
 
-        println!("Received a message");
+        info!("Received a message");
 
         match msg {
-            SCPMessage::SCP(scp_envelope) => self.recv_scp_envelope(scp_envelope),
-            SCPMessage::Hello(hello) => self.recv_hello_envelope(hello),
+            SCPMessage::SCP(scp_envelope) => {
+                let env_id = envelope_controller.add_envelope(scp_envelope);
+                return self.recv_scp_envelope(&env_id, &envelope_controller);
+            }
+
+            SCPMessage::Hello(hello) => self.recv_hello_envelope(&hello),
         }
     }
 
@@ -188,10 +203,14 @@ where
             .set_conn_state(SCPPeerConnState::GotHello);
     }
 
-    fn recv_scp_envelope(&mut self, envelope: &SCPEnvelope<N>) {
+    fn recv_scp_envelope(
+        &mut self,
+        envelope: &SCPEnvelopeID,
+        envelope_controller: &SCPEnvelopeController<N>,
+    ) {
         println!("Received an SCP envelope");
         // We pass it to the herder
-        H::recv_scp_envelope(&self.herder(), envelope);
+        H::recv_scp_envelope(&self.herder(), envelope, envelope_controller);
     }
 }
 

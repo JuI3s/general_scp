@@ -10,7 +10,7 @@ use crate::{
     scp::{
         self,
         ballot_protocol::HBallotProtocolState,
-        envelope::{MakeEnvelope, SCPEnvelope},
+        envelope::{MakeEnvelope, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
         local_node::{self, HLocalNode},
         nomination_protocol::{HNominationProtocolState, NominationProtocol, NominationValue},
         scp_driver::{HashValue, SlotDriver},
@@ -190,10 +190,15 @@ impl HerderDriver<MockState> for MockStateDriver {
         }
     }
 
-    fn recv_scp_envelope(this: &Rc<RefCell<Self>>, envelope: &SCPEnvelope<MockState>) {
-        let slot = Self::get_or_create_slot(this, &envelope.slot_index);
-        // slot.
-        slot.recv_scp_envelvope(envelope);
+    fn recv_scp_envelope(
+        this: &Rc<RefCell<Self>>,
+        env_id: &SCPEnvelopeID,
+        envelope_controller: &SCPEnvelopeController<MockState>,
+    ) {
+        let env = envelope_controller.get_envelope(&env_id).unwrap();
+        let slot = Self::get_or_create_slot(this, &env.slot_index);
+        // slot.envelope
+        slot.recv_scp_envelvope(env_id, envelope_controller);
     }
 }
 
@@ -202,6 +207,7 @@ mod tests {
 
     use env_logger;
     use log::debug;
+    use scp::envelope::SCPEnvelopeController;
     use std::{collections::BTreeSet, sync::Mutex};
 
     use crate::{
@@ -290,7 +296,13 @@ mod tests {
 
         let value = Arc::new(MockState::random());
         let prev_value = MockState::random();
-        slot_driver.nominate(slot_driver.nomination_state().clone(), value, &prev_value);
+        let envelope_controller = SCPEnvelopeController::<MockState>::new();
+        slot_driver.nominate(
+            slot_driver.nomination_state().clone(),
+            value,
+            &prev_value,
+            &envelope_controller,
+        );
     }
 
     #[test]
@@ -370,7 +382,10 @@ mod tests {
         connection.initiator.borrow_mut().send_hello(msg.clone());
 
         assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 1);
-        LoopbackPeer::<MockState, MockStateDriver>::process_in_queue(&connection.acceptor);
+        LoopbackPeer::<MockState, MockStateDriver>::process_in_queue(
+            &connection.acceptor,
+            &mut connection.acceptor_envs.borrow_mut(),
+        );
         assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 0);
 
         connection.initiator.borrow_mut().send_hello(msg.clone());
@@ -408,7 +423,10 @@ mod tests {
         println!("{:?}", envelope);
         connection.initiator.borrow_mut().send_scp_msg(envelope);
 
-        LoopbackPeer::process_in_queue(&connection.acceptor);
+        LoopbackPeer::process_in_queue(
+            &connection.acceptor,
+            &mut connection.acceptor_envs.borrow_mut(),
+        );
 
         todo!();
 

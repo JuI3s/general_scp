@@ -48,9 +48,10 @@ where
         }
     }
 
-    pub fn add_envelope(&mut self, envelope: &SCPEnvelope<N>) {
+    pub fn add_envelope(&mut self, envelope: SCPEnvelope<N>) -> SCPEnvelopeID {
         let timestamp = SystemTime::now();
         self.envelopes.insert(timestamp, envelope.clone());
+        timestamp
     }
 
     pub fn get_envelope(&self, env_id: &SCPEnvelopeID) -> Option<&SCPEnvelope<N>> {
