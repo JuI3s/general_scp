@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::hash_map::DefaultHasher,
+    env,
     fmt::Debug,
     hash::{self, Hash, Hasher},
     ops::Deref,
@@ -30,6 +31,7 @@ use crate::{
 };
 
 use super::{
+    envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
     scp::{EnvelopeState, NodeID},
     scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver, SlotStateTimer, ValidationLevel},
     slot::{Slot, SlotIndex},
@@ -53,7 +55,8 @@ where
     fn process_nomination_envelope(
         self: &Arc<Self>,
         state_handle: &HNominationProtocolState<N>,
-        envelope: &HSCPEnvelope<N>,
+        envelope_id: &SCPEnvelopeID,
+        envelope: &SCPEnvelope<N>,
     ) -> EnvelopeState;
 }
 
@@ -83,9 +86,9 @@ where
     pub votes: SCPNominationValueSet<N>,
     pub accepted: SCPNominationValueSet<N>,
     pub candidates: SCPNominationValueSet<N>,
-    pub latest_nominations: BTreeMap<String, HSCPEnvelope<N>>,
+    pub latest_nominations: BTreeMap<String, SCPEnvelopeID>,
 
-    pub latest_envelope: Option<HSCPEnvelope<N>>,
+    pub latest_envelope: Option<SCPEnvelopeID>,
     pub round_leaders: BTreeSet<String>,
 
     pub nomination_started: bool,
@@ -233,7 +236,10 @@ where
 
     fn is_sane(&self, statement: &SCPStatementNominate<N>) -> bool {
         info!("Checking if statement is sane");
-        info!("Total votes: {}", statement.votes.len() + statement.accepted.len());
+        info!(
+            "Total votes: {}",
+            statement.votes.len() + statement.accepted.len()
+        );
         (statement.votes.len() + statement.accepted.len() != 0)
             && statement.votes.windows(2).all(|win| win[0] < win[1])
             && statement.accepted.windows(2).all(|win| win[0] < win[1])
@@ -302,17 +308,11 @@ where
 
     // only called after a call to isNewerStatement so safe to replace the
     // mLatestNomination
-    fn record_envelope(&mut self, envelope: &HSCPEnvelope<N>) {
+    fn record_envelope(&mut self, env_id: &SCPEnvelopeID, nomination_env: &SCPEnvelope<N>) {
         info!("Recording envelope");
-        let nomination_env = envelope.lock().unwrap();
         let node_id = &nomination_env.node_id;
-        if let Some(old_nomination) = self.latest_nominations.get(node_id).borrow_mut() {
-            *old_nomination = &envelope.clone()
-            // TODO: is this right?
-        } else {
-            self.latest_nominations
-                .insert(node_id.to_string(), envelope.clone());
-        }
+
+        self.latest_nominations.insert(node_id.clone(), *env_id);
 
         // TODO: record statement
         // I think it's not needed for SCP - just some routine bookkeeping.
@@ -355,9 +355,7 @@ where
 
         let local_node = self.local_node.borrow();
 
-
         let mut votes = vec![];
-
 
         self.nomination_state()
             .lock()
@@ -373,21 +371,20 @@ where
             .accepted
             .iter()
             .for_each(|accepted| {
-               votes.push(accepted.as_ref().clone());
+                votes.push(accepted.as_ref().clone());
             });
 
-                // Creating the nomination statement
-        let nom_st= SCPStatementNominate::<N>::new(&local_node.quorum_set, votes);
-    
+        // Creating the nomination statement
+        let nom_st = SCPStatementNominate::<N>::new(&local_node.quorum_set, votes);
 
         // Creating the envelop
         let st = SCPStatement::Nominate(nom_st);
         let env = self.create_envelope(st).to_handle();
 
-
         // Process the envelope. This may triggers more envelops being emitted.
-        let processed_result: EnvelopeState = self.process_nomination_envelope(&self.nomination_state(), &env);
-        
+        let processed_result: EnvelopeState =
+            self.process_nomination_envelope(&self.nomination_state(), &env);
+
         info!("Processed result: {:?}", processed_result);
 
         match processed_result {
@@ -559,12 +556,12 @@ where
     fn process_nomination_envelope(
         self: &Arc<Self>,
         state_handle: &HNominationProtocolState<N>,
-        envelope: &HSCPEnvelope<N>,
+        envelope_id: &SCPEnvelopeID,
+        envelope: &SCPEnvelope<N>,
     ) -> EnvelopeState {
         info!("Processing nomination envelope");
-        let env = envelope.lock().unwrap();
-        let node_id = &env.node_id;
-        let statement = env.get_statement().as_nomination_statement();
+        let node_id = &envelope.node_id;
+        let statement = envelope.get_statement().as_nomination_statement();
         let mut state = state_handle.lock().unwrap();
 
         // TODO: this comment seems to be wrong
@@ -577,7 +574,6 @@ where
         if state.processed_newer_statement(&node_id, statement) {
             return EnvelopeState::Invalid;
         }
-
 
         if !state.is_sane(statement) {
             info!("br1.2");

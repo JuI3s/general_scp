@@ -1,3 +1,7 @@
+use core::time;
+use std::{collections::BTreeMap, time::SystemTime};
+
+use env_logger::fmt::Timestamp;
 use serde_derive::{Deserialize, Serialize};
 
 use super::{
@@ -23,4 +27,33 @@ where
 
     #[serde(with = "serde_bytes")]
     pub signature: HashValue,
+}
+
+pub type SCPEnvelopeID = SystemTime;
+pub struct SCPEnvelopeController<N>
+where
+    N: NominationValue,
+{
+    envelopes: BTreeMap<SCPEnvelopeID, SCPEnvelope<N>>,
+    // envelopes:
+}
+
+impl<N> SCPEnvelopeController<N>
+where
+    N: NominationValue,
+{
+    pub fn new() -> Self {
+        Self {
+            envelopes: Default::default(),
+        }
+    }
+
+    pub fn add_envelope(&mut self, envelope: &SCPEnvelope<N>) {
+        let timestamp = SystemTime::now();
+        self.envelopes.insert(timestamp, envelope.clone());
+    }
+
+    pub fn get_envelope(&self, env_id: &SCPEnvelopeID) -> Option<&SCPEnvelope<N>> {
+        self.envelopes.get(env_id)
+    }
 }
