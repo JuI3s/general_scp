@@ -1,3 +1,5 @@
+use syn::token::Ref;
+
 use crate::{
     herder::herder::HerderDriver,
     mock::state::{MockState, MockStateDriver},
@@ -51,6 +53,7 @@ where
     state: Rc<RefCell<SCPPeerState>>,
     herder: Rc<RefCell<H>>,
     other_envs: Rc<RefCell<SCPEnvelopeController<N>>>,
+    self_envs: Rc<RefCell<SCPEnvelopeController<N>>>,
 }
 
 impl<N, H> LoopbackPeer<N, H>
@@ -63,6 +66,7 @@ where
         we_called_remote: bool,
         herder: Rc<RefCell<H>>,
         other_envs: Rc<RefCell<SCPEnvelopeController<N>>>,
+        self_envs: Rc<RefCell<SCPEnvelopeController<N>>>,
     ) -> Self {
         LoopbackPeer {
             work_schedular: work_scheduler.clone(),
@@ -72,17 +76,17 @@ where
             state: SCPPeerState::new(we_called_remote).into(),
             herder: herder,
             other_envs,
+            self_envs,
         }
     }
 
     pub fn process_in_queue(
         this: &Rc<RefCell<Self>>,
-        envelope_controller: &mut SCPEnvelopeController<N>,
     ) {
         let mut peer = this.borrow_mut();
 
         if let Some(message) = peer.in_queue.pop_front() {
-            peer.recv_message(message, envelope_controller);
+            peer.recv_message(message, &mut peer.self_envs.borrow_mut());
         }
 
         // If we have more messages, process them on the main thread.
@@ -92,7 +96,7 @@ where
                 .borrow()
                 .post_on_main_thread(Box::new(move || {
                     if let Some(p) = self_clone.upgrade() {
-                        LoopbackPeer::process_in_queue(&p, envelope_controller);
+                        LoopbackPeer::process_in_queue(&p, );
                     }
                 }))
         }
@@ -139,7 +143,7 @@ where
                 .borrow()
                 .post_on_main_thread(Box::new(move || {
                     if let Some(peer) = remote_clone.upgrade() {
-                        LoopbackPeer::process_in_queue(&peer, &mut self.other_envs.borrow_mut());
+                        LoopbackPeer::process_in_queue(&peer, other_envs.borrow_mut());
                     }
                 }));
         }
