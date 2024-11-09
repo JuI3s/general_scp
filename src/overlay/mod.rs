@@ -5,4 +5,6 @@ pub mod outgate;
 pub mod overlay_manager;
 pub mod peer;
 pub mod rpc_gateway;
+pub mod node;       
+pub mod peer_manager;
 mod rpc_gateway_test;

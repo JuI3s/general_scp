@@ -27,7 +27,7 @@ impl MockSCPDriver {
     pub fn recv_scp_message(
         mut self,
         envelope: &SCPEnvelopeID,
-        envelope_controller: &SCPEnvelopeController<MockState>,
+        envelope_controller: &mut SCPEnvelopeController<MockState>,
     ) {
         let env = envelope_controller.get_envelope(envelope).unwrap();
         let slot = env.slot_index;

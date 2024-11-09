@@ -13,6 +13,7 @@ pub type HashValue = [u8; 64];
 
 use serde::{Deserialize, Serialize};
 use syn::token::Mut;
+use tokio::task;
 
 use crate::{
     application::{
@@ -29,11 +30,12 @@ use crate::{
 use super::{
     ballot_protocol::{BallotProtocol, BallotProtocolState, HBallotProtocolState, SCPBallot},
     envelope::{self, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
-    local_node::{HLocalNode, LocalNode},
+    local_node::{HLocalNode, LocalNodeInfo},
     nomination_protocol::{
         HLatestCompositeCandidateValue, HNominationProtocolState, HSCPNominationValue,
         NominationValue, SCPNominationValue,
     },
+    queue::SlotJobQueue,
     scp::NodeID,
     slot::{HSlot, Slot, SlotIndex},
     statement::SCPStatement,
@@ -61,11 +63,12 @@ where
 {
     pub slot_index: SlotIndex,
     pub local_node: HLocalNode<N>,
-    pub scheduler: WorkScheduler,
+    // pub scheduler: WorkScheduler,
     nomination_state_handle: HNominationProtocolState<N>,
     ballot_state_handle: HBallotProtocolState<N>,
     pub herder_driver: Rc<RefCell<H>>,
     pub slot_state: RefCell<SlotState>,
+    pub task_queue: Rc<RefCell<SlotJobQueue<N, H>>>,
 }
 
 #[derive(PartialEq, Eq, Hash)]
@@ -242,26 +245,26 @@ where
     pub fn new(
         slot_index: SlotIndex,
         local_node: HLocalNode<N>,
-        timer: WorkScheduler,
         nomination_state_handle: HNominationProtocolState<N>,
         ballot_state_handle: HBallotProtocolState<N>,
         herder_driver: Rc<RefCell<H>>,
+        task_queue: Rc<RefCell<SlotJobQueue<N, H>>>,
     ) -> Self {
         Self {
             slot_index: slot_index,
             local_node: local_node,
-            scheduler: timer,
             nomination_state_handle: nomination_state_handle,
             ballot_state_handle: ballot_state_handle,
             herder_driver: herder_driver,
             slot_state: Default::default(),
+            task_queue,
         }
     }
 
     pub fn recv_scp_envelvope(
         self: &Arc<Self>,
         env_id: &SCPEnvelopeID,
-        envelope_controller: &SCPEnvelopeController<N>,
+        envelope_controller: &mut SCPEnvelopeController<N>,
     ) {
         let env = envelope_controller.get_envelope(env_id).unwrap();
         println!("Received an envelope: {:?}", env_id);
@@ -325,7 +328,7 @@ where
         envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
-        if LocalNode::<N>::is_v_blocking_with_predicate(
+        if LocalNodeInfo::<N>::is_v_blocking_with_predicate(
             self.local_node.borrow().get_quorum_set(),
             envelopes,
             &accepted_predicate,
@@ -337,7 +340,7 @@ where
                 move |st: &SCPStatement<N>| accepted_predicate(st) && voted_predicate(st);
 
             let local_node = self.local_node.borrow();
-            if LocalNode::is_quorum_with_node_filter(
+            if LocalNodeInfo::is_quorum_with_node_filter(
                 Some((local_node.get_quorum_set(), &local_node.node_id)),
                 envelopes,
                 |st| self.herder_driver.borrow().get_quorum_set(st),
@@ -360,7 +363,7 @@ where
     ) -> bool {
         let local_node = self.local_node.borrow();
 
-        LocalNode::is_quorum_with_node_filter(
+        LocalNodeInfo::is_quorum_with_node_filter(
             Some((local_node.get_quorum_set(), &local_node.node_id)),
             envelopes,
             |st| self.herder_driver.borrow().get_quorum_set(st),
@@ -372,7 +375,7 @@ where
     pub fn create_envelope(
         &self,
         statement: SCPStatement<N>,
-        envelope_controller: &SCPEnvelopeController<N>,
+        envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> SCPEnvelopeID {
         let env = SCPEnvelope {
             statement,
@@ -424,14 +427,14 @@ where
         // Add nodes that we have heard from.
         let mut nodes: Vec<NodeID> = Default::default();
 
-        LocalNode::<N>::for_all_nodes(&local_node.quorum_set, &mut |node| {
+        LocalNodeInfo::<N>::for_all_nodes(&local_node.quorum_set, &mut |node| {
             if self.get_latest_message(node).is_some() {
                 nodes.push(node.to_owned());
             }
             true
         });
 
-        if LocalNode::<N>::is_v_blocking(&local_node.quorum_set, &nodes) {
+        if LocalNodeInfo::<N>::is_v_blocking(&local_node.quorum_set, &nodes) {
             self.slot_state.borrow_mut().got_v_blocking = true;
         }
     }

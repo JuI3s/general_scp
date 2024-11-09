@@ -2,6 +2,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     cell::RefCell,
     env,
+    marker::PhantomData,
     rc::{Rc, Weak},
     sync::{Arc, Mutex},
     time::SystemTime,
@@ -38,12 +39,6 @@ pub struct Peer {
 }
 
 impl Peer {
-    pub fn new() -> Self {
-        Peer {
-            state: Arc::new(Mutex::new(State::new())),
-            id: todo!(),
-        }
-    }
 
     fn get_state(&mut self) -> std::sync::MutexGuard<'_, State> {
         self.state.lock().unwrap()
@@ -132,35 +127,35 @@ pub enum SCPPeerConnState {
     Closing,
 }
 
-pub trait SCPPeer<N, H>
+pub struct SCPPeer<N, C>
 where
     N: NominationValue,
-    H: HerderDriver<N>,
-    Self: Sized,
+    C: PeerConn<N>,
 {
-    fn id(&self) -> &NodeID;
-    fn peer_state(&mut self) -> &Rc<RefCell<SCPPeerState>>;
-    fn herder(&self) -> Rc<RefCell<H>>;
-    fn overlay_manager(
-        &self,
-    ) -> &Rc<RefCell<dyn OverlayManager<N, H, HP = Rc<RefCell<Self>>, P = Self>>>;
+    pub node_id: NodeID,
+    pub state: SCPPeerState,
+    pub conn: C,
+    phantom: PhantomData<N>,
+}
 
-    // Setting state on connected
-    fn set_state_on_connected(&mut self) {
-        self.borrow_mut()
-            .peer_state()
-            .as_ref()
-            .borrow_mut()
-            .set_conn_state(SCPPeerConnState::Connected);
-    }
-
-    fn connect_handler(&mut self) {
-        self.set_state_on_connected();
+impl<N, C> SCPPeer<N, C>
+where
+    N: NominationValue,
+    C: PeerConn<N>,
+{
+    pub fn on_connect(&mut self) {
+        self.state.set_conn_state(SCPPeerConnState::Connected);
 
         let hello_env = HelloEnvelope {};
-        self.send_hello(hello_env);
+        self.conn.send_hello(hello_env);
     }
+}
 
+pub trait PeerConn<N>
+where
+    N: NominationValue,
+    Self: Sized,
+{
     // Implemented by struct implementing the trait.
     fn send_message(&mut self, msg: &SCPMessage<N>);
 
@@ -170,47 +165,6 @@ where
 
     fn send_scp_msg(&mut self, envelope: SCPEnvelope<N>) {
         self.send_message(&SCPMessage::SCP(envelope))
-    }
-
-    fn recv_message(
-        &mut self,
-        msg: SCPMessage<N>,
-        envelope_controller: &mut SCPEnvelopeController<N>,
-    ) {
-        // if msg.is_boardcast_msg() {
-        //     self.overlay_manager()
-        //         .as_ref()
-        //         .borrow_mut()
-        //         .recv_flooded_message(msg, self)
-        // }
-
-        info!("Received a message");
-
-        match msg {
-            SCPMessage::SCP(scp_envelope) => {
-                let env_id = envelope_controller.add_envelope(scp_envelope);
-                return self.recv_scp_envelope(&env_id, &envelope_controller);
-            }
-
-            SCPMessage::Hello(hello) => self.recv_hello_envelope(&hello),
-        }
-    }
-
-    fn recv_hello_envelope(&mut self, enevlope: &HelloEnvelope) {
-        self.peer_state()
-            .as_ref()
-            .borrow_mut()
-            .set_conn_state(SCPPeerConnState::GotHello);
-    }
-
-    fn recv_scp_envelope(
-        &mut self,
-        envelope: &SCPEnvelopeID,
-        envelope_controller: &SCPEnvelopeController<N>,
-    ) {
-        println!("Received an SCP envelope");
-        // We pass it to the herder
-        H::recv_scp_envelope(&self.herder(), envelope, envelope_controller);
     }
 }
 

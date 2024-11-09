@@ -214,7 +214,7 @@ mod tests {
         application::{clock::VirtualClock, quorum::QuorumSet, work_queue::EventQueue},
         overlay::loopback_peer::{LoopbackPeer, LoopbackPeerConnection},
         scp::{
-            local_node::LocalNode,
+            local_node::LocalNodeInfo,
             local_node_builder::LocalNodeBuilder,
             scp::NodeID,
             scp_driver_builder::{SlotDriverBuilder, SlotTimerBuilder},
@@ -227,7 +227,7 @@ mod tests {
         application::work_queue::WorkScheduler,
         mock::state::{MockState, MockStateDriver},
         overlay::message::HelloEnvelope,
-        overlay::peer::SCPPeer,
+        overlay::peer::PeerConn,
     };
 
     use super::*;
@@ -355,7 +355,7 @@ mod tests {
 
         let quorum_set = QuorumSet::example_quorum_set();
 
-        let local_node: Rc<RefCell<LocalNode<MockState>>> = LocalNodeBuilder::<MockState>::new()
+        let local_node: Rc<RefCell<LocalNodeInfo<MockState>>> = LocalNodeBuilder::<MockState>::new()
             .is_validator(true)
             .quorum_set(quorum_set)
             .node_id(node_id)

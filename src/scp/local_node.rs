@@ -21,10 +21,10 @@ use super::{
     statement::{HSCPStatement, SCPStatement},
 };
 
-pub type HLocalNode<N> = Rc<RefCell<LocalNode<N>>>;
+pub type HLocalNode<N> = Rc<RefCell<LocalNodeInfo<N>>>;
 
 #[derive(Serialize, Deserialize)]
-pub struct LocalNode<N>
+pub struct LocalNodeInfo<N>
 where
     N: NominationValue + 'static,
 {
@@ -34,16 +34,16 @@ where
     phantom: PhantomData<N>,
 }
 
-impl<N> Into<Rc<RefCell<LocalNode<N>>>> for LocalNode<N>
+impl<N> Into<Rc<RefCell<LocalNodeInfo<N>>>> for LocalNodeInfo<N>
 where
     N: NominationValue,
 {
-    fn into(self) -> Rc<RefCell<LocalNode<N>>> {
+    fn into(self) -> Rc<RefCell<LocalNodeInfo<N>>> {
         RefCell::new(self).into()
     }
 }
 
-impl<N> LocalNode<N>
+impl<N> LocalNodeInfo<N>
 where
     N: NominationValue,
 {
@@ -109,7 +109,7 @@ where
                 nodes.push(entry.0.clone());
             }
         });
-        LocalNode::<N>::is_v_blocking(quorum_set, &nodes)
+        LocalNodeInfo::<N>::is_v_blocking(quorum_set, &nodes)
     }
 
     fn nodes_fill_quorum_slice(quorum_slice: &QuorumSlice, nodes: &Vec<NodeID>) -> bool {
@@ -126,7 +126,7 @@ where
         quorum_set
             .slices
             .iter()
-            .any(|slice| LocalNode::<N>::nodes_fill_quorum_slice(slice, nodes))
+            .any(|slice| LocalNodeInfo::<N>::nodes_fill_quorum_slice(slice, nodes))
     }
 
     // `is_quorum_with_node_filter` tests if the filtered nodes V form a quorum
@@ -175,7 +175,7 @@ where
                 let statement = env.get_statement();
 
                 if let Some(quorum_set) = get_quorum_set_predicate(statement) {
-                    LocalNode::<N>::nodes_fill_one_quorum_slice_in_quorum_set(
+                    LocalNodeInfo::<N>::nodes_fill_one_quorum_slice_in_quorum_set(
                         &quorum_set.lock().unwrap(),
                         &nodes,
                     )
@@ -188,7 +188,7 @@ where
         // Check for local node.
         if let Some((local_quorum_set, _)) = local_quorum {
             ret = ret
-                && LocalNode::<N>::nodes_fill_one_quorum_slice_in_quorum_set(
+                && LocalNodeInfo::<N>::nodes_fill_one_quorum_slice_in_quorum_set(
                     local_quorum_set,
                     &nodes,
                 );
@@ -203,7 +203,7 @@ where
         get_quorum_set_predicate: impl Fn(&SCPStatement<N>) -> Option<HQuorumSet>,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
-        LocalNode::is_quorum_with_node_filter(
+        LocalNodeInfo::is_quorum_with_node_filter(
             local_quorum,
             envelopes,
             get_quorum_set_predicate,
@@ -213,7 +213,7 @@ where
     }
 }
 
-impl<N> Default for LocalNode<N>
+impl<N> Default for LocalNodeInfo<N>
 where
     N: NominationValue,
 {
@@ -321,14 +321,14 @@ mod tests {
         };
 
         assert_eq!(
-            LocalNode::is_quorum(None, &envelopes, get_quorum_set_predicate, &env_controller),
+            LocalNodeInfo::is_quorum(None, &envelopes, get_quorum_set_predicate, &env_controller),
             true
         );
         envelopes.remove(&node_id2);
         envelopes.remove(&node_id3);
         envelopes.remove(&node_id4);
         assert_eq!(
-            LocalNode::is_quorum(None, &envelopes, get_quorum_set_predicate, &env_controller),
+            LocalNodeInfo::is_quorum(None, &envelopes, get_quorum_set_predicate, &env_controller),
             false
         );
     }

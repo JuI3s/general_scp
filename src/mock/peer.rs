@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     herder::herder::HerderDriver,
-    overlay::peer::{SCPPeer, SCPPeerState},
+    overlay::peer::{PeerConn, SCPPeerState},
     scp::scp::NodeID,
 };
 
@@ -14,10 +14,7 @@ pub struct MockPeer {
     herder: Rc<RefCell<MockStateDriver>>,
 }
 
-impl SCPPeer<MockState, MockStateDriver> for MockPeer {
-    fn id(&self) -> &crate::scp::scp::NodeID {
-        &self.id
-    }
+impl PeerConn<MockState, MockStateDriver> for MockPeer {
 
     fn peer_state(&mut self) -> &std::rc::Rc<std::cell::RefCell<SCPPeerState>> {
         &self.state

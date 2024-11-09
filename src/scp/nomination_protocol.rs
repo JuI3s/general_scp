@@ -8,7 +8,6 @@ use std::{
 };
 
 use std::{
-    borrow::BorrowMut,
     collections::{BTreeMap, BTreeSet, HashSet},
     rc::Rc,
     sync::{Arc, Mutex},
@@ -30,6 +29,7 @@ use crate::{
 
 use super::{
     envelope::{self, SCPEnvelopeController, SCPEnvelopeID},
+    queue::{RetryNominateArg, SlotJob, SlotTask},
     scp::{EnvelopeState, NodeID, SCP},
     scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver, SlotStateTimer, ValidationLevel},
     slot::{Slot, SlotIndex},
@@ -45,7 +45,7 @@ where
         state: HNominationProtocolState<N>,
         value: HSCPNominationValue<N>,
         previous_value: &N,
-        envelope_controller: &SCPEnvelopeController<N>,
+        envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> bool;
     fn stop_nomination(self: &Arc<Self>, state: &mut NominationProtocolState<N>);
 
@@ -55,7 +55,7 @@ where
         self: &Arc<Self>,
         state_handle: &HNominationProtocolState<N>,
         envelope: &SCPEnvelopeID,
-        envelope_controller: &SCPEnvelopeController<N>,
+        envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> EnvelopeState;
 }
 
@@ -312,13 +312,9 @@ where
     ) {
         let nomination_env = envelope_controller.get_envelope(env_id).unwrap();
         let node_id = &nomination_env.node_id;
-        if let Some(old_nomination) = self.latest_nominations.get(node_id).borrow_mut() {
-            *old_nomination = &env_id.clone()
-            // TODO: is this right?
-        } else {
-            self.latest_nominations
-                .insert(node_id.to_string(), env_id.clone());
-        }
+
+        self.latest_nominations
+            .insert(node_id.to_string(), env_id.clone());
 
         // TODO: record statement
         // I think it's not needed for SCP - just some routine bookkeeping.
@@ -382,7 +378,7 @@ where
     fn emit_nomination(
         self: &Arc<Self>,
         state: &mut NominationProtocolState<N>,
-        envelope_controller: &SCPEnvelopeController<N>,
+        envelope_controller: &mut SCPEnvelopeController<N>,
     ) {
         // This function creats a nomination statement that contains the current
         // nomination value. The statement is then wrapped in an SCP envelope which is
@@ -455,7 +451,7 @@ where
         state_handle: HNominationProtocolState<N>,
         value: HSCPNominationValue<N>,
         previous_value: &N,
-        envelope_controller: &SCPEnvelopeController<N>,
+        envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> bool {
         let mut state = state_handle.lock().unwrap();
         if !state.candidates.is_empty() {
@@ -523,32 +519,29 @@ where
             }
         }
 
-        let weak_self = Arc::downgrade(self);
-        let weak_state = Arc::downgrade(&state_handle.clone());
-        let value_copy = value.clone();
-        let prev_value_copy = previous_value.clone();
+        {
+            // Create renominating task.
+            let renominate_task_arg = RetryNominateArg {
+                state_handle: state_handle.clone(),
+                value: value.clone(),
+                previous_value: previous_value.clone(),
+            };
 
-        let re_nominate_callback = move || match weak_self.upgrade() {
-            Some(slot_driver) => match weak_state.upgrade() {
-                Some(state) => {
-                    slot_driver.nominate(state, value_copy, &prev_value_copy, envelope_controller);
-                }
-                None => {}
-            },
-            None => {}
-        };
+            let renominate_task = SlotTask::RetryNominate(renominate_task_arg);
+            let renominate_job = SlotJob {
+                id: self.slot_index.clone(),
+                timestamp: SystemTime::now() + timeout,
+                task: renominate_task,
+            };
 
-        let timestamp = SystemTime::now() + timeout;
-        let clock_event = ClockEvent::new(timestamp.to_owned(), Box::new(re_nominate_callback));
-        self.slot_state
-            .borrow_mut()
-            .restart_timer(SlotStateTimer::NominationProtocol, clock_event.into());
+            self.task_queue.borrow_mut().submit(renominate_job);
+        }
 
         if updated {
             println!("Updated");
             self.emit_nomination(&mut state, envelope_controller);
         } else {
-            debug!("NominationProtocol::nominate (SKIPPED");
+            debug!("NominationProtocol::nominate (SKIPPED)");
         }
 
         updated
@@ -570,7 +563,7 @@ where
         self: &Arc<Self>,
         state_handle: &HNominationProtocolState<N>,
         envelope: &SCPEnvelopeID,
-        envelope_controller: &SCPEnvelopeController<N>,
+        envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> EnvelopeState {
         let env = envelope_controller.get_envelope(envelope).unwrap();
         let node_id = &env.node_id;

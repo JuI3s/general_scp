@@ -6,6 +6,8 @@ use std::{
     rc::Rc,
 };
 
+use rand::distributions::Alphanumeric;
+
 use crate::{
     application::quorum::{QuorumSet, QuorumSetHash},
     crypto::types::{Blake2Hash, Blake2Hashable, Blake2Hasher},
@@ -223,10 +225,14 @@ where
             });
     }
 
-    fn recv_nomination_value(&mut self, value: &N) {
+    fn recv_nomination_value(
+        &mut self,
+        value: &N,
+        envelope_controller: &mut SCPEnvelopeController<N>,
+    ) {
         self.nomination_value_fetcher
             .recv(&Blake2Hasher::<N>::hash(value), &mut |env| {
-                H::recv_scp_envelope(&self.herder, env);
+                H::recv_scp_envelope(&self.herder, env, &envelope_controller);
             })
     }
 

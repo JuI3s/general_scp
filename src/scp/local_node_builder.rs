@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::application::quorum::QuorumSet;
 
-use super::local_node::{HLocalNode, LocalNode};
+use super::local_node::{HLocalNode, LocalNodeInfo};
 use super::nomination_protocol::NominationValue;
 use super::scp::NodeID;
 
@@ -66,7 +66,7 @@ where
             return Err("Missing node id.");
         }
 
-        Ok(LocalNode::<N>::new(
+        Ok(LocalNodeInfo::<N>::new(
             self.is_validator.unwrap(),
             self.quorum_set.unwrap(),
             self.node_id.unwrap(),

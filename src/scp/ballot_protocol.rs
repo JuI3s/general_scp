@@ -1,5 +1,4 @@
 use std::{
-    borrow::BorrowMut,
     collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
     env::{self, consts::FAMILY},
     hash::Hash,
@@ -9,14 +8,16 @@ use std::{
     time::SystemTime,
 };
 
+use env_logger::fmt::Timestamp;
 use serde::{Deserialize, Serialize};
+use tokio::join;
 use typenum::False;
 
 use crate::{
     application::{quorum::QuorumSet, work_queue::ClockEvent},
     herder::herder::HerderDriver,
     scp::{
-        local_node::LocalNode,
+        local_node::LocalNodeInfo,
         nomination_protocol::NominationProtocol,
         scp_driver::{SCPDriver, SlotStateTimer},
     },
@@ -25,6 +26,7 @@ use crate::{
 use super::{
     envelope::{self, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
     nomination_protocol::{HNominationProtocolState, NominationProtocolState, NominationValue},
+    queue::{AbandonBallotArg, SlotJob, SlotTask},
     scp::{EnvelopeState, NodeID, SCP},
     scp_driver::{HSCPEnvelope, HashValue, SlotDriver, ValidationLevel},
     statement::{SCPStatement, SCPStatementConfirm, SCPStatementExternalize, SCPStatementPrepare},
@@ -1047,7 +1049,7 @@ where
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
         let local_node = self.local_node.borrow();
-        LocalNode::is_v_blocking_with_predicate(
+        LocalNodeInfo::is_v_blocking_with_predicate(
             &self.local_node.borrow().quorum_set,
             envelopes,
             &|st| st.ballot_counter() > counter,
@@ -1057,7 +1059,7 @@ where
 
     // This method abandons the current ballot and sets the state according to state
     // counter n.
-    fn abandon_ballot(
+    pub fn abandon_ballot(
         self: &Arc<Self>,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
@@ -1209,7 +1211,7 @@ where
                 }
             };
 
-            if LocalNode::is_quorum(
+            if LocalNodeInfo::is_quorum(
                 Some((
                     &self.local_node.borrow().quorum_set,
                     &self.local_node.borrow().node_id,
@@ -1224,7 +1226,7 @@ where
                     // if we transition from not heard -> heard, we start the
                     // timer
                     if ballot_state.phase != SCPPhase::PhaseExternalize {
-                        self.start_ballot_protocol_timer(&ballot_state, envelope_controller)
+                        self.start_ballot_protocol_timer(&ballot_state)
                     }
                 }
                 if ballot_state.phase == SCPPhase::PhaseExternalize {
@@ -1240,8 +1242,8 @@ where
     fn ballot_protocol_expired(self: &Arc<Self>, env_controller: &SCPEnvelopeController<N>) {
         // TODO: this does not cause deadlock issues?
         self.abandon_ballot(
-            self.ballot_state().lock().unwrap().borrow_mut(),
-            self.nomination_state().lock().unwrap().borrow_mut(),
+            std::borrow::BorrowMut::borrow_mut(&mut self.ballot_state().lock().unwrap()),
+            std::borrow::BorrowMut::borrow_mut(&mut self.nomination_state().lock().unwrap()),
             0,
             env_controller,
         );
@@ -1250,7 +1252,6 @@ where
     fn start_ballot_protocol_timer(
         self: &Arc<Self>,
         ballot_state: &BallotProtocolState<N>,
-        env_controller: &SCPEnvelopeController<N>,
     ) {
         let timeout = self.herder_driver.borrow().compute_timeout(
             ballot_state
@@ -1264,23 +1265,21 @@ where
                 .into(),
         );
 
-        let weak = Arc::downgrade(&self);
-        let callback = move || {
-            if let Some(this) = weak.upgrade() {
-                this.abandon_ballot(
-                    this.ballot_state().lock().unwrap().borrow_mut(),
-                    this.nomination_state().lock().unwrap().borrow_mut(),
-                    0,
-                    env_controller,
-                );
-            }
-        };
+        {
+            let abandon_ballot_arg = AbandonBallotArg {
+                state: self.ballot_state().clone(),
+                nomination_state: self.nomination_state().clone(),
+                n: 0,
+            };
 
-        // Restart ballot protocol after timeout.
-        let event = ClockEvent::new(SystemTime::now() + timeout, Box::new(callback));
-        self.slot_state
-            .borrow_mut()
-            .restart_timer(SlotStateTimer::BallotProtocol, event.into());
+            let abandon_ballot_job = SlotJob {
+                id: self.slot_index.clone(),
+                timestamp: SystemTime::now() + timeout,
+                task: SlotTask::AbandonBallot(abandon_ballot_arg),
+            };
+
+            self.task_queue.borrow_mut().submit(abandon_ballot_job);
+        }
     }
 
     fn stop_ballot_protocol_timer(self: &Arc<Self>, ballot_state: &BallotProtocolState<N>) {

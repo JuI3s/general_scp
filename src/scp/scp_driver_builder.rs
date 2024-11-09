@@ -10,8 +10,9 @@ use crate::application::work_queue::{EventQueue, HWorkScheduler, WorkScheduler};
 use crate::herder::herder::HerderDriver;
 
 use super::ballot_protocol::BallotProtocolState;
-use super::local_node::{HLocalNode, LocalNode};
+use super::local_node::{HLocalNode, LocalNodeInfo};
 use super::nomination_protocol::{NominationProtocolState, NominationValue};
+use super::queue::SlotJobQueue;
 use super::scp_driver::SlotDriver;
 use super::slot::SlotIndex;
 
@@ -21,11 +22,12 @@ where
     T: HerderDriver<N>,
 {
     slot_index: Option<SlotIndex>,
-    local_node: Option<Rc<RefCell<LocalNode<N>>>>,
+    local_node: Option<Rc<RefCell<LocalNodeInfo<N>>>>,
     timer: Option<WorkScheduler>,
     herder_driver: Option<Rc<RefCell<T>>>,
     nomination_protocol_state: Option<NominationProtocolState<N>>,
     ballot_protocol_state: Option<BallotProtocolState<N>>,
+    task_queue: Option<Rc<RefCell<SlotJobQueue<N, T>>>>,
 }
 
 impl<N, T> Default for SlotDriverBuilder<N, T>
@@ -41,6 +43,7 @@ where
             herder_driver: Default::default(),
             nomination_protocol_state: Default::default(),
             ballot_protocol_state: Default::default(),
+            task_queue: Default::default(),
         }
     }
 }
@@ -87,6 +90,11 @@ where
         self
     }
 
+    pub fn task_queue(mut self, task_queue: Rc<RefCell<SlotJobQueue<N, T>>>) -> Self {
+        self.task_queue = Some(task_queue);
+        self
+    }
+
     pub fn build(self) -> Result<SlotDriver<N, T>, &'static str> {
         if self.slot_index.is_none() {
             return Err("Missing slot index.");
@@ -107,12 +115,12 @@ where
         Ok(SlotDriver::<N, T>::new(
             self.slot_index.unwrap(),
             self.local_node.unwrap().into(),
-            self.timer.unwrap(),
             Arc::new(Mutex::new(
                 self.nomination_protocol_state.unwrap_or_default(),
             )),
             Arc::new(Mutex::new(self.ballot_protocol_state.unwrap_or_default())),
             self.herder_driver.unwrap(),
+            self.task_queue.unwrap(),
         ))
     }
 

@@ -11,7 +11,7 @@ use crate::{
 };
 
 use std::{
-    cell::{Ref, RefCell},
+    cell::RefCell,
     collections::VecDeque,
     marker::PhantomData,
     rc::{Rc, Weak},
@@ -19,7 +19,7 @@ use std::{
 
 use crate::{application::work_queue::HWorkScheduler, scp::nomination_protocol::NominationValue};
 
-use super::peer::{SCPPeer, SCPPeerState};
+use super::peer::{PeerConn, SCPPeerState};
 
 impl MakeStatement<MockState> for LoopbackPeer<MockState, MockStateDriver> {
     fn new_nominate_statement(
@@ -80,9 +80,7 @@ where
         }
     }
 
-    pub fn process_in_queue(
-        this: &Rc<RefCell<Self>>,
-    ) {
+    pub fn process_in_queue(this: &Rc<RefCell<Self>>) {
         let mut peer = this.borrow_mut();
 
         if let Some(message) = peer.in_queue.pop_front() {
@@ -96,41 +94,18 @@ where
                 .borrow()
                 .post_on_main_thread(Box::new(move || {
                     if let Some(p) = self_clone.upgrade() {
-                        LoopbackPeer::process_in_queue(&p, );
+                        LoopbackPeer::process_in_queue(&p);
                     }
                 }))
         }
     }
 }
 
-impl<N, H> SCPPeer<N, H> for LoopbackPeer<N, H>
+impl<N, H> PeerConn<N, H> for LoopbackPeer<N, H>
 where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
 {
-    fn peer_state(&mut self) -> &std::rc::Rc<std::cell::RefCell<super::peer::SCPPeerState>> {
-        &self.state
-    }
-
-    fn id(&self) -> &crate::scp::scp::NodeID {
-        todo!()
-    }
-
-    fn overlay_manager(
-        &self,
-    ) -> &std::rc::Rc<
-        std::cell::RefCell<
-            dyn super::overlay_manager::OverlayManager<
-                N,
-                H,
-                HP = std::rc::Rc<std::cell::RefCell<Self>>,
-                P = Self,
-            >,
-        >,
-    > {
-        todo!()
-    }
-
     fn send_message(&mut self, msg: &SCPMessage<N>) {
         println!("Sending a message");
 
@@ -149,8 +124,12 @@ where
         }
     }
 
-    fn herder(&self) -> Rc<RefCell<H>> {
-        self.herder.clone()
+    fn send_hello(&mut self, envelope: super::message::HelloEnvelope) {
+        self.send_message(&SCPMessage::Hello(envelope))
+    }
+    
+    fn send_scp_msg(&mut self, envelope: crate::scp::envelope::SCPEnvelope<N>) {
+        self.send_message(&SCPMessage::SCP(envelope))
     }
 }
 

@@ -18,7 +18,7 @@ use crate::{
 
 use super::{
     message::SCPMessage,
-    peer::{HPeer, Peer, PeerID, SCPPeer},
+    peer::{HPeer, Peer, PeerID, PeerConn},
 };
 
 // The consensus protocol works on top of an underlying overlay network, and
@@ -74,9 +74,6 @@ where
     H: HerderDriver<N>,
 {
     // Peer handle.
-    type HP;
-    type P: SCPPeer<N, H>;
-
     fn flood_gate(&self) -> &Rc<RefCell<FloodGate>>;
 
     // TODO:
@@ -90,10 +87,10 @@ where
     // that, call broadcastMessage, above.
     // Returns true if this is a new message
     // fills msgID with msg's hash
-    fn recv_flooded_message(&mut self, msg: &SCPMessage<N>, peer: &Self::P) {
+    fn recv_flooded_message(&mut self, msg: &SCPMessage<N>, peer_id: &NodeID) {
         self.flood_gate()
             .borrow_mut()
-            .add_record(&msg.to_blake2(), peer.id())
+            .add_record(&msg.to_blake2(), peer_id)
     }
 
     // removes msgID from the floodgate's internal state
@@ -101,9 +98,9 @@ where
     // message with the ID msgID will cause it to be broadcast to all peers
     fn forget_flooded_message(&mut self, msg_id: &Blake2Hash) {}
 
-    fn remove_peer(&mut self, peer: &Self::P);
+    fn remove_peer(&mut self, peer: &NodeID);
 
-    fn get_authenticated_peers(&self) -> BTreeMap<NodeID, Self::HP>;
+    fn get_authenticated_peers(&self) -> BTreeMap<NodeID, NodeID>;
 }
 
 type HFloodRecord = Arc<Mutex<FloodRecord>>;
