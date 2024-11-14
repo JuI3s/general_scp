@@ -193,7 +193,7 @@ impl HerderDriver<MockState> for MockStateDriver {
     fn recv_scp_envelope(
         this: &Rc<RefCell<Self>>,
         env_id: &SCPEnvelopeID,
-        envelope_controller: &SCPEnvelopeController<MockState>,
+        envelope_controller: &mut SCPEnvelopeController<MockState>,
     ) {
         let env = envelope_controller.get_envelope(&env_id).unwrap();
         let slot = Self::get_or_create_slot(this, &env.slot_index);
@@ -296,12 +296,12 @@ mod tests {
 
         let value = Arc::new(MockState::random());
         let prev_value = MockState::random();
-        let envelope_controller = SCPEnvelopeController::<MockState>::new();
+        let mut envelope_controller = SCPEnvelopeController::<MockState>::new();
         slot_driver.nominate(
             slot_driver.nomination_state().clone(),
             value,
             &prev_value,
-            &envelope_controller,
+            &mut envelope_controller,
         );
     }
 

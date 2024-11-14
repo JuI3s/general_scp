@@ -101,7 +101,7 @@ where
     }
 }
 
-impl<N, H> PeerConn<N, H> for LoopbackPeer<N, H>
+impl<N, H> PeerConn<N> for LoopbackPeer<N, H>
 where
     N: NominationValue,
     H: HerderDriver<N> + 'static,

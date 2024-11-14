@@ -14,32 +14,17 @@ pub struct MockPeer {
     herder: Rc<RefCell<MockStateDriver>>,
 }
 
-impl PeerConn<MockState, MockStateDriver> for MockPeer {
-
-    fn peer_state(&mut self) -> &std::rc::Rc<std::cell::RefCell<SCPPeerState>> {
-        &self.state
-    }
-
-    fn overlay_manager(
-        &self,
-    ) -> &std::rc::Rc<
-        std::cell::RefCell<
-            dyn crate::overlay::overlay_manager::OverlayManager<
-                MockState,
-                MockStateDriver,
-                HP = std::rc::Rc<std::cell::RefCell<Self>>,
-                P = Self,
-            >,
-        >,
-    > {
-        todo!()
-    }
+impl PeerConn<MockState> for MockPeer {
 
     fn send_message(&mut self, msg: &crate::overlay::message::SCPMessage<MockState>) {
         todo!()
     }
-
-    fn herder(&self) -> Rc<RefCell<MockStateDriver>> {
-        self.herder.clone()
+    
+    fn send_hello(&mut self, envelope: crate::overlay::message::HelloEnvelope) {
+        self.send_message(&crate::overlay::message::SCPMessage::Hello(envelope))
+    }
+    
+    fn send_scp_msg(&mut self, envelope: crate::scp::envelope::SCPEnvelope<MockState>) {
+        self.send_message(&crate::overlay::message::SCPMessage::SCP(envelope))
     }
 }

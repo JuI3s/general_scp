@@ -1,6 +1,7 @@
 use std::{
     cell::{Ref, RefCell},
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    env,
     future::Pending,
     marker::PhantomData,
     rc::Rc,
@@ -12,7 +13,7 @@ use crate::{
     application::quorum::{QuorumSet, QuorumSetHash},
     crypto::types::{Blake2Hash, Blake2Hashable, Blake2Hasher},
     scp::{
-        envelope::{SCPEnvelope, SCPEnvelopeController},
+        envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
         nomination_protocol::NominationValue,
         scp::EnvelopeState,
         slot::{self, SlotIndex},
@@ -108,7 +109,8 @@ where
     N: NominationValue,
 {
     last_seen_index: Option<usize>,
-    waiting_envelopes: Vec<SCPEnvelope<N>>,
+    waiting_envelopes: Vec<SCPEnvelopeID>,
+    phantom: PhantomData<N>,
 }
 
 impl<N, H> PendingEnvelopesFetchingManager<N, H>
@@ -219,10 +221,13 @@ where
         quorum_set: &QuorumSet,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) {
-        self.scp_quorum_set_fetcher
-            .recv(&quorum_set.to_blake2(), &mut |env| {
-                H::recv_scp_envelope(&self.herder, env, &envelope_controller);
-            });
+        self.scp_quorum_set_fetcher.recv(
+            &quorum_set.to_blake2(),
+            &mut |env_id, controller| {
+                H::recv_scp_envelope(&self.herder, env_id, controller);
+            },
+            envelope_controller,
+        );
     }
 
     fn recv_nomination_value(
@@ -230,10 +235,13 @@ where
         value: &N,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) {
-        self.nomination_value_fetcher
-            .recv(&Blake2Hasher::<N>::hash(value), &mut |env| {
-                H::recv_scp_envelope(&self.herder, env, &envelope_controller);
-            })
+        self.nomination_value_fetcher.recv(
+            &Blake2Hasher::<N>::hash(value),
+            &mut |env_id, env_controller| {
+                H::recv_scp_envelope(&self.herder, env_id, env_controller);
+            },
+            envelope_controller,
+        );
     }
 
     fn pop(&mut self, slot_index: &SlotIndex) -> Option<SCPEnvelope<N>> {
@@ -251,9 +259,14 @@ where
         tracker.listen(envelope);
     }
 
-    pub fn recv(&mut self, hash: &Blake2Hash, callback: &mut impl FnMut(&SCPEnvelope<N>)) {
+    pub fn recv(
+        &mut self,
+        hash: &Blake2Hash,
+        callback: &mut impl FnMut(&SCPEnvelopeID, &mut SCPEnvelopeController<N>),
+        env_controller: &mut SCPEnvelopeController<N>,
+    ) {
         if let Some(tracker) = self.trackers.get_mut(hash) {
-            tracker.visit(callback);
+            tracker.visit(callback, env_controller);
         }
     }
 
@@ -282,6 +295,7 @@ where
         Self {
             waiting_envelopes: Default::default(),
             last_seen_index: Default::default(),
+            phantom: PhantomData,
         }
     }
 }
@@ -298,9 +312,13 @@ where
         self.last_seen_index = None;
     }
 
-    pub fn visit(&mut self, callback: &mut impl FnMut(&SCPEnvelope<N>)) {
+    pub fn visit(
+        &mut self,
+        callback: &mut impl FnMut(&SCPEnvelopeID, &mut SCPEnvelopeController<N>),
+        env_controller: &mut SCPEnvelopeController<N>,
+    ) {
         for envelope in &self.waiting_envelopes {
-            callback(&envelope);
+            callback(envelope, env_controller);
         }
     }
 }

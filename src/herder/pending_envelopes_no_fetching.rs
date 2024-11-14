@@ -25,12 +25,24 @@ where
         HerderEnvelopeStatus::EnvelopeStatusReady
     }
 
-    fn recv_scp_quorum_set(&mut self, _quorum_set: &QuorumSet) {}
-
-    fn recv_nomination_value(&mut self, _value: &N) {}
-
     fn pop(&mut self, slot_index: &SlotIndex) -> Option<SCPEnvelope<N>> {
         let slot_envelopes = self.ready_envelopes.get_mut(slot_index)?;
         slot_envelopes.pop()
+    }
+    
+    fn recv_scp_quorum_set(
+        &mut self,
+        quorum_set: &QuorumSet,
+        envelope_controller: &mut crate::scp::envelope::SCPEnvelopeController<N>,
+    ) {
+        todo!()
+    }
+    
+    fn recv_nomination_value(
+        &mut self,
+        value: &N,
+        envelope_controller: &mut crate::scp::envelope::SCPEnvelopeController<N>,
+    ) {
+        todo!()
     }
 }

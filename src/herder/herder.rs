@@ -55,7 +55,7 @@ where
     fn recv_scp_envelope(
         this: &Rc<RefCell<Self>>,
         envelope: &SCPEnvelopeID,
-        envelope_controller: &SCPEnvelopeController<N>,
+        envelope_controller: &mut SCPEnvelopeController<N>,
     );
 
     fn compute_timeout(&self, round_number: u64) -> Duration {
@@ -98,7 +98,7 @@ impl HerderDriver<SCPNominationValue> for HerderSCPDriver {
     fn recv_scp_envelope(
         this: &Rc<RefCell<Self>>,
         envelope: &SCPEnvelopeID,
-        envelope_controller: &SCPEnvelopeController<SCPNominationValue>,
+        envelope_controller: &mut SCPEnvelopeController<SCPNominationValue>,
     ) {
         todo!()
     }
