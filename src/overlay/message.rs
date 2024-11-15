@@ -45,7 +45,7 @@ where
     pub fn new() -> Rc<RefCell<Self>> {
         let msg_queue = Self {
             messages: Default::default(),
-        }
+        };
         Rc::new(RefCell::new(msg_queue))
     }
 

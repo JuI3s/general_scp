@@ -52,12 +52,6 @@ where
 
     fn get_quorum_set(&self, statement: &SCPStatement<N>) -> Option<HQuorumSet>;
 
-    fn recv_scp_envelope(
-        &mut self,
-        envelope: &SCPEnvelopeID,
-        envelope_controller: &mut SCPEnvelopeController<N>,
-    );
-
     fn compute_timeout(&self, round_number: u64) -> Duration {
         const MAX_TIMEOUT_SECONDS: u64 = 30 * 60;
 
@@ -94,14 +88,5 @@ impl HerderDriver<SCPNominationValue> for HerderSCPDriver {
     ) -> Option<SCPNominationValue> {
         todo!()
     }
-    
-    fn recv_scp_envelope(
-        &mut self,
-        envelope: &SCPEnvelopeID,
-        envelope_controller: &mut SCPEnvelopeController<SCPNominationValue>,
-    ) {
-        todo!()
-    }
 
-    
 }

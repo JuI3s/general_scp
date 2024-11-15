@@ -1,5 +1,5 @@
 use core::panic;
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
 
 use syn::token::LArrow;
 
@@ -9,7 +9,7 @@ use crate::scp::{
 };
 
 use super::{
-    conn::PeerConn,
+    conn::{PeerConn, PeerConnBuilder},
     in_memory_global::{self, InMemoryGlobalState},
     message::MessageController,
     peer::{PeerID, SCPPeerConnState},
@@ -59,5 +59,34 @@ where
                 self.peer_id,
             )
         }
+    }
+}
+
+pub struct InMemoryConnBuilder<N>
+where
+    N: NominationValue,
+{
+    global_state: Rc<RefCell<InMemoryGlobalState<N>>>,
+    phantom: PhantomData<N>,
+}
+
+impl<N> InMemoryConnBuilder<N>
+where
+    N: NominationValue,
+{
+    pub fn new(global_state: &Rc<RefCell<InMemoryGlobalState<N>>>) -> Self {
+        Self {
+            global_state: global_state.clone(),
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<N> PeerConnBuilder<N, InMemoryConn<N>> for InMemoryConnBuilder<N>
+where
+    N: NominationValue,
+{
+    fn build(&self, peer_id: &PeerID) -> InMemoryConn<N> {
+        InMemoryConn::new(peer_id.to_string(), &self.global_state)
     }
 }

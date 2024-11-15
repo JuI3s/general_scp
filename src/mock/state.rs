@@ -189,14 +189,6 @@ impl HerderDriver<MockState> for MockStateDriver {
             std::time::Duration::from_secs(round_number)
         }
     }
-
-    fn recv_scp_envelope(
-        &mut self,
-        env_id: &SCPEnvelopeID,
-        envelope_controller: &mut SCPEnvelopeController<MockState>,
-    ) {
-        self.recv_scp_envelope(env_id, envelope_controller);
-    }
 }
 
 #[cfg(test)]

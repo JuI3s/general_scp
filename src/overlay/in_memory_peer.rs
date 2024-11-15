@@ -11,34 +11,40 @@ use crate::{
 };
 
 use super::{
-    conn::PeerConn,
+    conn::{PeerConn, PeerConnBuilder},
     in_memory_conn::InMemoryConn,
     in_memory_global::InMemoryGlobalState,
     message::{MessageController, SCPMessage},
     peer::{PeerID, SCPPeerState},
 };
 
-pub struct InMemoryPeer<N, H>
+pub struct PeerNode<N, H, C, CB>
 where
     N: NominationValue,
     H: HerderDriver<N>,
+    C: PeerConn<N>,
+    CB: PeerConnBuilder<N, C>,
 {
     pub peer_idx: PeerID,
     pub message_controller: Rc<RefCell<MessageController<N>>>,
-    pub peer_conns: BTreeMap<PeerID, InMemoryConn<N>>,
+    pub peer_conns: BTreeMap<PeerID, C>,
+    conn_builder: CB,
     scp_envelope_controller: SCPEnvelopeController<N>,
     herder: H,
     global_state: Rc<RefCell<InMemoryGlobalState<N>>>,
 }
 
-impl<N, H> InMemoryPeer<N, H>
+impl<N, H, C, CB> PeerNode<N, H, C, CB>
 where
     N: NominationValue,
     H: HerderDriver<N>,
+    C: PeerConn<N>,
+    CB: PeerConnBuilder<N, C>,
 {
     pub fn new(
         peer_idx: PeerID,
         herder: H,
+        conn_builder: CB,
         global_state: &Rc<RefCell<InMemoryGlobalState<N>>>,
     ) -> Self {
         let msg_queue = MessageController::new();
@@ -51,6 +57,7 @@ where
             peer_idx,
             message_controller: msg_queue,
             herder,
+            conn_builder,
             peer_conns: BTreeMap::new(),
             global_state: global_state.clone(),
             scp_envelope_controller: SCPEnvelopeController::new(),
@@ -64,8 +71,8 @@ where
     }
 
     pub fn add_connection(&mut self, peer_id: &PeerID) {
-        let in_memory_conn = InMemoryConn::new(peer_id.clone(), &self.global_state);
-        self.peer_conns.insert(peer_id.to_string(), in_memory_conn);
+        let conn = self.conn_builder.build(peer_id);
+        self.peer_conns.insert(peer_id.to_string(), conn);
     }
 
     pub fn process_all_messages(&mut self) {
@@ -89,6 +96,5 @@ mod tests {
     #[test]
     fn test_in_memory_peer_send_hello() {
         let global_state = InMemoryGlobalState::<MockState>::new();
-
     }
 }

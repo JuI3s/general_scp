@@ -25,7 +25,7 @@ impl Default for MockSCPDriver {
 
 impl MockSCPDriver {
     pub fn recv_scp_message(
-        mut self,
+        &mut self,
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<MockState>,
     ) {

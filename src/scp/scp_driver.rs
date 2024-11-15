@@ -366,7 +366,7 @@ where
         LocalNodeInfo::is_quorum_with_node_filter(
             Some((local_node.get_quorum_set(), &local_node.node_id)),
             envelopes,
-            |st| self.herder_driver.borrow().get_quorum_set(st),
+           |st| self.herder_driver.borrow().get_quorum_set(st),
             voted_predicate,
             envelope_controller,
         )
