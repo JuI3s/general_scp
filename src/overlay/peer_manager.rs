@@ -3,8 +3,7 @@ use std::{collections::HashMap, str};
 use crate::scp::{envelope::SCPEnvelope, nomination_protocol::NominationValue, scp::NodeID};
 
 use super::{
-    message::SCPMessage,
-    peer::{PeerConn, SCPPeer},
+    conn::PeerConn, message::SCPMessage, peer::SCPPeer
 };
 
 pub struct PeerManager<N, C>

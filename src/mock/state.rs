@@ -55,7 +55,7 @@ pub struct MockStateDriver {
     quorum_set_map: BTreeMap<HashValue, HQuorumSet>,
     pub scp_driver: MockSCPDriver,
     pub local_node: HLocalNode<MockState>,
-    pub scheduler: WorkScheduler,
+    // pub scheduler: WorkScheduler,
 }
 
 impl Into<Rc<RefCell<MockStateDriver>>> for MockStateDriver {
@@ -191,14 +191,11 @@ impl HerderDriver<MockState> for MockStateDriver {
     }
 
     fn recv_scp_envelope(
-        this: &Rc<RefCell<Self>>,
+        &mut self,
         env_id: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<MockState>,
     ) {
-        let env = envelope_controller.get_envelope(&env_id).unwrap();
-        let slot = Self::get_or_create_slot(this, &env.slot_index);
-        // slot.envelope
-        slot.recv_scp_envelvope(env_id, envelope_controller);
+        self.recv_scp_envelope(env_id, envelope_controller);
     }
 }
 
@@ -227,7 +224,6 @@ mod tests {
         application::work_queue::WorkScheduler,
         mock::state::{MockState, MockStateDriver},
         overlay::message::HelloEnvelope,
-        overlay::peer::PeerConn,
     };
 
     use super::*;

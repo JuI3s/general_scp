@@ -1,95 +1,94 @@
-// use std::{
-//     cell::RefCell,
-//     collections::VecDeque,
-//     rc::{Rc, Weak},
-// };
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, HashMap},
+    marker::PhantomData,
+    rc::Rc,
+};
 
-// use crate::{
-//     application::work_queue::HWorkScheduler, herder::herder::HerderDriver,
-//     scp::nomination_protocol::NominationValue,
-// };
+use crate::{
+    herder::{self, herder::HerderDriver},
+    scp::{envelope::SCPEnvelopeController, nomination_protocol::NominationValue},
+};
 
-// use super::{
-//     message::SCPMessage,
-//     peer::{SCPPeer, SCPPeerState},
-// };
+use super::{
+    conn::PeerConn,
+    in_memory_conn::InMemoryConn,
+    in_memory_global::InMemoryGlobalState,
+    message::{MessageController, SCPMessage},
+    peer::{PeerID, SCPPeerState},
+};
 
-// pub struct InMemoryPeer<N, H>
-// where
-//     N: NominationValue,
-//     H: HerderDriver<N>,
-// {
-//     work_schedular: HWorkScheduler,
-//     in_queue: VecDeque<SCPMessage<N>>,
-//     state: Rc<RefCell<SCPPeerState>>,
-//     herder: Rc<RefCell<H>>,
-// }
+pub struct InMemoryPeer<N, H>
+where
+    N: NominationValue,
+    H: HerderDriver<N>,
+{
+    pub peer_idx: PeerID,
+    pub message_controller: Rc<RefCell<MessageController<N>>>,
+    pub peer_conns: BTreeMap<PeerID, InMemoryConn<N>>,
+    scp_envelope_controller: SCPEnvelopeController<N>,
+    herder: H,
+    global_state: Rc<RefCell<InMemoryGlobalState<N>>>,
+}
 
-// impl<N, H> InMemoryPeer<N, H>
-// where
-//     N: NominationValue,
-//     H: HerderDriver<N> + 'static,
-// {
-//     fn new(
-//         work_scheduler: &HWorkScheduler,
-//         we_called_remote: bool,
-//         herder: Rc<RefCell<H>>,
-//     ) -> Self {
-//         Self {
-//             work_schedular: work_scheduler.clone(),
-//             in_queue: Default::default(),
-//             state: SCPPeerState::new(we_called_remote).into(),
-//             herder: herder,
-//         }
-//     }
+impl<N, H> InMemoryPeer<N, H>
+where
+    N: NominationValue,
+    H: HerderDriver<N>,
+{
+    pub fn new(
+        peer_idx: PeerID,
+        herder: H,
+        global_state: &Rc<RefCell<InMemoryGlobalState<N>>>,
+    ) -> Self {
+        let msg_queue = MessageController::new();
+        global_state
+            .borrow_mut()
+            .peer_msg_queues
+            .insert(peer_idx.to_string(), msg_queue.clone());
 
-//     pub fn process_in_queue(this: &Rc<RefCell<Self>>) {
-//         let mut peer = this.borrow_mut();
+        Self {
+            peer_idx,
+            message_controller: msg_queue,
+            herder,
+            peer_conns: BTreeMap::new(),
+            global_state: global_state.clone(),
+            scp_envelope_controller: SCPEnvelopeController::new(),
+        }
+    }
 
-//         if let Some(message) = peer.in_queue.pop_front() {
-//             peer.recv_message(&message);
-//         }
+    pub fn send_message(&mut self, peer_id: &PeerID, msg: &SCPMessage<N>) {
+        if let Some(peer_conn) = self.peer_conns.get_mut(peer_id) {
+            peer_conn.send_message(msg);
+        }
+    }
 
-//         // If we have more messages, process them on the main thread.
-//         if !peer.in_queue.is_empty() {
-//             let self_clone = Rc::downgrade(&this.clone());
-//             peer.work_schedular
-//                 .borrow()
-//                 .post_on_main_thread(Box::new(move || {
-//                     if let Some(p) = self_clone.upgrade() {
-//                         Self::process_in_queue(&p);
-//                     }
-//                 }))
-//         }
-//     }
-// }
+    pub fn add_connection(&mut self, peer_id: &PeerID) {
+        let in_memory_conn = InMemoryConn::new(peer_id.clone(), &self.global_state);
+        self.peer_conns.insert(peer_id.to_string(), in_memory_conn);
+    }
 
-// impl<N, H> SCPPeer<N, H> for InMemoryPeer<N, H>
-// where
-//     N: NominationValue,
-//     H: HerderDriver<N>,
-// {
-//     fn id(&self) -> &crate::scp::scp::NodeID {
-//         todo!()
-//     }
+    pub fn process_all_messages(&mut self) {
+        while let Some(msg) = self.message_controller.borrow_mut().pop() {
+            match msg {
+                SCPMessage::SCP(scp_env) => {
+                    let env_id = self.scp_envelope_controller.add_envelope(scp_env);
+                    self.herder
+                        .recv_scp_envelope(&env_id, &mut self.scp_envelope_controller);
+                }
+                SCPMessage::Hello(hello_env) => todo!(),
+            }
+        }
+    }
+}
 
-//     fn peer_state(&mut self) -> &Rc<RefCell<SCPPeerState>> {
-//         todo!()
-//     }
+#[cfg(test)]
+mod tests {
+    use crate::{mock::state::MockState, overlay::in_memory_global::InMemoryGlobalState};
 
-//     fn herder(&self) -> Rc<RefCell<H>> {
-//         todo!()
-//     }
+    #[test]
+    fn test_in_memory_peer_send_hello() {
+        let global_state = InMemoryGlobalState::<MockState>::new();
 
-//     fn overlay_manager(
-//         &self,
-//     ) -> &Rc<
-//         RefCell<dyn super::overlay_manager::OverlayManager<N, H, HP = Rc<RefCell<Self>>, P = Self>>,
-//     > {
-//         todo!()
-//     }
-
-//     fn send_message(&mut self, msg: &SCPMessage<N>) {
-//         todo!()
-//     }
-// }
+    }
+}

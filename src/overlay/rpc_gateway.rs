@@ -14,7 +14,7 @@ pub type HRpcGateway = Arc<Mutex<dyn RpcGateway>>;
 // struct to receive rpc calls.
 pub trait RpcGateway {
     fn register(&mut self, peer_id: PeerID, write_queue: RpcRequestWriteQueue);
-    fn remove(&mut self, peer_id: PeerID);
+    fn remove(&mut self, peer_id: &PeerID);
     fn listen(&mut self);
 }
 
@@ -38,7 +38,7 @@ impl TestRpcGateway {
         }))
     }
 
-    pub fn send_hello_message(&mut self, peer_id: PeerID) {
+    pub fn send_hello_message(&mut self, peer_id: &PeerID) {
         // Used for testing
         print!("Rpc gateway sending a hello message for testing\n");
 
@@ -57,7 +57,7 @@ impl RpcGateway for TestRpcGateway {
         self.write_queues.insert(peer_id, write_queue);
     }
 
-    fn remove(&mut self, peer_id: PeerID) {
+    fn remove(&mut self, peer_id: &PeerID) {
         self.write_queues.remove(peer_id);
     }
 

@@ -1,10 +1,13 @@
+pub mod conn;
+pub mod in_memory_conn;
+pub mod in_memory_global;
 pub mod in_memory_peer;
 pub mod loopback_peer;
 pub mod message;
+pub mod node;
 pub mod outgate;
 pub mod overlay_manager;
 pub mod peer;
-pub mod rpc_gateway;
-pub mod node;       
 pub mod peer_manager;
+pub mod rpc_gateway;
 mod rpc_gateway_test;

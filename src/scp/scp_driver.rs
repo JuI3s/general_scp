@@ -66,7 +66,7 @@ where
     // pub scheduler: WorkScheduler,
     nomination_state_handle: HNominationProtocolState<N>,
     ballot_state_handle: HBallotProtocolState<N>,
-    pub herder_driver: Rc<RefCell<H>>,
+    // pub herder_driver: Rc<RefCell<H>>,
     pub slot_state: RefCell<SlotState>,
     pub task_queue: Rc<RefCell<SlotJobQueue<N, H>>>,
 }

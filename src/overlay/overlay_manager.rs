@@ -18,7 +18,7 @@ use crate::{
 
 use super::{
     message::SCPMessage,
-    peer::{HPeer, Peer, PeerID, PeerConn},
+    peer::{HPeer, Peer, PeerID},
 };
 
 // The consensus protocol works on top of an underlying overlay network, and

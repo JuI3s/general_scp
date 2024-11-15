@@ -8,6 +8,7 @@ use std::{
     time::SystemTime,
 };
 
+use clap::builder::Str;
 use log::info;
 
 use crate::{
@@ -21,12 +22,11 @@ use crate::{
 };
 
 use super::{
-    message::{HelloEnvelope, SCPMessage},
-    overlay_manager::OverlayManager,
+    conn::PeerConn, message::{HelloEnvelope, SCPMessage}, overlay_manager::OverlayManager
 };
 
 type ArcState = Arc<Mutex<State>>;
-pub type PeerID = &'static str;
+pub type PeerID = String;
 pub type HPeer = Arc<Mutex<Peer>>;
 
 struct State {
@@ -148,23 +148,6 @@ where
 
         let hello_env = HelloEnvelope {};
         self.conn.send_hello(hello_env);
-    }
-}
-
-pub trait PeerConn<N>
-where
-    N: NominationValue,
-    Self: Sized,
-{
-    // Implemented by struct implementing the trait.
-    fn send_message(&mut self, msg: &SCPMessage<N>);
-
-    fn send_hello(&mut self, envelope: HelloEnvelope) {
-        self.send_message(&SCPMessage::Hello(envelope))
-    }
-
-    fn send_scp_msg(&mut self, envelope: SCPEnvelope<N>) {
-        self.send_message(&SCPMessage::SCP(envelope))
     }
 }
 

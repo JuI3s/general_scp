@@ -53,7 +53,7 @@ where
     fn get_quorum_set(&self, statement: &SCPStatement<N>) -> Option<HQuorumSet>;
 
     fn recv_scp_envelope(
-        this: &Rc<RefCell<Self>>,
+        &mut self,
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
     );
@@ -94,12 +94,14 @@ impl HerderDriver<SCPNominationValue> for HerderSCPDriver {
     ) -> Option<SCPNominationValue> {
         todo!()
     }
-
+    
     fn recv_scp_envelope(
-        this: &Rc<RefCell<Self>>,
+        &mut self,
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<SCPNominationValue>,
     ) {
         todo!()
     }
+
+    
 }

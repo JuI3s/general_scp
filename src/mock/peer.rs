@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     herder::herder::HerderDriver,
-    overlay::peer::{PeerConn, SCPPeerState},
+    overlay::{conn::PeerConn, peer::SCPPeerState},
     scp::scp::NodeID,
 };
 
