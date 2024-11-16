@@ -23,7 +23,7 @@ where
 {
     slot_index: Option<SlotIndex>,
     local_node: Option<Rc<RefCell<LocalNodeInfo<N>>>>,
-    timer: Option<WorkScheduler>,
+    timer: Option<Rc<RefCell<WorkScheduler>>>,
     herder_driver: Option<Rc<RefCell<T>>>,
     nomination_protocol_state: Option<NominationProtocolState<N>>,
     ballot_protocol_state: Option<BallotProtocolState<N>>,
@@ -67,7 +67,7 @@ where
         self
     }
 
-    pub fn timer(mut self, timer: WorkScheduler) -> Self {
+    pub fn timer(mut self, timer: Rc<RefCell<WorkScheduler>>) -> Self {
         self.timer = Some(timer);
         self
     }
@@ -121,6 +121,7 @@ where
             Arc::new(Mutex::new(self.ballot_protocol_state.unwrap_or_default())),
             self.herder_driver.unwrap(),
             self.task_queue.unwrap(),
+            self.timer.unwrap(),
         ))
     }
 

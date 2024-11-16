@@ -63,10 +63,10 @@ where
 {
     pub slot_index: SlotIndex,
     pub local_node: HLocalNode<N>,
-    // pub scheduler: WorkScheduler,
+    pub scheduler: Rc<RefCell<WorkScheduler>>,
     nomination_state_handle: HNominationProtocolState<N>,
     ballot_state_handle: HBallotProtocolState<N>,
-    // pub herder_driver: Rc<RefCell<H>>,
+    pub herder_driver: Rc<RefCell<H>>,
     pub slot_state: RefCell<SlotState>,
     pub task_queue: Rc<RefCell<SlotJobQueue<N, H>>>,
 }
@@ -249,6 +249,7 @@ where
         ballot_state_handle: HBallotProtocolState<N>,
         herder_driver: Rc<RefCell<H>>,
         task_queue: Rc<RefCell<SlotJobQueue<N, H>>>,
+        scheduler: Rc<RefCell<WorkScheduler>>,
     ) -> Self {
         Self {
             slot_index: slot_index,
@@ -258,6 +259,7 @@ where
             herder_driver: herder_driver,
             slot_state: Default::default(),
             task_queue,
+            scheduler, 
         }
     }
 

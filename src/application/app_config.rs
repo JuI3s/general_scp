@@ -41,7 +41,7 @@ impl AppConfig {
 
         let clock = VirtualClock::new_clock();
         AppConfig {
-            peer_id: "local_node",
+            peer_id: "local_node".to_owned(),
             clock: clock,
             rpc_gateway: gateway,
             clear_work_queue_duration: Duration::from_secs(1),

@@ -39,10 +39,10 @@ impl Application {
             .rpc_gateway
             .lock()
             .unwrap()
-            .register(config.peer_id, rpc_write_queue);
+            .register(config.peer_id.clone(), rpc_write_queue);
 
         Application {
-            local_node_id: config.peer_id,
+            local_node_id: config.peer_id.clone(),
             main_thread_work_queue: work_queue,
             peers: HashMap::new(),
             pending_requests: rx,

@@ -3,11 +3,20 @@ use std::{
     collections::{BTreeMap, HashMap},
     marker::PhantomData,
     rc::Rc,
+    sync::Arc,
 };
 
 use crate::{
+    application::work_queue::WorkScheduler,
     herder::{self, herder::HerderDriver},
-    scp::{envelope::SCPEnvelopeController, nomination_protocol::NominationValue},
+    scp::{
+        envelope::{SCPEnvelope, SCPEnvelopeController},
+        local_node::{self, LocalNodeInfo},
+        nomination_protocol::NominationValue,
+        scp_driver::SlotDriver,
+        scp_driver_builder::SlotDriverBuilder,
+        slot::{self, SlotIndex},
+    },
 };
 
 use super::{
@@ -28,16 +37,20 @@ where
     pub peer_idx: PeerID,
     pub message_controller: Rc<RefCell<MessageController<N>>>,
     pub peer_conns: BTreeMap<PeerID, C>,
+    pub slots: BTreeMap<SlotIndex, Arc<SlotDriver<N, H>>>,
+
     conn_builder: CB,
     scp_envelope_controller: SCPEnvelopeController<N>,
-    herder: H,
-    global_state: Rc<RefCell<InMemoryGlobalState<N>>>,
+    herder: Rc<RefCell<H>>,
+
+    work_scheduler: Rc<RefCell<WorkScheduler>>,
+    local_node_info: Rc<RefCell<LocalNodeInfo<N>>>,
 }
 
 impl<N, H, C, CB> PeerNode<N, H, C, CB>
 where
     N: NominationValue,
-    H: HerderDriver<N>,
+    H: HerderDriver<N> + 'static,
     C: PeerConn<N>,
     CB: PeerConnBuilder<N, C>,
 {
@@ -46,6 +59,8 @@ where
         herder: H,
         conn_builder: CB,
         global_state: &Rc<RefCell<InMemoryGlobalState<N>>>,
+        local_node_info: LocalNodeInfo<N>,
+        work_scheduler: Rc<RefCell<WorkScheduler>>,
     ) -> Self {
         let msg_queue = MessageController::new();
         global_state
@@ -56,11 +71,13 @@ where
         Self {
             peer_idx,
             message_controller: msg_queue,
-            herder,
+            herder: Rc::new(RefCell::new(herder)),
             conn_builder,
             peer_conns: BTreeMap::new(),
-            global_state: global_state.clone(),
             scp_envelope_controller: SCPEnvelopeController::new(),
+            slots: Default::default(),
+            work_scheduler,
+            local_node_info: Rc::new(RefCell::new(local_node_info)),
         }
     }
 
@@ -79,9 +96,20 @@ where
         while let Some(msg) = self.message_controller.borrow_mut().pop() {
             match msg {
                 SCPMessage::SCP(scp_env) => {
+                    let slot_idx: u64 = scp_env.slot_index.clone();
                     let env_id = self.scp_envelope_controller.add_envelope(scp_env);
-                    self.herder
-                        .recv_scp_envelope(&env_id, &mut self.scp_envelope_controller);
+
+                    let slot = self.slots.entry(slot_idx).or_insert(
+                        SlotDriverBuilder::<N, H>::new()
+                            .slot_index(slot_idx)
+                            .herder_driver(self.herder.clone())
+                            .timer(self.work_scheduler.clone())
+                            .local_node(self.local_node_info.clone())
+                            .build_handle()
+                            .unwrap(),
+                    );
+
+                    slot.recv_scp_envelvope(&env_id, &mut self.scp_envelope_controller);
                 }
                 SCPMessage::Hello(hello_env) => todo!(),
             }

@@ -55,7 +55,7 @@ pub struct MockStateDriver {
     quorum_set_map: BTreeMap<HashValue, HQuorumSet>,
     pub scp_driver: MockSCPDriver,
     pub local_node: HLocalNode<MockState>,
-    // pub scheduler: WorkScheduler,
+    pub scheduler: WorkScheduler,
 }
 
 impl Into<Rc<RefCell<MockStateDriver>>> for MockStateDriver {
@@ -271,7 +271,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
+        let slot_driver: Arc<SlotDriver<MockState, MockStateDriver>> = SlotDriverBuilder::<MockState, MockStateDriver>::new()
             .slot_index(0)
             .herder_driver(MockStateDriver::new(
                 local_node.clone(),

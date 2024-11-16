@@ -224,7 +224,8 @@ where
         self.scp_quorum_set_fetcher.recv(
             &quorum_set.to_blake2(),
             &mut |env_id, controller| {
-                H::recv_scp_envelope(&self.herder, env_id, controller);
+                todo!()
+                // H::recv_scp_envelope(&self.herder, env_id, controller);
             },
             envelope_controller,
         );
@@ -238,7 +239,8 @@ where
         self.nomination_value_fetcher.recv(
             &Blake2Hasher::<N>::hash(value),
             &mut |env_id, env_controller| {
-                H::recv_scp_envelope(&self.herder, env_id, env_controller);
+                todo!()
+                // H::recv_scp_envelope(&self.herder, env_id, env_controller);
             },
             envelope_controller,
         );

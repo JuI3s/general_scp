@@ -54,29 +54,3 @@ pub trait SCP {
     // returns if we received messages from a v-blocking set
     fn got_v_blocking(&self, slot_index: u64) -> bool;
 }
-
-// pub struct SCPimpl<Driver>
-// where
-//     Driver: NominationProtocol + BallotProtocol + SCPDriver,
-// {
-//     driver: Driver,
-//     known_slots: BTreeMap<SlotIndex, HSlot>,
-// }
-
-// impl SCPimpl<SlotDriver> {
-//     pub fn get_slot(&mut self, index: SlotIndex, create_if_not_exists: bool)
-// -> Option<HSlot> {         match self.known_slots.get(&index) {
-//             Some(_) => todo!(),
-//             None => {
-//                 if create_if_not_exists {
-//                     let new = self
-//                         .known_slots
-//                         .insert(index,
-// Arc::new(Mutex::new(Slot::new(index))));                     new
-//                 } else {
-//                     None
-//                 }
-//             }
-//         }
-//     }
-// }
