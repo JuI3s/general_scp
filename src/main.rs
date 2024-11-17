@@ -23,7 +23,7 @@ use general_scp::{
         local_node_builder::LocalNodeBuilder,
         nomination_protocol::{self, NominationProtocol, NominationProtocolState},
         scp::NodeID,
-        scp_driver_builder::{SlotDriverBuilder, SlotTimerBuilder},
+        scp_driver_builder::SlotDriverBuilder,
         scp_state_builder::NominationProtocolStateBuilder,
     },
 };

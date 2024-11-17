@@ -28,6 +28,14 @@ pub enum HerderEnvelopeStatus {
     EnvelopeStatusReady,
 }
 
+pub trait HerderBuilder<N, H>
+where
+    N: NominationValue,
+    H: HerderDriver<N>,
+{
+    fn build(&self) -> H;
+}
+
 pub trait HerderDriver<N>
 where
     N: NominationValue,
@@ -88,5 +96,4 @@ impl HerderDriver<SCPNominationValue> for HerderSCPDriver {
     ) -> Option<SCPNominationValue> {
         todo!()
     }
-
 }

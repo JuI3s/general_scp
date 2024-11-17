@@ -245,7 +245,7 @@ mod tests {
         let node_id = "node".to_string() + &index.to_string();
         let node = QuorumNode {
             node_id: node_id.clone(),
-            addr: sock,
+            ip_addr: Some(sock),
         };
         (node_id, node)
     }

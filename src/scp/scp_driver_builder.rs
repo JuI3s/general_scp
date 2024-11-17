@@ -132,34 +132,3 @@ where
         }
     }
 }
-
-pub struct SlotTimerBuilder {
-    clock: Option<HVirtualClock>,
-}
-
-impl Default for SlotTimerBuilder {
-    fn default() -> Self {
-        Self {
-            clock: Default::default(),
-        }
-    }
-}
-
-impl SlotTimerBuilder {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    pub fn clock(mut self, clock: HVirtualClock) -> Self {
-        self.clock = Some(clock);
-        self
-    }
-
-    pub fn build(self) -> Result<WorkScheduler, &'static str> {
-        if self.clock.is_none() {
-            Err("Missing clock.")
-        } else {
-            Ok(WorkScheduler::new(self.clock.unwrap()))
-        }
-    }
-}

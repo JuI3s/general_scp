@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap},
+    fmt::Debug,
     marker::PhantomData,
     rc::Rc,
     sync::Arc,
@@ -47,6 +48,20 @@ where
     local_node_info: Rc<RefCell<LocalNodeInfo<N>>>,
 }
 
+impl<N, H, C, CB> Debug for PeerNode<N, H, C, CB>
+where
+    N: NominationValue,
+    H: HerderDriver<N>,
+    C: PeerConn<N>,
+    CB: PeerConnBuilder<N, C>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PeerNode")
+            .field("peer_idx", &self.peer_idx)
+            .finish()
+    }
+}
+
 impl<N, H, C, CB> PeerNode<N, H, C, CB>
 where
     N: NominationValue,
@@ -82,17 +97,27 @@ where
     }
 
     pub fn send_message(&mut self, peer_id: &PeerID, msg: &SCPMessage<N>) {
-        if let Some(peer_conn) = self.peer_conns.get_mut(peer_id) {
+        let mut peer_conn = self.peer_conns.get_mut(peer_id);
+        if peer_conn.is_none() {
+            peer_conn = match msg {
+                SCPMessage::SCP(_) => None,
+                SCPMessage::Hello(_) => Some(self.add_connection(peer_id)),
+            };
+        }
+
+        if let Some(peer_conn) = peer_conn {
             peer_conn.send_message(msg);
         }
     }
 
-    pub fn add_connection(&mut self, peer_id: &PeerID) {
-        let conn = self.conn_builder.build(peer_id);
-        self.peer_conns.insert(peer_id.to_string(), conn);
+    pub fn add_connection(&mut self, peer_id: &PeerID) -> &mut C {
+        self.peer_conns
+            .entry(peer_id.to_string())
+            .or_insert(self.conn_builder.build(peer_id))
     }
 
-    pub fn process_all_messages(&mut self) {
+    pub fn process_all_messages(&mut self) -> usize {
+        let mut msg_processed = 0;
         while let Some(msg) = self.message_controller.borrow_mut().pop() {
             match msg {
                 SCPMessage::SCP(scp_env) => {
@@ -113,7 +138,9 @@ where
                 }
                 SCPMessage::Hello(hello_env) => todo!(),
             }
+            msg_processed += 1;
         }
+        msg_processed
     }
 }
 

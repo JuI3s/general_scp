@@ -23,7 +23,13 @@ pub type HQuorumSet = Arc<Mutex<QuorumSet>>;
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize)]
 pub struct QuorumNode {
     pub node_id: NodeID,
-    pub addr: SocketAddrV4,
+    pub ip_addr: Option<SocketAddrV4>,
+}
+
+impl QuorumNode {
+    pub fn new(node_id: NodeID, ip_addr: Option<SocketAddrV4>) -> QuorumNode {
+        QuorumNode { node_id, ip_addr }
+    }
 }
 
 // Set of quorum slices for local node.
@@ -86,15 +92,15 @@ impl QuorumSet {
 
         let node1 = QuorumNode {
             node_id: node_id1.into(),
-            addr: sock1,
+            ip_addr: Some(sock1),
         };
         let node2 = QuorumNode {
             node_id: node_id2.into(),
-            addr: sock2,
+            ip_addr: Some(sock2),
         };
         let node3 = QuorumNode {
             node_id: node_id3.into(),
-            addr: sock3,
+            ip_addr: Some(sock3),
         };
 
         let quorum_slice1 = QuorumSlice::from([node1.to_owned(), node2.to_owned()]);
@@ -170,15 +176,15 @@ mod tests {
 
         let node1 = QuorumNode {
             node_id: node_id1.into(),
-            addr: sock1,
+            ip_addr: Some(sock1),
         };
         let node2 = QuorumNode {
             node_id: node_id2.into(),
-            addr: sock2,
+            ip_addr: Some(sock2),
         };
         let node3 = QuorumNode {
             node_id: node_id3.into(),
-            addr: sock3,
+            ip_addr: Some(sock3),
         };
 
         let quorum_slice1 = QuorumSlice::from([node1.to_owned(), node2.to_owned()]);
