@@ -47,10 +47,15 @@ pub struct WorkScheduler {
 }
 
 impl WorkScheduler {
-    pub fn new(clock: HVirtualClock) -> Self {
+    pub fn new(clock: Option<HVirtualClock>) -> Self {
+        let clock_unwrapped = match clock {
+            Some(val) => val,
+            None => Rc::new(RefCell::new(VirtualClock::new(SystemTime::now()))),
+        };
+
         WorkScheduler {
             main_thread_queue: Default::default(),
-            event_queue: EventQueue::new(clock).into(),
+            event_queue: EventQueue::new(clock_unwrapped).into(),
         }
     }
 

@@ -53,88 +53,19 @@ impl Default for MockState {
 impl NominationValue for MockState {}
 pub struct MockStateDriver {
     quorum_set_map: BTreeMap<HashValue, HQuorumSet>,
-    pub scp_driver: MockSCPDriver,
-    pub local_node: HLocalNode<MockState>,
-    pub scheduler: WorkScheduler,
+}
+
+impl MockStateDriver {
+    pub fn new() -> Self {
+        Self {
+            quorum_set_map: Default::default(),
+        }
+    }
 }
 
 impl Into<Rc<RefCell<MockStateDriver>>> for MockStateDriver {
     fn into(self) -> Rc<RefCell<MockStateDriver>> {
         RefCell::new(self).into()
-    }
-}
-
-impl MakeStatement<MockState> for MockStateDriver {
-    fn new_nominate_statement(
-        &self,
-        votes: MockState,
-    ) -> crate::scp::statement::SCPStatementNominate<MockState> {
-        SCPStatementNominate::<MockState>::new(&self.local_node.borrow().quorum_set, vec![votes])
-    }
-}
-
-impl MakeEnvelope<MockState> for MockStateDriver {
-    fn new_nomination_envelope(
-        &self,
-        slot_index: usize,
-        vote: MockState,
-    ) -> SCPEnvelope<MockState> {
-        let statement = self.new_nominate_statement(vote);
-        SCPEnvelope::<MockState>::new(
-            scp::statement::SCPStatement::Nominate(statement),
-            self.local_node.borrow().node_id.clone(),
-            slot_index.try_into().unwrap(),
-            self.signature_for_testing(),
-        )
-    }
-}
-
-impl MockStateDriver {
-    pub fn new(local_node: HLocalNode<MockState>, schedular: WorkScheduler) -> Rc<RefCell<Self>> {
-        Self {
-            quorum_set_map: Default::default(),
-            scp_driver: Default::default(),
-            local_node: local_node,
-            scheduler: schedular,
-        }
-        .into()
-    }
-
-    fn signature_for_testing(&self) -> [u8; 64] {
-        [0; 64]
-    }
-
-    pub fn new_slot(
-        this: &Rc<RefCell<Self>>,
-        slot_index: SlotIndex,
-    ) -> Option<SlotDriver<MockState, MockStateDriver>> {
-        SlotDriverBuilder::<MockState, MockStateDriver>::new()
-            .slot_index(slot_index)
-            .local_node(this.borrow().local_node.clone())
-            .timer(this.borrow().scheduler.clone())
-            .herder_driver(this.to_owned())
-            .build()
-            .ok()
-    }
-
-    fn get_or_create_slot(
-        this: &Rc<RefCell<Self>>,
-        slot_index: &SlotIndex,
-    ) -> Arc<SlotDriver<MockState, MockStateDriver>> {
-        let slot = this.borrow_mut().scp_driver.slots.get(slot_index).cloned();
-        if slot.is_some() {
-            return slot.unwrap();
-        }
-
-        println!("create slot");
-
-        let slot: Arc<SlotDriver<MockState, MockStateDriver>> =
-            Self::new_slot(this, slot_index.to_owned()).unwrap().into();
-        this.borrow_mut()
-            .scp_driver
-            .slots
-            .insert(slot_index.to_owned(), slot.clone());
-        slot
     }
 }
 
@@ -241,12 +172,12 @@ mod tests {
             .build()
             .unwrap();
 
-        let state_driver = MockStateDriver::new(local_node.clone(), timer_handle.clone());
+        let state_driver = MockStateDriver::new();
 
         let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
             .slot_index(0)
-            .herder_driver(state_driver)
-            .timer(timer_handle)
+            .herder_driver(Rc::new(RefCell::new(state_driver)))
+            .timer(Rc::new(RefCell::new(timer_handle)))
             .local_node(local_node)
             .build()
             .unwrap();
@@ -271,16 +202,14 @@ mod tests {
             .build()
             .unwrap();
 
-        let slot_driver: Arc<SlotDriver<MockState, MockStateDriver>> = SlotDriverBuilder::<MockState, MockStateDriver>::new()
-            .slot_index(0)
-            .herder_driver(MockStateDriver::new(
-                local_node.clone(),
-                timer_handle.clone(),
-            ))
-            .timer(timer_handle)
-            .local_node(local_node)
-            .build_handle()
-            .unwrap();
+        let slot_driver: Arc<SlotDriver<MockState, MockStateDriver>> =
+            SlotDriverBuilder::<MockState, MockStateDriver>::new()
+                .slot_index(0)
+                .herder_driver(Rc::new(RefCell::new(MockStateDriver::new())))
+                .timer(Rc::new(RefCell::new(timer_handle)))
+                .local_node(local_node)
+                .build_handle()
+                .unwrap();
 
         let value = Arc::new(MockState::random());
         let prev_value = MockState::random();
@@ -318,11 +247,8 @@ mod tests {
         let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
             .slot_index(0)
             .local_node(local_node.clone())
-            .timer(timer_handle.clone())
-            .herder_driver(MockStateDriver::new(
-                local_node.clone(),
-                timer_handle.clone(),
-            ))
+            .timer(Rc::new(RefCell::new(timer_handle)))
+            .herder_driver(Rc::new(RefCell::new(MockStateDriver::new())))
             .build()
             .unwrap();
 
@@ -343,15 +269,21 @@ mod tests {
 
         let quorum_set = QuorumSet::example_quorum_set();
 
-        let local_node: Rc<RefCell<LocalNodeInfo<MockState>>> = LocalNodeBuilder::<MockState>::new()
-            .is_validator(true)
-            .quorum_set(quorum_set)
-            .node_id(node_id)
-            .build()
-            .unwrap();
+        let local_node: Rc<RefCell<LocalNodeInfo<MockState>>> =
+            LocalNodeBuilder::<MockState>::new()
+                .is_validator(true)
+                .quorum_set(quorum_set)
+                .node_id(node_id)
+                .build()
+                .unwrap();
 
-        let herder = MockStateDriver::new(local_node.clone(), timer_handle.clone());
+        let herder = Rc::new(RefCell::new(MockStateDriver::new()));
         herder
+    }
+
+    #[test]
+    fn in_memory_peer_send_hello_message() {
+        
     }
 
     #[test]
