@@ -138,7 +138,10 @@ mod tests {
     use env_logger;
     use log::debug;
     use scp::envelope::SCPEnvelopeController;
-    use std::{collections::BTreeSet, sync::Mutex};
+    use std::{
+        collections::{BTreeSet, HashMap},
+        sync::Mutex,
+    };
 
     use crate::{
         application::{clock::VirtualClock, quorum::QuorumSet, work_queue::EventQueue},
@@ -285,11 +288,21 @@ mod tests {
     fn in_memory_peer_send_hello_message() {
         // Create two nodes.
         let herder_builder = MockStateDriverBuilder {};
-        let node_builder = InMemoryPeerBuilder::new(herder_builder);
-        let (mut node1, mut node2) = test_data_create_mock_in_memory_nodes(&node_builder);
+        let mut node_builder = InMemoryPeerBuilder::new(herder_builder);
+        let (mut node1, mut node2) = test_data_create_mock_in_memory_nodes(&mut node_builder);
+        let mut peers = HashMap::new();
+        peers.insert(node1.borrow().peer_idx.clone(), node1.clone());
+        peers.insert(node2.borrow().peer_idx.clone(), node2.clone());
 
-        node1.send_message(&node2.peer_idx, &SCPMessage::Hello(HelloEnvelope {}));
-        assert_eq!(node2.process_all_messages(), 1);
+        node1.borrow_mut().send_hello(&node2.borrow().peer_idx);
+
+        assert_eq!(
+            node_builder
+                .global_state
+                .borrow_mut()
+                .process_messages(&mut peers),
+            1
+        );
     }
 
     #[test]

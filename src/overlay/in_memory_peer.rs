@@ -34,7 +34,7 @@ where
     H: HerderDriver<N> + 'static,
     HB: HerderBuilder<N, H>,
 {
-    global_state: Rc<RefCell<InMemoryGlobalState<N>>>,
+    pub global_state: Rc<RefCell<InMemoryGlobalState<N>>>,
     herder_builder: HB,
     phantom: PhantomData<H>,
 }
@@ -55,21 +55,27 @@ where
     }
 
     pub fn build_node(
-        &self,
+        &mut self,
         local_node_info: LocalNodeInfo<N>,
-    ) -> PeerNode<N, H, InMemoryConn<N>, InMemoryConnBuilder<N>> {
-        let conn_builder = InMemoryConnBuilder::new(&self.global_state);
+    ) -> Rc<RefCell<PeerNode<N, H, InMemoryConn<N>, InMemoryConnBuilder<N>>>> {
+        let conn_builder: InMemoryConnBuilder<N> = InMemoryConnBuilder::new(&self.global_state);
         let work_scheduler = Rc::new(RefCell::new(WorkScheduler::new(None)));
-        PeerNode::new(
+
+        let node = PeerNode::new(
             local_node_info.node_id.clone(),
             self.herder_builder.build(),
             conn_builder,
             &self.global_state,
             local_node_info,
             work_scheduler,
-        )
+        );
+
+        Rc::new(RefCell::new(node))
     }
 }
+
+pub type InMemoryPeerNode<N: NominationValue, H: HerderDriver<N>> =
+    PeerNode<N, H, InMemoryConn<N>, InMemoryConnBuilder<N>>;
 
 pub fn create_mock_state_in_memory_peer_builder(
 ) -> InMemoryPeerBuilder<MockState, MockStateDriver, MockStateDriverBuilder> {
@@ -93,8 +99,8 @@ pub fn test_data_create_mock_state_local_node_info() -> Vec<LocalNodeInfo<MockSt
 }
 
 pub fn test_data_create_mock_in_memory_nodes(
-    builder: &TestPeerBuilder,
-) -> (TestPeerType, TestPeerType) {
+    builder: &mut TestPeerBuilder,
+) -> (Rc<RefCell<TestPeerType>>, Rc<RefCell<TestPeerType>>) {
     let node_infos = test_data_create_mock_state_local_node_info();
     node_infos
         .into_iter()

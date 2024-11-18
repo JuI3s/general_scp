@@ -1249,10 +1249,7 @@ where
         );
     }
 
-    fn start_ballot_protocol_timer(
-        self: &Arc<Self>,
-        ballot_state: &BallotProtocolState<N>,
-    ) {
+    fn start_ballot_protocol_timer(self: &Arc<Self>, ballot_state: &BallotProtocolState<N>) {
         let timeout = self.herder_driver.borrow().compute_timeout(
             ballot_state
                 .current_ballot

@@ -29,7 +29,7 @@ where
         let slot_envelopes = self.ready_envelopes.get_mut(slot_index)?;
         slot_envelopes.pop()
     }
-    
+
     fn recv_scp_quorum_set(
         &mut self,
         quorum_set: &QuorumSet,
@@ -37,7 +37,7 @@ where
     ) {
         todo!()
     }
-    
+
     fn recv_nomination_value(
         &mut self,
         value: &N,

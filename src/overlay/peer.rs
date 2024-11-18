@@ -138,19 +138,6 @@ where
     phantom: PhantomData<N>,
 }
 
-impl<N, C> SCPPeer<N, C>
-where
-    N: NominationValue,
-    C: PeerConn<N>,
-{
-    pub fn on_connect(&mut self) {
-        self.state.set_conn_state(SCPPeerConnState::Connected);
-
-        let hello_env = HelloEnvelope {};
-        self.conn.send_hello(hello_env);
-    }
-}
-
 // This struct maintains state neeed by the peer.
 pub struct SCPPeerState {
     pub conn_state: SCPPeerConnState,

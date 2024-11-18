@@ -1,15 +1,25 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    borrow::BorrowMut,
+    cell::RefCell,
+    collections::{HashMap, VecDeque},
+    rc::Rc,
+};
 
 use syn::token::Ref;
 
 use crate::{herder::herder::HerderDriver, scp::nomination_protocol::NominationValue};
 
-use super::{message::MessageController, peer::PeerID};
+use super::{
+    in_memory_peer::InMemoryPeerNode,
+    message::{MessageController, SCPMessage},
+    peer::{Peer, PeerID},
+};
 
 pub struct InMemoryGlobalState<N>
 where
     N: NominationValue,
 {
+    pub msg_peer_id_queue: VecDeque<PeerID>,
     pub peer_msg_queues: HashMap<PeerID, Rc<RefCell<MessageController<N>>>>,
 }
 
@@ -20,8 +30,37 @@ where
     pub fn new() -> Rc<RefCell<Self>> {
         let state = Self {
             peer_msg_queues: Default::default(),
+            msg_peer_id_queue: Default::default(),
         };
         Rc::new(RefCell::new(state))
     }
-}
 
+    pub fn send_message(&mut self, peer_id: PeerID, msg: SCPMessage<N>) {
+        self.msg_peer_id_queue.push_back(peer_id.clone());
+        self.peer_msg_queues
+            .get(&peer_id)
+            .unwrap()
+            .as_ref()
+            .borrow_mut()
+            .add_message(msg);
+    }
+
+    pub fn process_messages<H: HerderDriver<N> + 'static>(
+        &mut self,
+        peers: &mut HashMap<PeerID, Rc<RefCell<InMemoryPeerNode<N, H>>>>,
+    ) -> usize {
+        let mut num_msg_processed = 0;
+
+        while let Some(peer_id) = self.msg_peer_id_queue.pop_front() {
+            peers
+                .get(&peer_id)
+                .unwrap()
+                .as_ref()
+                .borrow_mut()
+                .process_one_message();
+            num_msg_processed += 1;
+        }
+
+        num_msg_processed
+    }
+}

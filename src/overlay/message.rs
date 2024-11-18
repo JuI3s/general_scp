@@ -8,6 +8,8 @@ use crate::{
     scp::{envelope::SCPEnvelope, nomination_protocol::NominationValue},
 };
 
+use super::peer::PeerID;
+
 #[derive(Clone, Serialize)]
 pub enum SCPMessage<N>
 where
@@ -29,7 +31,9 @@ where
 }
 
 #[derive(Serialize, Clone)]
-pub struct HelloEnvelope {}
+pub struct HelloEnvelope {
+    pub id: PeerID,
+}
 
 pub struct MessageController<N>
 where

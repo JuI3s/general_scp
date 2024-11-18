@@ -24,7 +24,7 @@ use super::{
     conn::{PeerConn, PeerConnBuilder},
     in_memory_conn::InMemoryConn,
     in_memory_global::InMemoryGlobalState,
-    message::{MessageController, SCPMessage},
+    message::{HelloEnvelope, MessageController, SCPMessage},
     peer::{PeerID, SCPPeerState},
 };
 
@@ -110,34 +110,59 @@ where
         }
     }
 
+    pub fn send_hello(&mut self, peer_id: &PeerID) {
+        let hello_env = HelloEnvelope {
+            id: self.peer_idx.clone(),
+        };
+        let msg = SCPMessage::Hello(hello_env);
+        self.send_message(peer_id, &msg);
+    }
+
     pub fn add_connection(&mut self, peer_id: &PeerID) -> &mut C {
         self.peer_conns
             .entry(peer_id.to_string())
             .or_insert(self.conn_builder.build(peer_id))
     }
 
+    pub fn process_one_message(&mut self) -> bool {
+        let msg_option = self.message_controller.borrow_mut().pop();
+
+        match msg_option {
+            Some(msg) => {
+                match msg {
+                    SCPMessage::SCP(scp_env) => self.on_scp_env(scp_env),
+                    SCPMessage::Hello(hello_env) => self.on_hello_env(hello_env),
+                }
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn on_hello_env(&mut self, hello_env: HelloEnvelope) {
+        if !self.peer_conns.contains_key(&hello_env.id) {}
+    }
+
+    fn on_scp_env(&mut self, scp_env: SCPEnvelope<N>) {
+        let slot_idx: u64 = scp_env.slot_index.clone();
+        let env_id = self.scp_envelope_controller.add_envelope(scp_env);
+
+        let slot = self.slots.entry(slot_idx).or_insert(
+            SlotDriverBuilder::<N, H>::new()
+                .slot_index(slot_idx)
+                .herder_driver(self.herder.clone())
+                .timer(self.work_scheduler.clone())
+                .local_node(self.local_node_info.clone())
+                .build_handle()
+                .unwrap(),
+        );
+
+        slot.recv_scp_envelvope(&env_id, &mut self.scp_envelope_controller);
+    }
+
     pub fn process_all_messages(&mut self) -> usize {
         let mut msg_processed = 0;
-        while let Some(msg) = self.message_controller.borrow_mut().pop() {
-            match msg {
-                SCPMessage::SCP(scp_env) => {
-                    let slot_idx: u64 = scp_env.slot_index.clone();
-                    let env_id = self.scp_envelope_controller.add_envelope(scp_env);
-
-                    let slot = self.slots.entry(slot_idx).or_insert(
-                        SlotDriverBuilder::<N, H>::new()
-                            .slot_index(slot_idx)
-                            .herder_driver(self.herder.clone())
-                            .timer(self.work_scheduler.clone())
-                            .local_node(self.local_node_info.clone())
-                            .build_handle()
-                            .unwrap(),
-                    );
-
-                    slot.recv_scp_envelvope(&env_id, &mut self.scp_envelope_controller);
-                }
-                SCPMessage::Hello(hello_env) => todo!(),
-            }
+        while self.process_one_message() {
             msg_processed += 1;
         }
         msg_processed

@@ -46,19 +46,9 @@ where
     N: NominationValue,
 {
     fn send_message(&mut self, msg: &super::message::SCPMessage<N>) {
-        if let Some(peer_msg_queue) = self
-            .in_memory_global_state
+        self.in_memory_global_state
             .borrow_mut()
-            .peer_msg_queues
-            .get_mut(&self.peer_id)
-        {
-            peer_msg_queue.borrow_mut().add_message(msg.clone());
-        } else {
-            panic!(
-                "Envelope controller for peer_id {} does not exist",
-                self.peer_id,
-            )
-        }
+            .send_message(self.peer_id.clone(), msg.clone())
     }
 }
 
