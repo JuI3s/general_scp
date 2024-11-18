@@ -305,36 +305,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn loopback_peer_send_hello_message() {
-        //     let herder1 = create_test_herder(1);
-        //     let herder2 = create_test_herder(2);
-
-        //     let work_scheduler = Rc::new(RefCell::new(WorkScheduler::default()));
-        //     let connection = LoopbackPeerConnection::<MockState, MockStateDriver>::new(
-        //         &work_scheduler,
-        //         herder1,
-        //         herder2,
-        //     );
-        //     let msg = HelloEnvelope {};
-
-        //     connection.initiator.borrow_mut().send_hello(msg.clone());
-
-        //     assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 1);
-        //     LoopbackPeer::<MockState, MockStateDriver>::process_in_queue(
-        //         &connection.acceptor,
-        //         &mut connection.acceptor_envs.borrow_mut(),
-        //     );
-        //     assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 0);
-
-        //     connection.initiator.borrow_mut().send_hello(msg.clone());
-        //     connection.initiator.borrow_mut().send_hello(msg.clone());
-        //     assert_eq!(connection.initiator.borrow_mut().in_queue.len(), 0);
-
-        //     work_scheduler.borrow().excecute_main_thread_tasks();
-        //     assert_eq!(connection.acceptor.borrow_mut().in_queue.len(), 0);
-    }
-
     //     #[test]
     //     fn loopback_peer_nominate() {
     //         env_logger::init();
