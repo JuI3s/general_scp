@@ -27,4 +27,8 @@ impl PeerConn<MockState> for MockPeer {
     fn send_scp_msg(&mut self, envelope: crate::scp::envelope::SCPEnvelope<MockState>) {
         self.send_message(&crate::overlay::message::SCPMessage::SCP(envelope))
     }
+    
+    fn set_state(&mut self, state: crate::overlay::peer::SCPPeerConnState) {
+        todo!()
+    }
 }

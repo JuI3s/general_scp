@@ -50,6 +50,10 @@ where
             .borrow_mut()
             .send_message(self.peer_id.clone(), msg.clone())
     }
+    
+    fn set_state(&mut self, state: SCPPeerConnState) {
+        self.conn_state = state
+    }
 }
 
 pub struct InMemoryConnBuilder<N>

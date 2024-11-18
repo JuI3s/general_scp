@@ -1,6 +1,6 @@
 use crate::scp::{envelope::SCPEnvelope, nomination_protocol::NominationValue};
 
-use super::{message::{HelloEnvelope, SCPMessage}, peer::PeerID};
+use super::{message::{HelloEnvelope, SCPMessage}, peer::{PeerID, SCPPeerConnState}};
 
 pub trait PeerConn<N>
 where
@@ -17,6 +17,8 @@ where
     fn send_scp_msg(&mut self, envelope: SCPEnvelope<N>) {
         self.send_message(&SCPMessage::SCP(envelope))
     }
+
+    fn set_state(&mut self, state: SCPPeerConnState);
 }
 
 pub trait PeerConnBuilder<N, C>

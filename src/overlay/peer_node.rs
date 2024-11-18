@@ -140,7 +140,21 @@ where
     }
 
     fn on_hello_env(&mut self, hello_env: HelloEnvelope) {
-        if !self.peer_conns.contains_key(&hello_env.id) {}
+        let peer_id = &hello_env.id;
+        if !self.peer_conns.contains_key(peer_id) {
+            self.add_connection(peer_id);
+            self.peer_conns
+                .get_mut(peer_id)
+                .unwrap()
+                .set_state(super::peer::SCPPeerConnState::Connected);
+
+            self.send_hello(&hello_env.id);
+        } else {
+            self.peer_conns
+                .get_mut(peer_id)
+                .unwrap()
+                .set_state(super::peer::SCPPeerConnState::Connected);
+        }
     }
 
     fn on_scp_env(&mut self, scp_env: SCPEnvelope<N>) {

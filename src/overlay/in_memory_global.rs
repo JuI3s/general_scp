@@ -46,18 +46,29 @@ where
     }
 
     pub fn process_messages<H: HerderDriver<N> + 'static>(
-        &mut self,
+        global_state: &Rc<RefCell<Self>>,
         peers: &mut HashMap<PeerID, Rc<RefCell<InMemoryPeerNode<N, H>>>>,
     ) -> usize {
         let mut num_msg_processed = 0;
 
-        while let Some(peer_id) = self.msg_peer_id_queue.pop_front() {
+        loop {
+            let peer_id = global_state
+                .as_ref()
+                .borrow_mut()
+                .msg_peer_id_queue
+                .pop_front();
+            if peer_id.is_none() {
+                break;
+            }
+            let peer_id = peer_id.unwrap();
+
             peers
                 .get(&peer_id)
                 .unwrap()
                 .as_ref()
                 .borrow_mut()
                 .process_one_message();
+
             num_msg_processed += 1;
         }
 

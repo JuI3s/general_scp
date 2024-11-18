@@ -146,6 +146,7 @@ mod tests {
     use crate::{
         application::{clock::VirtualClock, quorum::QuorumSet, work_queue::EventQueue},
         overlay::{
+            in_memory_global::InMemoryGlobalState,
             in_memory_peer::{
                 test_data_create_mock_in_memory_nodes, test_data_create_mock_state_local_node_info,
                 InMemoryPeerBuilder,
@@ -289,7 +290,7 @@ mod tests {
         // Create two nodes.
         let herder_builder = MockStateDriverBuilder {};
         let mut node_builder = InMemoryPeerBuilder::new(herder_builder);
-        let (mut node1, mut node2) = test_data_create_mock_in_memory_nodes(&mut node_builder);
+        let (node1, node2) = test_data_create_mock_in_memory_nodes(&mut node_builder);
         let mut peers = HashMap::new();
         peers.insert(node1.borrow().peer_idx.clone(), node1.clone());
         peers.insert(node2.borrow().peer_idx.clone(), node2.clone());
@@ -297,11 +298,8 @@ mod tests {
         node1.borrow_mut().send_hello(&node2.borrow().peer_idx);
 
         assert_eq!(
-            node_builder
-                .global_state
-                .borrow_mut()
-                .process_messages(&mut peers),
-            1
+            InMemoryGlobalState::process_messages(&node_builder.global_state, &mut peers),
+            2,
         );
     }
 
