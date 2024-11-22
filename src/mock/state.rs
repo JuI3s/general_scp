@@ -137,7 +137,10 @@ mod tests {
 
     use env_logger;
     use log::debug;
-    use scp::{ballot_protocol::BallotProtocolState, envelope::SCPEnvelopeController, nomination_protocol::NominationProtocolState};
+    use scp::{
+        ballot_protocol::BallotProtocolState, envelope::SCPEnvelopeController,
+        nomination_protocol::NominationProtocolState,
+    };
     use std::{
         collections::{BTreeSet, HashMap},
         sync::Mutex,

@@ -211,8 +211,10 @@ where
             self.slots
                 .insert(slot_idx.clone(), self.build_slot(slot_idx));
 
-            self.nomination_protocol_states
-                .insert(slot_idx.clone(), Default::default());
+            self.nomination_protocol_states.insert(
+                slot_idx.clone(),
+                NominationProtocolState::new(self.peer_idx.clone()),
+            );
 
             self.ballot_protocol_states
                 .insert(slot_idx.clone(), Default::default());
