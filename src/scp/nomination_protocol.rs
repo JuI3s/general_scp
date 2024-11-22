@@ -51,7 +51,7 @@ where
 
     fn update_round_learders(&mut self);
 
-    fn process_nominationo_envelope(
+    fn process_nomination_envelope(
         self: &Arc<Self>,
         state_handle: &HNominationProtocolState<N>,
         envelope: &SCPEnvelopeID,
@@ -96,6 +96,14 @@ where
 
     pub num_timeouts: u64,
     pub timed_out: bool,
+}
+
+impl<N: NominationValue> NominationProtocolState<N> {
+    pub fn new(leader_id: PeerID) -> Self {
+        let mut state: NominationProtocolState<N> = Default::default();
+        state.round_leaders.insert(leader_id);
+        state
+    }
 }
 
 impl<N> Default for NominationProtocolState<N>
@@ -238,8 +246,14 @@ where
 
     fn is_sane(&self, statement: &SCPStatementNominate<N>) -> bool {
         (statement.votes.len() + statement.accepted.len() != 0)
-            && statement.votes.windows(2).all(|win| win[0] < win[1])
-            && statement.accepted.windows(2).all(|win| win[0] < win[1])
+            && statement
+                .votes
+                .windows(2)
+                .all(|window| window[0] < window[1])
+            && statement
+                .accepted
+                .windows(2)
+                .all(|window| window[0] < window[1])
     }
 
     fn hash_value(value: &N) -> u64 {
@@ -375,17 +389,17 @@ where
         votes
     }
 
-    fn emit_nomination(
-        self: &Arc<Self>,
-        state: &mut NominationProtocolState<N>,
-        envelope_controller: &mut SCPEnvelopeController<N>,
-    ) {
+    fn emit_nomination(self: &Arc<Self>, envelope_controller: &mut SCPEnvelopeController<N>) {
         // This function creats a nomination statement that contains the current
         // nomination value. The statement is then wrapped in an SCP envelope which is
         // checked for validity before being passed to Herder for broadcasting.
 
         let local_node = self.local_node.borrow();
+
+        
         let votes = self.get_current_votes();
+
+        todo!();
 
         // Creating the nomination statement
         let nom_st: SCPStatementNominate<N> =
@@ -393,10 +407,14 @@ where
 
         // Creating the envelop
         let st = SCPStatement::Nominate(nom_st);
+
+
         let env_id = self.create_envelope(st, envelope_controller);
 
+
+
         // Process the envelope. This may triggers more envelops being emitted.
-        match self.process_nominationo_envelope(
+        match self.process_nomination_envelope(
             &self.nomination_state(),
             &env_id,
             envelope_controller,
@@ -508,6 +526,7 @@ where
                     .nominating_value(&value, &self.slot_index);
             }
 
+
             // state.add_value_from_leaders(self);
 
             // if we're leader, add our value if we haven't added any votes yet
@@ -517,6 +536,7 @@ where
                     self.nominating_value(value.as_ref());
                 }
             }
+
         }
 
         {
@@ -535,12 +555,17 @@ where
             };
 
             self.task_queue.borrow_mut().submit(renominate_job);
+
         }
 
         if updated {
             println!("Updated");
-            self.emit_nomination(&mut state, envelope_controller);
+
+            self.emit_nomination(envelope_controller);
+
         } else {
+            todo!();
+
             debug!("NominationProtocol::nominate (SKIPPED)");
         }
 
@@ -559,16 +584,19 @@ where
         todo!()
     }
 
-    fn process_nominationo_envelope(
+    fn process_nomination_envelope(
         self: &Arc<Self>,
         state_handle: &HNominationProtocolState<N>,
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> EnvelopeState {
+        todo!();
+
         let env = envelope_controller.get_envelope(envelope).unwrap();
         let node_id = &env.node_id;
         let statement = env.get_statement().as_nomination_statement();
         let mut state = state_handle.lock().unwrap();
+
 
         // TODO: this comment seems to be wrong
         // If we've processed the same envelope, we'll process it again
@@ -645,7 +673,7 @@ where
             });
 
             if modified {
-                self.emit_nomination(&mut state, envelope_controller);
+                self.emit_nomination(envelope_controller);
             }
 
             if new_candidates {
@@ -669,6 +697,7 @@ where
                 };
             }
         }
+
         EnvelopeState::Valid
     }
 }

@@ -283,7 +283,7 @@ where
                 );
             }
             SCPStatement::Nominate(st) => {
-                self.process_nominationo_envelope(
+                self.process_nomination_envelope(
                     &self.nomination_state_handle,
                     &env_id,
                     envelope_controller,

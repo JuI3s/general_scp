@@ -30,7 +30,6 @@ where
     H: HerderDriver<N>,
 {
     jobs: VecDeque<SlotJob<N>>,
-    env_controller: Rc<RefCell<SCPEnvelopeController<N>>>,
     phantom: PhantomData<H>,
 }
 
@@ -39,6 +38,13 @@ where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
 {
+    pub fn new() -> Self {
+        Self {
+            jobs: VecDeque::new(),
+            phantom: PhantomData,
+        }
+    }
+
     pub fn submit(&mut self, job: SlotJob<N>) {
         self.jobs.push_back(job);
     }

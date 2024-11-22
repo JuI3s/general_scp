@@ -153,6 +153,7 @@ mod tests {
             },
             loopback_peer::{LoopbackPeer, LoopbackPeerConnection},
             message::SCPMessage,
+            node,
         },
         scp::{
             local_node::LocalNodeInfo, local_node_builder::LocalNodeBuilder, scp::NodeID,
@@ -285,9 +286,42 @@ mod tests {
         herder
     }
 
-    #[test]
-    fn in_memory_peer_send_hello_message() {
-        // Create two nodes.
+    fn set_up_test_nodes() -> (
+        Rc<
+            RefCell<
+                crate::overlay::peer_node::PeerNode<
+                    MockState,
+                    MockStateDriver,
+                    crate::overlay::in_memory_conn::InMemoryConn<MockState>,
+                    crate::overlay::in_memory_conn::InMemoryConnBuilder<MockState>,
+                >,
+            >,
+        >,
+        Rc<
+            RefCell<
+                crate::overlay::peer_node::PeerNode<
+                    MockState,
+                    MockStateDriver,
+                    crate::overlay::in_memory_conn::InMemoryConn<MockState>,
+                    crate::overlay::in_memory_conn::InMemoryConnBuilder<MockState>,
+                >,
+            >,
+        >,
+        HashMap<
+            String,
+            Rc<
+                RefCell<
+                    crate::overlay::peer_node::PeerNode<
+                        MockState,
+                        MockStateDriver,
+                        crate::overlay::in_memory_conn::InMemoryConn<MockState>,
+                        crate::overlay::in_memory_conn::InMemoryConnBuilder<MockState>,
+                    >,
+                >,
+            >,
+        >,
+        InMemoryPeerBuilder<MockState, MockStateDriver, MockStateDriverBuilder>,
+    ) {
         let herder_builder = MockStateDriverBuilder {};
         let mut node_builder = InMemoryPeerBuilder::new(herder_builder);
         let (node1, node2) = test_data_create_mock_in_memory_nodes(&mut node_builder);
@@ -295,11 +329,36 @@ mod tests {
         peers.insert(node1.borrow().peer_idx.clone(), node1.clone());
         peers.insert(node2.borrow().peer_idx.clone(), node2.clone());
 
+        (node1, node2, peers, node_builder)
+    }
+
+    #[test]
+    fn in_memory_peer_send_hello_message() {
+        let (node1, node2, mut peers, node_builder) = set_up_test_nodes();
+
         node1.borrow_mut().send_hello(&node2.borrow().peer_idx);
 
         assert_eq!(
             InMemoryGlobalState::process_messages(&node_builder.global_state, &mut peers),
             2,
+        );
+    }
+
+    #[test]
+    fn in_memory_peer_nominate() {
+        let (node1, node2, mut peers, node_builder) = set_up_test_nodes();
+
+        node1.borrow_mut().send_hello(&node2.borrow().peer_idx);
+        assert_eq!(
+            InMemoryGlobalState::process_messages(&node_builder.global_state, &mut peers),
+            2,
+        );
+
+        node1.borrow_mut().slot_nominate(0);
+        // node1.borrow_mut().nominate(&node2.borrow().peer_idx, 0);
+        assert_eq!(
+            InMemoryGlobalState::process_messages(&node_builder.global_state, &mut peers),
+            1,
         );
     }
 

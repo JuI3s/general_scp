@@ -120,7 +120,8 @@ where
             )),
             Arc::new(Mutex::new(self.ballot_protocol_state.unwrap_or_default())),
             self.herder_driver.unwrap(),
-            self.task_queue.unwrap(),
+            self.task_queue
+                .unwrap_or(Rc::new(RefCell::new(SlotJobQueue::new()))),
             self.timer.unwrap(),
         ))
     }

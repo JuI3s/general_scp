@@ -13,10 +13,11 @@ use crate::{
     scp::{
         envelope::{SCPEnvelope, SCPEnvelopeController},
         local_node::{self, LocalNodeInfo},
-        nomination_protocol::NominationValue,
-        scp_driver::SlotDriver,
+        nomination_protocol::{NominationProtocol, NominationProtocolState, NominationValue},
+        scp_driver::{SCPDriver, SlotDriver},
         scp_driver_builder::SlotDriverBuilder,
         slot::{self, SlotIndex},
+        statement::{SCPStatement, SCPStatementNominate},
     },
 };
 
@@ -110,6 +111,36 @@ where
         }
     }
 
+    pub fn slot_nominate(&mut self, slot_idx: SlotIndex) {
+        let slot = self.get_or_create_slot(slot_idx);
+        slot.nominate(
+            slot.nomination_state().clone(),
+            Arc::new(N::default()),
+            &Default::default(),
+            &mut self.scp_envelope_controller,
+        );
+    }
+
+    pub fn nominate(&mut self, peer_id: &PeerID, slot_idx: SlotIndex) {
+        // TODO: this should be a broadcast message
+        let nominate_statement = SCPStatementNominate::<N>::new(
+            &self.local_node_info.borrow().quorum_set,
+            vec![N::default()],
+        );
+        let nominate_statement = SCPStatement::Nominate(nominate_statement);
+
+        let hash_val = [0; 64];
+
+        let scp_env = SCPEnvelope::new(
+            nominate_statement,
+            self.local_node_info.borrow().node_id.clone(),
+            slot_idx,
+            hash_val,
+        );
+        let scp_msg = SCPMessage::SCP(scp_env);
+        self.send_message(peer_id, &scp_msg)
+    }
+
     pub fn send_hello(&mut self, peer_id: &PeerID) {
         let hello_env = HelloEnvelope {
             id: self.peer_idx.clone(),
@@ -157,20 +188,30 @@ where
         }
     }
 
+    fn build_slot(&self, slot_idx: SlotIndex) -> Arc<SlotDriver<N, H>> {
+        SlotDriverBuilder::<N, H>::new()
+            .slot_index(slot_idx)
+            .herder_driver(self.herder.clone())
+            .timer(self.work_scheduler.clone())
+            .local_node(self.local_node_info.clone())
+            .nomination_protocol_state(NominationProtocolState::new(self.peer_idx.clone()))
+            .build_handle()
+            .unwrap()
+    }
+
+    fn get_or_create_slot(&mut self, slot_idx: SlotIndex) -> Arc<SlotDriver<N, H>> {
+        if !self.slots.contains_key(&slot_idx) {
+            self.slots.insert(slot_idx, self.build_slot(slot_idx));
+        }
+
+        self.slots.get(&slot_idx).unwrap().clone()
+    }
+
     fn on_scp_env(&mut self, scp_env: SCPEnvelope<N>) {
         let slot_idx: u64 = scp_env.slot_index.clone();
         let env_id = self.scp_envelope_controller.add_envelope(scp_env);
 
-        let slot = self.slots.entry(slot_idx).or_insert(
-            SlotDriverBuilder::<N, H>::new()
-                .slot_index(slot_idx)
-                .herder_driver(self.herder.clone())
-                .timer(self.work_scheduler.clone())
-                .local_node(self.local_node_info.clone())
-                .build_handle()
-                .unwrap(),
-        );
-
+        let slot = self.get_or_create_slot(slot_idx);
         slot.recv_scp_envelvope(&env_id, &mut self.scp_envelope_controller);
     }
 
@@ -180,15 +221,5 @@ where
             msg_processed += 1;
         }
         msg_processed
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{mock::state::MockState, overlay::in_memory_global::InMemoryGlobalState};
-
-    #[test]
-    fn test_in_memory_peer_send_hello() {
-        let global_state = InMemoryGlobalState::<MockState>::new();
     }
 }
