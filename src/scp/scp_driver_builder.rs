@@ -115,10 +115,6 @@ where
         Ok(SlotDriver::<N, T>::new(
             self.slot_index.unwrap(),
             self.local_node.unwrap().into(),
-            Arc::new(Mutex::new(
-                self.nomination_protocol_state.unwrap_or_default(),
-            )),
-            Arc::new(Mutex::new(self.ballot_protocol_state.unwrap_or_default())),
             self.herder_driver.unwrap(),
             self.task_queue
                 .unwrap_or(Rc::new(RefCell::new(SlotJobQueue::new()))),

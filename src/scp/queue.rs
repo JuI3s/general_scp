@@ -1,7 +1,7 @@
 use std::{
     borrow::BorrowMut,
     cell::RefCell,
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     env,
     marker::PhantomData,
     rc::Rc,
@@ -14,7 +14,7 @@ use syn::token::Ref;
 use crate::{ca::cell::Cell, herder::herder::HerderDriver};
 
 use super::{
-    ballot_protocol::HBallotProtocolState,
+    ballot_protocol::{BallotProtocolState, HBallotProtocolState},
     envelope::{self, SCPEnvelopeController},
     nomination_protocol::{
         HNominationProtocolState, HSCPNominationValue, NominationProtocol, NominationProtocolState,
@@ -52,13 +52,23 @@ where
     pub fn process_one(
         &mut self,
         slots: &HashMap<SlotIndex, Arc<SlotDriver<N, H>>>,
+        nomination_states: &mut BTreeMap<SlotIndex, NominationProtocolState<N>>,
+        ballot_states: &mut BTreeMap<SlotIndex, BallotProtocolState<N>>,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) {
         if let Some(job) = self.jobs.pop_front() {
             if let Some(slot_driver) = slots.get(&job.id) {
+                let nomination_state = nomination_states
+                    .get_mut(&job.id)
+                    .expect("Nomination state not found for slot");
+                let ballot_state = ballot_states
+                    .get_mut(&job.id)
+                    .expect("Ballot state not found for slot");
                 match job.task {
-                    SlotTask::RetryNominate(arg) => arg.execute(slot_driver, envelope_controller),
-                    SlotTask::AbandonBallot(arg) => arg.execute(slot_driver, envelope_controller),
+                    SlotTask::RetryNominate(arg) => {
+                        arg.execute(slot_driver, nomination_state, ballot_state, envelope_controller)
+                    }
+                    SlotTask::AbandonBallot(arg) => arg.execute(slot_driver, nomination_state, ballot_state, envelope_controller),
                 }
             }
         }
@@ -86,7 +96,7 @@ pub struct RetryNominateArg<N>
 where
     N: NominationValue,
 {
-    pub state_handle: HNominationProtocolState<N>,
+    pub slot_idx: SlotIndex,
     pub value: HSCPNominationValue<N>,
     pub previous_value: N,
     // envelope_controller: &SCPEnvelopeController<N>,
@@ -99,13 +109,14 @@ where
     pub fn execute<H: HerderDriver<N> + 'static>(
         self,
         slot_driver: &Arc<SlotDriver<N, H>>,
+        nomination_state: &mut NominationProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) {
-        let state = self.state_handle;
         let value = self.value;
         let prev_value = self.previous_value;
 
-        SlotDriver::nominate(slot_driver, state, value, &prev_value, envelope_controller);
+        SlotDriver::nominate(slot_driver, nomination_state, ballot_state, value, &prev_value, envelope_controller);
     }
 }
 
@@ -113,24 +124,35 @@ pub struct AbandonBallotArg<N>
 where
     N: NominationValue,
 {
-    pub state: HBallotProtocolState<N>,
-    pub nomination_state: HNominationProtocolState<N>,
+    pub slot: SlotIndex,
     pub n: u32,
+    phantom: PhantomData<N>,
 }
 
 impl<N> AbandonBallotArg<N>
 where
     N: NominationValue,
 {
+
+    pub fn new(slot: SlotIndex, n: u32) -> Self {
+        Self {
+            slot,
+            n,
+            phantom: PhantomData,
+        }
+    }
+
     pub fn execute<H: HerderDriver<N> + 'static>(
         self,
         slot_driver: &Arc<SlotDriver<N, H>>,
+        nomination_state: &mut NominationProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
         envelope_controller: &SCPEnvelopeController<N>,
     ) {
         SlotDriver::abandon_ballot(
             slot_driver,
-            self.state.lock().unwrap().borrow_mut(),
-            self.nomination_state.lock().unwrap().borrow_mut(),
+            ballot_state,
+            nomination_state,
             self.n,
             envelope_controller,
         );

@@ -11,12 +11,13 @@ use crate::{
     application::work_queue::WorkScheduler,
     herder::{self, herder::HerderDriver},
     scp::{
+        ballot_protocol::BallotProtocolState,
         envelope::{SCPEnvelope, SCPEnvelopeController},
         local_node::{self, LocalNodeInfo},
         nomination_protocol::{NominationProtocol, NominationProtocolState, NominationValue},
         scp_driver::{SCPDriver, SlotDriver},
         scp_driver_builder::SlotDriverBuilder,
-        slot::{self, SlotIndex},
+        slot::{self, Slot, SlotIndex},
         statement::{SCPStatement, SCPStatementNominate},
     },
 };
@@ -40,6 +41,8 @@ where
     pub message_controller: Rc<RefCell<MessageController<N>>>,
     pub peer_conns: BTreeMap<PeerID, C>,
     pub slots: BTreeMap<SlotIndex, Arc<SlotDriver<N, H>>>,
+    nomination_protocol_states: BTreeMap<SlotIndex, NominationProtocolState<N>>,
+    ballot_protocol_states: BTreeMap<SlotIndex, BallotProtocolState<N>>,
 
     conn_builder: CB,
     scp_envelope_controller: SCPEnvelopeController<N>,
@@ -94,6 +97,8 @@ where
             slots: Default::default(),
             work_scheduler,
             local_node_info: Rc::new(RefCell::new(local_node_info)),
+            nomination_protocol_states: Default::default(),
+            ballot_protocol_states: Default::default(),
         }
     }
 
@@ -112,9 +117,11 @@ where
     }
 
     pub fn slot_nominate(&mut self, slot_idx: SlotIndex) {
-        let slot = self.get_or_create_slot(slot_idx);
+        let slot = self.get_or_create_slot_and_states(slot_idx);
+
         slot.nominate(
-            slot.nomination_state().clone(),
+            self.nomination_protocol_states.get_mut(&slot_idx).unwrap(),
+            self.ballot_protocol_states.get_mut(&slot_idx).unwrap(),
             Arc::new(N::default()),
             &Default::default(),
             &mut self.scp_envelope_controller,
@@ -199,9 +206,16 @@ where
             .unwrap()
     }
 
-    fn get_or_create_slot(&mut self, slot_idx: SlotIndex) -> Arc<SlotDriver<N, H>> {
+    fn get_or_create_slot_and_states(&mut self, slot_idx: SlotIndex) -> Arc<SlotDriver<N, H>> {
         if !self.slots.contains_key(&slot_idx) {
-            self.slots.insert(slot_idx, self.build_slot(slot_idx));
+            self.slots
+                .insert(slot_idx.clone(), self.build_slot(slot_idx));
+
+            self.nomination_protocol_states
+                .insert(slot_idx.clone(), Default::default());
+
+            self.ballot_protocol_states
+                .insert(slot_idx.clone(), Default::default());
         }
 
         self.slots.get(&slot_idx).unwrap().clone()
@@ -211,8 +225,13 @@ where
         let slot_idx: u64 = scp_env.slot_index.clone();
         let env_id = self.scp_envelope_controller.add_envelope(scp_env);
 
-        let slot = self.get_or_create_slot(slot_idx);
-        slot.recv_scp_envelvope(&env_id, &mut self.scp_envelope_controller);
+        let slot = self.get_or_create_slot_and_states(slot_idx);
+        slot.recv_scp_envelvope(
+            self.nomination_protocol_states.get_mut(&slot_idx).unwrap(),
+            self.ballot_protocol_states.get_mut(&slot_idx).unwrap(),
+            &env_id,
+            &mut self.scp_envelope_controller,
+        );
     }
 
     pub fn process_all_messages(&mut self) -> usize {

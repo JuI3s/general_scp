@@ -137,7 +137,7 @@ mod tests {
 
     use env_logger;
     use log::debug;
-    use scp::envelope::SCPEnvelopeController;
+    use scp::{ballot_protocol::BallotProtocolState, envelope::SCPEnvelopeController, nomination_protocol::NominationProtocolState};
     use std::{
         collections::{BTreeSet, HashMap},
         sync::Mutex,
@@ -211,7 +211,7 @@ mod tests {
         let local_node = LocalNodeBuilder::<MockState>::new()
             .is_validator(true)
             .quorum_set(quorum_set)
-            .node_id(node_id)
+            .node_id(node_id.clone())
             .build()
             .unwrap();
 
@@ -227,8 +227,13 @@ mod tests {
         let value = Arc::new(MockState::random());
         let prev_value = MockState::random();
         let mut envelope_controller = SCPEnvelopeController::<MockState>::new();
+
+        let mut nomination_state = NominationProtocolState::new(node_id.clone());
+        let mut ballot_state = BallotProtocolState::default();
+
         slot_driver.nominate(
-            slot_driver.nomination_state().clone(),
+            &mut nomination_state,
+            &mut ballot_state,
             value,
             &prev_value,
             &mut envelope_controller,
@@ -333,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn in_memory_peer_send_hello_message() {
+    fn in_memory_pget_latest_messageeer_send_hello_message() {
         let (node1, node2, mut peers, node_builder) = set_up_test_nodes();
 
         node1.borrow_mut().send_hello(&node2.borrow().peer_idx);

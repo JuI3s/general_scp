@@ -1061,18 +1061,30 @@ where
     // counter n.
     pub fn abandon_ballot(
         self: &Arc<Self>,
-        state: &mut BallotProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         n: u32,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
-        match self.get_latest_composite_value().lock().unwrap().as_ref() {
+        match nomination_state
+            .latest_composite_candidate
+            .clone()
+            .lock()
+            .unwrap()
+            .as_ref()
+        {
             Some(value) => {
                 if n == 0 {
-                    self.bump_state(state, nomination_state, value, true, envelope_controller)
+                    self.bump_state(
+                        ballot_state,
+                        nomination_state,
+                        value,
+                        true,
+                        envelope_controller,
+                    )
                 } else {
                     self.bump_state_with_counter(
-                        state,
+                        ballot_state,
                         nomination_state,
                         value,
                         n,
@@ -1239,14 +1251,14 @@ where
         }
     }
 
-    fn ballot_protocol_expired(self: &Arc<Self>, env_controller: &SCPEnvelopeController<N>) {
+    fn ballot_protocol_expired(
+        self: &Arc<Self>,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+        env_controller: &SCPEnvelopeController<N>,
+    ) {
         // TODO: this does not cause deadlock issues?
-        self.abandon_ballot(
-            std::borrow::BorrowMut::borrow_mut(&mut self.ballot_state().lock().unwrap()),
-            std::borrow::BorrowMut::borrow_mut(&mut self.nomination_state().lock().unwrap()),
-            0,
-            env_controller,
-        );
+        self.abandon_ballot(ballot_state, nomination_state, 0, env_controller);
     }
 
     fn start_ballot_protocol_timer(self: &Arc<Self>, ballot_state: &BallotProtocolState<N>) {
@@ -1263,11 +1275,7 @@ where
         );
 
         {
-            let abandon_ballot_arg = AbandonBallotArg {
-                state: self.ballot_state().clone(),
-                nomination_state: self.nomination_state().clone(),
-                n: 0,
-            };
+            let abandon_ballot_arg = AbandonBallotArg::new(self.slot_index.clone(), 0);
 
             let abandon_ballot_job = SlotJob {
                 id: self.slot_index.clone(),

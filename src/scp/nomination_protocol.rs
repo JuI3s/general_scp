@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::hash_map::DefaultHasher,
+    env,
     fmt::Debug,
     hash::{self, Hash, Hasher},
     ops::Deref,
@@ -28,6 +29,7 @@ use crate::{
 };
 
 use super::{
+    ballot_protocol::BallotProtocolState,
     envelope::{self, SCPEnvelopeController, SCPEnvelopeID},
     queue::{RetryNominateArg, SlotJob, SlotTask},
     scp::{EnvelopeState, NodeID, SCP},
@@ -42,7 +44,8 @@ where
 {
     fn nominate(
         self: &Arc<Self>,
-        state: HNominationProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
         value: HSCPNominationValue<N>,
         previous_value: &N,
         envelope_controller: &mut SCPEnvelopeController<N>,
@@ -53,7 +56,8 @@ where
 
     fn process_nomination_envelope(
         self: &Arc<Self>,
-        state_handle: &HNominationProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> EnvelopeState;
@@ -361,6 +365,18 @@ where
 
         self.latest_envelope = Some(env_id.clone());
     }
+
+    fn get_current_votes(&self) -> Vec<N> {
+        let mut votes = vec![];
+
+        self.votes.iter().for_each(|vote: &Arc<N>| {
+            votes.push(vote.as_ref().clone());
+        });
+        self.accepted.iter().for_each(|accepted| {
+            votes.push(accepted.as_ref().clone());
+        });
+        votes
+    }
 }
 
 impl<N, H> SlotDriver<N, H>
@@ -368,36 +384,19 @@ where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
 {
-    fn get_current_votes(&self) -> Vec<N> {
-        let mut votes = vec![];
-        self.nomination_state()
-            .lock()
-            .unwrap()
-            .votes
-            .iter()
-            .for_each(|vote: &Arc<N>| {
-                votes.push(vote.as_ref().clone());
-            });
-        self.nomination_state()
-            .lock()
-            .unwrap()
-            .accepted
-            .iter()
-            .for_each(|accepted| {
-                votes.push(accepted.as_ref().clone());
-            });
-        votes
-    }
-
-    fn emit_nomination(self: &Arc<Self>, envelope_controller: &mut SCPEnvelopeController<N>) {
+    fn emit_nomination(
+        self: &Arc<Self>,
+        nomination_state: &mut NominationProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
+        envelope_controller: &mut SCPEnvelopeController<N>,
+    ) {
         // This function creats a nomination statement that contains the current
         // nomination value. The statement is then wrapped in an SCP envelope which is
         // checked for validity before being passed to Herder for broadcasting.
 
         let local_node = self.local_node.borrow();
 
-        
-        let votes = self.get_current_votes();
+        let votes = nomination_state.get_current_votes();
 
         todo!();
 
@@ -408,19 +407,16 @@ where
         // Creating the envelop
         let st = SCPStatement::Nominate(nom_st);
 
-
         let env_id = self.create_envelope(st, envelope_controller);
-
-
 
         // Process the envelope. This may triggers more envelops being emitted.
         match self.process_nomination_envelope(
-            &self.nomination_state(),
+            nomination_state,
+            ballot_state,
             &env_id,
             envelope_controller,
         ) {
             EnvelopeState::Valid => {
-                let mut nomination_state = self.nomination_state().lock().unwrap();
                 if !nomination_state
                     .latest_envelope
                     .as_ref()
@@ -466,12 +462,12 @@ where
 {
     fn nominate(
         self: &Arc<Self>,
-        state_handle: HNominationProtocolState<N>,
+        state: &mut NominationProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
         value: HSCPNominationValue<N>,
         previous_value: &N,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> bool {
-        let mut state = state_handle.lock().unwrap();
         if !state.candidates.is_empty() {
             debug!(
                 "Skip nomination round {}, already have a candidate",
@@ -526,7 +522,6 @@ where
                     .nominating_value(&value, &self.slot_index);
             }
 
-
             // state.add_value_from_leaders(self);
 
             // if we're leader, add our value if we haven't added any votes yet
@@ -536,13 +531,12 @@ where
                     self.nominating_value(value.as_ref());
                 }
             }
-
         }
 
         {
             // Create renominating task.
             let renominate_task_arg = RetryNominateArg {
-                state_handle: state_handle.clone(),
+                slot_idx: self.slot_index.clone(),
                 value: value.clone(),
                 previous_value: previous_value.clone(),
             };
@@ -555,17 +549,13 @@ where
             };
 
             self.task_queue.borrow_mut().submit(renominate_job);
-
         }
 
         if updated {
             println!("Updated");
 
-            self.emit_nomination(envelope_controller);
-
+            self.emit_nomination(state, ballot_state, envelope_controller);
         } else {
-            todo!();
-
             debug!("NominationProtocol::nominate (SKIPPED)");
         }
 
@@ -586,7 +576,8 @@ where
 
     fn process_nomination_envelope(
         self: &Arc<Self>,
-        state_handle: &HNominationProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> EnvelopeState {
@@ -595,49 +586,47 @@ where
         let env = envelope_controller.get_envelope(envelope).unwrap();
         let node_id = &env.node_id;
         let statement = env.get_statement().as_nomination_statement();
-        let mut state = state_handle.lock().unwrap();
-
 
         // TODO: this comment seems to be wrong
         // If we've processed the same envelope, we'll process it again
         // since the validity of values might have changed
         // (e.g., tx set fetch)
 
-        if state.processed_newer_statement(&node_id, statement, envelope_controller) {
+        if nomination_state.processed_newer_statement(&node_id, statement, envelope_controller) {
             return EnvelopeState::Invalid;
         }
 
-        if !state.is_sane(statement) {
+        if !nomination_state.is_sane(statement) {
             return EnvelopeState::Invalid;
         }
 
-        state.record_envelope(envelope, envelope_controller);
+        nomination_state.record_envelope(envelope, envelope_controller);
 
-        if state.nomination_started {
+        if nomination_state.nomination_started {
             // Whether we have modified nomination state.
             let modified = statement.votes.iter().any(|vote| {
-                if state.accepted.contains(vote) {
+                if nomination_state.accepted.contains(vote) {
                     return false;
                 }
                 if self.federated_accept(
                     |st| st.as_nomination_statement().votes.contains(vote),
                     |st| Self::accept_predicate(vote, st),
-                    &state.latest_nominations,
+                    &nomination_state.latest_nominations,
                     envelope_controller,
                 ) {
                     match self.herder_driver.borrow().validate_value(vote, true) {
                         ValidationLevel::FullyValidated => {
                             let value = Arc::new(vote.clone());
-                            state.accepted.insert(value.clone());
-                            state.votes.insert(value.clone());
+                            nomination_state.accepted.insert(value.clone());
+                            nomination_state.votes.insert(value.clone());
                             return true;
                         }
                         _ => {
                             if let Some(value) =
                                 self.herder_driver.borrow().extract_valid_value(vote)
                             {
-                                state.accepted.insert(Arc::new(value.clone()));
-                                state.votes.insert(Arc::new(value.clone()));
+                                nomination_state.accepted.insert(Arc::new(value.clone()));
+                                nomination_state.votes.insert(Arc::new(value.clone()));
                                 return true;
                             }
                         }
@@ -647,16 +636,16 @@ where
             });
 
             let new_candidates = statement.accepted.iter().any(|value| {
-                if state.candidates.contains(value) {
+                if nomination_state.candidates.contains(value) {
                     return false;
                 }
 
                 if self.federated_ratify(
                     |st| Self::accept_predicate(value, st),
-                    &state.latest_nominations,
+                    &nomination_state.latest_nominations,
                     envelope_controller,
                 ) {
-                    state.candidates.insert(Arc::new(value.clone()));
+                    nomination_state.candidates.insert(Arc::new(value.clone()));
 
                     // Stop the timer, as there's no need to continue nominating,
                     // per the whitepaper:
@@ -673,7 +662,7 @@ where
             });
 
             if modified {
-                self.emit_nomination(envelope_controller);
+                self.emit_nomination(nomination_state, ballot_state, envelope_controller);
             }
 
             if new_candidates {
@@ -682,16 +671,27 @@ where
                 if let Some(value) = self
                     .herder_driver
                     .borrow()
-                    .combine_candidates(&state.candidates)
+                    .combine_candidates(&nomination_state.candidates)
                 {}
 
-                *state.latest_composite_candidate.lock().unwrap() = self
+                *nomination_state.latest_composite_candidate.lock().unwrap() = self
                     .herder_driver
                     .borrow()
-                    .combine_candidates(&state.candidates);
-                let _ = match state.latest_composite_candidate.lock().unwrap().as_ref() {
+                    .combine_candidates(&nomination_state.candidates);
+                let _ = match nomination_state
+                    .latest_composite_candidate
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                {
                     Some(val) => {
-                        self.bump_state_(val, false, envelope_controller);
+                        self.bump_state_(
+                            val,
+                            ballot_state,
+                            nomination_state,
+                            false,
+                            envelope_controller,
+                        );
                     }
                     None => {}
                 };

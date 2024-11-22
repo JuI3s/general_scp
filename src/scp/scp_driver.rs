@@ -28,12 +28,12 @@ use crate::{
 };
 
 use super::{
-    ballot_protocol::{BallotProtocol, BallotProtocolState, HBallotProtocolState, SCPBallot},
+    ballot_protocol::{self, BallotProtocol, BallotProtocolState, HBallotProtocolState, SCPBallot},
     envelope::{self, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
     local_node::{HLocalNode, LocalNodeInfo},
     nomination_protocol::{
         HLatestCompositeCandidateValue, HNominationProtocolState, HSCPNominationValue,
-        NominationValue, SCPNominationValue,
+        NominationProtocolState, NominationValue, SCPNominationValue,
     },
     queue::SlotJobQueue,
     scp::NodeID,
@@ -64,8 +64,6 @@ where
     pub slot_index: SlotIndex,
     pub local_node: HLocalNode<N>,
     pub scheduler: Rc<RefCell<WorkScheduler>>,
-    nomination_state_handle: HNominationProtocolState<N>,
-    ballot_state_handle: HBallotProtocolState<N>,
     pub herder_driver: Rc<RefCell<H>>,
     pub slot_state: RefCell<SlotState>,
     pub task_queue: Rc<RefCell<SlotJobQueue<N, H>>>,
@@ -245,26 +243,24 @@ where
     pub fn new(
         slot_index: SlotIndex,
         local_node: HLocalNode<N>,
-        nomination_state_handle: HNominationProtocolState<N>,
-        ballot_state_handle: HBallotProtocolState<N>,
         herder_driver: Rc<RefCell<H>>,
         task_queue: Rc<RefCell<SlotJobQueue<N, H>>>,
         scheduler: Rc<RefCell<WorkScheduler>>,
     ) -> Self {
         Self {
-            slot_index: slot_index,
-            local_node: local_node,
-            nomination_state_handle: nomination_state_handle,
-            ballot_state_handle: ballot_state_handle,
-            herder_driver: herder_driver,
+            slot_index,
+            local_node,
+            herder_driver,
             slot_state: Default::default(),
             task_queue,
-            scheduler, 
+            scheduler,
         }
     }
 
     pub fn recv_scp_envelvope(
         self: &Arc<Self>,
+        nomination_state: &mut NominationProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
         env_id: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) {
@@ -272,11 +268,9 @@ where
         println!("Received an envelope: {:?}", env_id);
         match env.get_statement() {
             SCPStatement::Prepare(_) | SCPStatement::Confirm(_) | SCPStatement::Externalize(_) => {
-                let mut ballot_state = self.ballot_state().lock().unwrap();
-                let mut nomination_state = self.nomination_state().lock().unwrap();
                 self.process_ballot_envelope(
-                    &mut ballot_state,
-                    &mut nomination_state,
+                    ballot_state,
+                    nomination_state,
                     env,
                     true,
                     envelope_controller,
@@ -284,7 +278,8 @@ where
             }
             SCPStatement::Nominate(st) => {
                 self.process_nomination_envelope(
-                    &self.nomination_state_handle,
+                    nomination_state,
+                    ballot_state,
                     &env_id,
                     envelope_controller,
                 );
@@ -292,35 +287,21 @@ where
         };
     }
 
-    pub fn nomination_state(&self) -> &HNominationProtocolState<N> {
-        &self.nomination_state_handle
-    }
-
-    pub fn ballot_state(&self) -> &HBallotProtocolState<N> {
-        &self.ballot_state_handle
-    }
-
     pub fn bump_state_(
         self: &Arc<Self>,
         nomination_value: &N,
+        ballot_state: &mut BallotProtocolState<N>,
+        nomination_state: &mut NominationProtocolState<N>,
         force: bool,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
         self.bump_state(
-            &mut self.ballot_state_handle.lock().unwrap(),
-            &mut self.nomination_state().lock().unwrap(),
+            ballot_state,
+            nomination_state,
             nomination_value,
             force,
             envelope_controller,
         )
-    }
-
-    pub fn get_latest_composite_value(&self) -> HLatestCompositeCandidateValue<N> {
-        self.nomination_state_handle
-            .lock()
-            .unwrap()
-            .latest_composite_candidate
-            .clone()
     }
 
     pub fn federated_accept(
@@ -368,7 +349,7 @@ where
         LocalNodeInfo::is_quorum_with_node_filter(
             Some((local_node.get_quorum_set(), &local_node.node_id)),
             envelopes,
-           |st| self.herder_driver.borrow().get_quorum_set(st),
+            |st| self.herder_driver.borrow().get_quorum_set(st),
             voted_predicate,
             envelope_controller,
         )
@@ -388,35 +369,31 @@ where
         envelope_controller.add_envelope(env)
     }
 
-    fn get_latest_message(&self, node_id: &NodeID) -> Option<SCPEnvelopeID> {
+    fn get_latest_message(
+        node_id: &NodeID,
+        ballot_state: &BallotProtocolState<N>,
+        nomination_state: &NominationProtocolState<N>,
+    ) -> Option<SCPEnvelopeID> {
         // Return the latest message we have heard from the node with node_id. Start
         // searching in the ballot protocol state and then the nomination protocol
         // state. If nothing is found, return None.
 
-        if let Some(env) = self
-            .ballot_state()
-            .lock()
-            .unwrap()
-            .latest_envelopes
-            .get(node_id)
-        {
+        if let Some(env) = ballot_state.latest_envelopes.get(node_id) {
             return Some(env.clone());
         }
 
-        if let Some(env) = self
-            .nomination_state()
-            .lock()
-            .unwrap()
-            .latest_nominations
-            .get(node_id)
-        {
+        if let Some(env) = nomination_state.latest_nominations.get(node_id) {
             return Some(env.clone());
         }
 
         None
     }
 
-    pub fn maybe_got_v_blocking(&mut self) {
+    pub fn maybe_got_v_blocking(
+        &mut self,
+        nomination_state: &NominationProtocolState<N>,
+        ballot_state: &BallotProtocolState<N>,
+    ) {
         // Called when we process an envelope or set state from an envelope and maybe we
         // hear from a v-blocking set for the first time.
 
@@ -430,7 +407,7 @@ where
         let mut nodes: Vec<NodeID> = Default::default();
 
         LocalNodeInfo::<N>::for_all_nodes(&local_node.quorum_set, &mut |node| {
-            if self.get_latest_message(node).is_some() {
+            if Self::get_latest_message(node, ballot_state, nomination_state).is_some() {
                 nodes.push(node.to_owned());
             }
             true
