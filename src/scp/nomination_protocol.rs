@@ -30,7 +30,7 @@ use crate::{
 
 use super::{
     ballot_protocol::BallotProtocolState,
-    envelope::{self, SCPEnvelopeController, SCPEnvelopeID},
+    envelope::{self, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
     queue::{RetryNominateArg, SlotJob, SlotTask},
     scp::{EnvelopeState, NodeID, SCP},
     scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver, SlotStateTimer, ValidationLevel},
@@ -49,7 +49,7 @@ where
         value: HSCPNominationValue<N>,
         previous_value: &N,
         envelope_controller: &mut SCPEnvelopeController<N>,
-    ) -> bool;
+    ) -> Option<SCPEnvelopeID>;
     fn stop_nomination(self: &Arc<Self>, state: &mut NominationProtocolState<N>);
 
     fn update_round_learders(&mut self);
@@ -389,7 +389,7 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         ballot_state: &mut BallotProtocolState<N>,
         envelope_controller: &mut SCPEnvelopeController<N>,
-    ) {
+    ) -> Option<SCPEnvelopeID> {
         // This function creats a nomination statement that contains the current
         // nomination value. The statement is then wrapped in an SCP envelope which is
         // checked for validity before being passed to Herder for broadcasting.
@@ -431,14 +431,15 @@ where
                     // Fix this
 
                     // Do not do anything if we have already emitted a newer evenlope.
-                    return;
+                    return None;
                 }
 
-
                 nomination_state.latest_envelope = Some(env_id.clone());
-                let env_to_emit = envelope_controller.get_envelope(&env_id).unwrap();
+
                 if self.slot_state.borrow().fully_validated {
-                    self.herder_driver.borrow().emit_envelope(env_to_emit);
+                    Some(env_id)
+                } else {
+                    None
                 }
             }
             EnvelopeState::Invalid => {
@@ -464,13 +465,13 @@ where
         value: HSCPNominationValue<N>,
         previous_value: &N,
         envelope_controller: &mut SCPEnvelopeController<N>,
-    ) -> bool {
+    ) -> Option<SCPEnvelopeID> {
         if !state.candidates.is_empty() {
             debug!(
                 "Skip nomination round {}, already have a candidate",
                 state.round_number
             );
-            return false;
+            return None;
         }
 
         let mut updated = false;
@@ -481,7 +482,7 @@ where
 
         if state.timed_out && !state.nomination_started {
             debug!("NominationProtocol::nominate (TIMED OUT)");
-            return false;
+            return None;
         }
 
         state.nomination_started = true;
@@ -551,12 +552,11 @@ where
         if updated {
             println!("Updated");
 
-            self.emit_nomination(state, ballot_state, envelope_controller);
+            self.emit_nomination(state, ballot_state, envelope_controller)
         } else {
             debug!("NominationProtocol::nominate (SKIPPED)");
+            None
         }
-
-        updated
     }
 
     fn stop_nomination(self: &Arc<Self>, state: &mut NominationProtocolState<N>) {

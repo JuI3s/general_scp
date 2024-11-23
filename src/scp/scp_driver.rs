@@ -84,7 +84,7 @@ pub struct SlotState {
 impl Default for SlotState {
     fn default() -> Self {
         Self {
-            fully_validated: Default::default(),
+            fully_validated: true,
             got_v_blocking: Default::default(),
             ballot_timer: Default::default(),
         }
@@ -427,7 +427,8 @@ where
     fn nominating_value(self: &Arc<Self>, value: &N) {}
 
     fn validate_value(slot_index: u64, value: &N, nomination: bool) -> ValidationLevel {
-        ValidationLevel::MaybeValid
+        ValidationLevel::FullyValidated
+        // ValidationLevel::MaybeValid
     }
 
     fn emit_envelope(envelope: &SCPEnvelope<N>) {

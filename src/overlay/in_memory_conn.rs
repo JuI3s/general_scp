@@ -1,5 +1,5 @@
 use core::panic;
-use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, marker::PhantomData, rc::Rc};
 
 use syn::token::LArrow;
 
@@ -23,6 +23,14 @@ where
     peer_id: PeerID,
     conn_state: SCPPeerConnState,
     in_memory_global_state: Rc<RefCell<InMemoryGlobalState<N>>>,
+}
+
+impl<N: NominationValue> Debug for InMemoryConn<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InMemoryConn")
+            .field("peer_id", &self.peer_id)
+            .finish()
+    }
 }
 
 impl<N> InMemoryConn<N>
@@ -50,7 +58,7 @@ where
             .borrow_mut()
             .send_message(self.peer_id.clone(), msg.clone())
     }
-    
+
     fn set_state(&mut self, state: SCPPeerConnState) {
         self.conn_state = state
     }

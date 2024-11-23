@@ -70,7 +70,7 @@ impl<N, H, C, CB> PeerNode<N, H, C, CB>
 where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
-    C: PeerConn<N>,
+    C: PeerConn<N> + Debug,
     CB: PeerConnBuilder<N, C>,
 {
     pub fn new(
@@ -116,16 +116,34 @@ where
         }
     }
 
+    pub fn send_broadcast_message(&mut self, msg: &SCPMessage<N>) {
+        for peer_conn in self.peer_conns.values_mut() {
+            peer_conn.send_message(&msg);
+        }
+    }
+
     pub fn slot_nominate(&mut self, slot_idx: SlotIndex) {
         let slot = self.get_or_create_slot_and_states(slot_idx);
 
-        slot.nominate(
+        let env_id = slot.nominate(
             self.nomination_protocol_states.get_mut(&slot_idx).unwrap(),
             self.ballot_protocol_states.get_mut(&slot_idx).unwrap(),
             Arc::new(N::default()),
             &Default::default(),
             &mut self.scp_envelope_controller,
         );
+
+        if let Some(env_id) = env_id {
+            let scp_env = self
+                .scp_envelope_controller
+                .get_envelope(&env_id)
+                .unwrap()
+                .clone();
+
+            let scp_msg = SCPMessage::SCP(scp_env);
+
+            self.send_broadcast_message(&scp_msg);
+        }
     }
 
     pub fn nominate(&mut self, peer_id: &PeerID, slot_idx: SlotIndex) {
