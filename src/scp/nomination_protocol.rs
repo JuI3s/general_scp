@@ -415,18 +415,13 @@ where
             envelope_controller,
         ) {
             EnvelopeState::Valid => {
-                if !nomination_state
+                if nomination_state
                     .latest_envelope
                     .as_ref()
                     .and_then(|env_id| envelope_controller.get_envelope(env_id))
                     .is_some_and(|env| match &env.statement {
-                        todo!();
                         SCPStatement::Nominate(st) => {
-                            if env.statement.as_nomination_statement().is_older_than(&st) {
-                                false
-                            } else {
-                                true
-                            }
+                            st.is_older_than(env.statement.as_nomination_statement())
                         }
                         _ => {
                             panic!("Nomination state should only contain nomination statements.")
@@ -435,10 +430,10 @@ where
                 {
                     // Fix this
 
-                    // todo!();
                     // Do not do anything if we have already emitted a newer evenlope.
                     return;
                 }
+
 
                 nomination_state.latest_envelope = Some(env_id.clone());
                 let env_to_emit = envelope_controller.get_envelope(&env_id).unwrap();
