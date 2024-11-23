@@ -312,7 +312,7 @@ where
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
         if LocalNodeInfo::<N>::is_v_blocking_with_predicate(
-            self.local_node.borrow().get_quorum_set(),
+            &self.local_node.borrow().quorum_set,
             envelopes,
             &accepted_predicate,
             envelope_controller,
@@ -324,7 +324,7 @@ where
 
             let local_node = self.local_node.borrow();
             if LocalNodeInfo::is_quorum_with_node_filter(
-                Some((local_node.get_quorum_set(), &local_node.node_id)),
+                Some((&local_node.quorum_set, &local_node.node_id)),
                 envelopes,
                 |st| self.herder_driver.borrow().get_quorum_set(st),
                 ratify_filter,
@@ -347,7 +347,7 @@ where
         let local_node = self.local_node.borrow();
 
         LocalNodeInfo::is_quorum_with_node_filter(
-            Some((local_node.get_quorum_set(), &local_node.node_id)),
+            Some((&local_node.quorum_set, &local_node.node_id)),
             envelopes,
             |st| self.herder_driver.borrow().get_quorum_set(st),
             voted_predicate,

@@ -398,8 +398,6 @@ where
 
         let votes = nomination_state.get_current_votes();
 
-        todo!();
-
         // Creating the nomination statement
         let nom_st: SCPStatementNominate<N> =
             SCPStatementNominate::<N>::new(&local_node.quorum_set, votes);
@@ -422,6 +420,7 @@ where
                     .as_ref()
                     .and_then(|env_id| envelope_controller.get_envelope(env_id))
                     .is_some_and(|env| match &env.statement {
+                        todo!();
                         SCPStatement::Nominate(st) => {
                             if env.statement.as_nomination_statement().is_older_than(&st) {
                                 false
@@ -434,6 +433,9 @@ where
                         }
                     })
                 {
+                    // Fix this
+
+                    // todo!();
                     // Do not do anything if we have already emitted a newer evenlope.
                     return;
                 }
@@ -581,7 +583,7 @@ where
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> EnvelopeState {
-        todo!();
+        // todo!();
 
         let env = envelope_controller.get_envelope(envelope).unwrap();
         let node_id = &env.node_id;
@@ -678,8 +680,10 @@ where
                     .herder_driver
                     .borrow()
                     .combine_candidates(&nomination_state.candidates);
+
                 let _ = match nomination_state
                     .latest_composite_candidate
+                    .clone()
                     .lock()
                     .unwrap()
                     .as_ref()

@@ -993,7 +993,7 @@ where
         }
 
         let statement: SCPStatement<N> =
-            state.create_statement(self.local_node.borrow().get_quorum_set().hash_value());
+            state.create_statement(self.local_node.borrow().quorum_set.hash_value());
         let local_node_id = self.local_node.borrow().node_id.clone();
         // TODO:
         let envelope = SCPEnvelope::<N>::new(

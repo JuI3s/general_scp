@@ -49,15 +49,11 @@ where
 {
     pub fn new(is_validator: bool, quorum_set: QuorumSet, node_id: NodeID) -> Self {
         Self {
-            is_validator: is_validator,
-            quorum_set: quorum_set,
-            node_id: node_id,
+            is_validator,
+            quorum_set,
+            node_id,
             phantom: PhantomData,
         }
-    }
-
-    pub fn get_quorum_set(&self) -> &QuorumSet {
-        todo!();
     }
 
     pub fn for_all_nodes(
