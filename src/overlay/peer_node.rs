@@ -146,26 +146,6 @@ where
         }
     }
 
-    pub fn nominate(&mut self, peer_id: &PeerID, slot_idx: SlotIndex) {
-        // TODO: this should be a broadcast message
-        let nominate_statement = SCPStatementNominate::<N>::new(
-            &self.local_node_info.borrow().quorum_set,
-            vec![N::default()],
-        );
-        let nominate_statement = SCPStatement::Nominate(nominate_statement);
-
-        let hash_val = [0; 64];
-
-        let scp_env = SCPEnvelope::new(
-            nominate_statement,
-            self.local_node_info.borrow().node_id.clone(),
-            slot_idx,
-            hash_val,
-        );
-        let scp_msg = SCPMessage::SCP(scp_env);
-        self.send_message(peer_id, &scp_msg)
-    }
-
     pub fn send_hello(&mut self, peer_id: &PeerID) {
         let hello_env = HelloEnvelope {
             id: self.peer_idx.clone(),
