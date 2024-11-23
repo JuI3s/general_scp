@@ -151,21 +151,14 @@ mod tests {
     };
 
     use crate::{
-        application::{clock::VirtualClock, quorum::QuorumSet, work_queue::EventQueue},
-        overlay::{
-            in_memory_global::InMemoryGlobalState,
-            in_memory_peer::{
-                test_data_create_mock_in_memory_nodes, test_data_create_mock_state_local_node_info,
-                InMemoryPeerBuilder,
-            },
+        application::{clock::VirtualClock, quorum::QuorumSet, work_queue::EventQueue}, overlay::{
             loopback_peer::{LoopbackPeer, LoopbackPeerConnection},
             message::SCPMessage,
             node,
-        },
-        scp::{
+        }, overlay_impl::{in_memory_conn::{InMemoryConn, InMemoryConnBuilder}, in_memory_global::InMemoryGlobalState, in_memory_peer::{test_data_create_mock_in_memory_nodes, InMemoryPeerBuilder}}, scp::{
             local_node::LocalNodeInfo, local_node_builder::LocalNodeBuilder, scp::NodeID,
             scp_driver_builder::SlotDriverBuilder,
-        },
+        }
     };
 
     use std::{cell::RefCell, rc::Rc};
@@ -304,8 +297,8 @@ mod tests {
                 crate::overlay::peer_node::PeerNode<
                     MockState,
                     MockStateDriver,
-                    crate::overlay::in_memory_conn::InMemoryConn<MockState>,
-                    crate::overlay::in_memory_conn::InMemoryConnBuilder<MockState>,
+                    InMemoryConn<MockState>,
+                    InMemoryConnBuilder<MockState>,
                 >,
             >,
         >,
@@ -314,8 +307,8 @@ mod tests {
                 crate::overlay::peer_node::PeerNode<
                     MockState,
                     MockStateDriver,
-                    crate::overlay::in_memory_conn::InMemoryConn<MockState>,
-                    crate::overlay::in_memory_conn::InMemoryConnBuilder<MockState>,
+                    InMemoryConn<MockState>,
+                    InMemoryConnBuilder<MockState>,
                 >,
             >,
         >,
@@ -326,8 +319,8 @@ mod tests {
                     crate::overlay::peer_node::PeerNode<
                         MockState,
                         MockStateDriver,
-                        crate::overlay::in_memory_conn::InMemoryConn<MockState>,
-                        crate::overlay::in_memory_conn::InMemoryConnBuilder<MockState>,
+                        InMemoryConn<MockState>,
+                        InMemoryConnBuilder<MockState>,
                     >,
                 >,
             >,

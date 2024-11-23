@@ -7,12 +7,10 @@ use std::{
 
 use syn::token::Ref;
 
-use crate::{herder::herder::HerderDriver, scp::nomination_protocol::NominationValue};
+use crate::{herder::herder::HerderDriver, overlay::{message::{MessageController, SCPMessage}, peer::PeerID}, scp::nomination_protocol::NominationValue};
 
 use super::{
     in_memory_peer::InMemoryPeerNode,
-    message::{MessageController, SCPMessage},
-    peer::{Peer, PeerID},
 };
 
 pub struct InMemoryGlobalState<N>

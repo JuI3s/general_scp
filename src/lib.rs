@@ -4,6 +4,7 @@ pub mod crypto;
 pub mod herder;
 pub mod mock;
 pub mod overlay;
+pub mod overlay_impl;
 pub mod rpc;
 pub mod scp;
 pub mod utils;

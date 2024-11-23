@@ -7,21 +7,15 @@ use crate::{
         clock::VirtualClock,
         quorum::{QuorumNode, QuorumSet, QuorumSlice},
         work_queue::WorkScheduler,
-    },
-    herder::herder::{HerderBuilder, HerderDriver},
-    mock::{
+    }, herder::herder::{HerderBuilder, HerderDriver}, mock::{
         scp_driver::MockSCPDriver,
         state::{MockState, MockStateDriver, MockStateDriverBuilder},
-    },
-    scp::{local_node::LocalNodeInfo, nomination_protocol::NominationValue},
+    }, overlay::peer_node::PeerNode, scp::{local_node::LocalNodeInfo, nomination_protocol::NominationValue}
 };
 
 use super::{
     in_memory_conn::{InMemoryConn, InMemoryConnBuilder},
     in_memory_global::InMemoryGlobalState,
-    node,
-    peer::PeerID,
-    peer_node::PeerNode,
 };
 
 type TestPeerType =

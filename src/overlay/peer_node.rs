@@ -8,9 +8,7 @@ use std::{
 };
 
 use crate::{
-    application::work_queue::WorkScheduler,
-    herder::{self, herder::HerderDriver},
-    scp::{
+    application::work_queue::WorkScheduler, herder::{self, herder::HerderDriver}, overlay_impl::in_memory_global::InMemoryGlobalState, scp::{
         ballot_protocol::BallotProtocolState,
         envelope::{SCPEnvelope, SCPEnvelopeController},
         local_node::{self, LocalNodeInfo},
@@ -19,13 +17,11 @@ use crate::{
         scp_driver_builder::SlotDriverBuilder,
         slot::{self, Slot, SlotIndex},
         statement::{SCPStatement, SCPStatementNominate},
-    },
+    }
 };
 
 use super::{
     conn::{PeerConn, PeerConnBuilder},
-    in_memory_conn::InMemoryConn,
-    in_memory_global::InMemoryGlobalState,
     message::{HelloEnvelope, MessageController, SCPMessage},
     peer::{PeerID, SCPPeerState},
 };

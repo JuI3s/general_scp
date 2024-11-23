@@ -3,16 +3,13 @@ use std::{cell::RefCell, collections::HashMap, fmt::Debug, marker::PhantomData, 
 
 use syn::token::LArrow;
 
-use crate::scp::{
+use crate::{overlay::{conn::{PeerConn, PeerConnBuilder}, message::SCPMessage, peer::{PeerID, SCPPeerConnState}}, scp::{
     envelope::{self, SCPEnvelopeController},
     nomination_protocol::NominationValue,
-};
+}};
 
 use super::{
-    conn::{PeerConn, PeerConnBuilder},
     in_memory_global::{self, InMemoryGlobalState},
-    message::MessageController,
-    peer::{PeerID, SCPPeerConnState},
 };
 
 // InMemoryConn keeps track of connections with an in-memory peer.
@@ -53,7 +50,7 @@ impl<N> PeerConn<N> for InMemoryConn<N>
 where
     N: NominationValue,
 {
-    fn send_message(&mut self, msg: &super::message::SCPMessage<N>) {
+    fn send_message(&mut self, msg: &SCPMessage<N>) {
         self.in_memory_global_state
             .borrow_mut()
             .send_message(self.peer_id.clone(), msg.clone())
