@@ -11,8 +11,7 @@ use blake2::{Blake2b512, Blake2s256, Digest};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    crypto::types::{Blake2Hash, Blake2Hashable},
-    scp::{scp::NodeID, scp_driver::HashValue},
+    crypto::types::{Blake2Hash, Blake2Hashable}, overlay::peer::PeerID, scp::{scp::NodeID, scp_driver::HashValue}
 };
 
 // pub type QuorumSet = HashSet<SocketAddr>;
@@ -26,10 +25,20 @@ pub struct QuorumNode {
     pub ip_addr: Option<SocketAddrV4>,
 }
 
+impl From<PeerID> for QuorumNode {
+    fn from(value: PeerID) -> Self {
+        Self {
+            node_id: value,
+            ip_addr: None,
+        }
+    }
+}
+
 impl QuorumNode {
     pub fn new(node_id: NodeID, ip_addr: Option<SocketAddrV4>) -> QuorumNode {
         QuorumNode { node_id, ip_addr }
     }
+
 }
 
 // Set of quorum slices for local node.

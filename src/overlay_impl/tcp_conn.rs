@@ -6,7 +6,7 @@ use tokio::stream;
 use crate::{
     application::quorum::QuorumNode,
     overlay::{
-        conn::PeerConn,
+        conn::{PeerConn, PeerConnBuilder},
         peer::{PeerID, SCPPeerConnState},
     },
     scp::{local_node::LocalNodeInfo, nomination_protocol::NominationValue},
@@ -51,5 +51,32 @@ impl<N: NominationValue> TCPConn<N> {
             self.stream = Some(stream);
             self.set_state(SCPPeerConnState::Connected);
         }
+    }
+}
+
+pub struct TCPConnBuilder<N>
+where
+    N: NominationValue,
+{
+    phantom: PhantomData<N>,
+}
+
+impl<N> TCPConnBuilder<N>
+where
+    N: NominationValue,
+{
+    pub fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<N> PeerConnBuilder<N, TCPConn<N>> for TCPConnBuilder<N>
+where
+    N: NominationValue,
+{
+    fn build(&self, peer: &QuorumNode) -> TCPConn<N> {
+        TCPConn::new(peer.clone())
     }
 }

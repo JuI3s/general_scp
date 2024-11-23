@@ -8,7 +8,10 @@ use std::{
 };
 
 use crate::{
-    application::work_queue::WorkScheduler, herder::{self, herder::HerderDriver}, overlay_impl::in_memory_global::InMemoryGlobalState, scp::{
+    application::work_queue::WorkScheduler,
+    herder::{self, herder::HerderDriver},
+    overlay_impl::in_memory_global::InMemoryGlobalState,
+    scp::{
         ballot_protocol::BallotProtocolState,
         envelope::{SCPEnvelope, SCPEnvelopeController},
         local_node::{self, LocalNodeInfo},
@@ -17,7 +20,7 @@ use crate::{
         scp_driver_builder::SlotDriverBuilder,
         slot::{self, Slot, SlotIndex},
         statement::{SCPStatement, SCPStatementNominate},
-    }
+    },
 };
 
 use super::{
@@ -153,7 +156,7 @@ where
     pub fn add_connection(&mut self, peer_id: &PeerID) -> &mut C {
         self.peer_conns
             .entry(peer_id.to_string())
-            .or_insert(self.conn_builder.build(peer_id))
+            .or_insert(self.conn_builder.build(&peer_id.clone().into()))
     }
 
     pub fn process_one_message(&mut self) -> bool {

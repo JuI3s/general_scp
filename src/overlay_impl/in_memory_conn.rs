@@ -3,14 +3,20 @@ use std::{cell::RefCell, collections::HashMap, fmt::Debug, marker::PhantomData, 
 
 use syn::token::LArrow;
 
-use crate::{overlay::{conn::{PeerConn, PeerConnBuilder}, message::SCPMessage, peer::{PeerID, SCPPeerConnState}}, scp::{
-    envelope::{self, SCPEnvelopeController},
-    nomination_protocol::NominationValue,
-}};
-
-use super::{
-    in_memory_global::{self, InMemoryGlobalState},
+use crate::{
+    application::quorum::QuorumNode,
+    overlay::{
+        conn::{PeerConn, PeerConnBuilder},
+        message::SCPMessage,
+        peer::{PeerID, SCPPeerConnState},
+    },
+    scp::{
+        envelope::{self, SCPEnvelopeController},
+        nomination_protocol::NominationValue,
+    },
 };
+
+use super::in_memory_global::{self, InMemoryGlobalState};
 
 // InMemoryConn keeps track of connections with an in-memory peer.
 pub struct InMemoryConn<N>
@@ -85,7 +91,7 @@ impl<N> PeerConnBuilder<N, InMemoryConn<N>> for InMemoryConnBuilder<N>
 where
     N: NominationValue,
 {
-    fn build(&self, peer_id: &PeerID) -> InMemoryConn<N> {
-        InMemoryConn::new(peer_id.to_string(), &self.global_state)
+    fn build(&self, peer: &QuorumNode) -> InMemoryConn<N> {
+        InMemoryConn::new(peer.node_id.to_string(), &self.global_state)
     }
 }

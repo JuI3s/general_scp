@@ -1,4 +1,4 @@
-use crate::scp::{envelope::SCPEnvelope, nomination_protocol::NominationValue};
+use crate::{application::quorum::QuorumNode, scp::{envelope::SCPEnvelope, nomination_protocol::NominationValue}};
 
 use super::{message::{HelloEnvelope, SCPMessage}, peer::{PeerID, SCPPeerConnState}};
 
@@ -26,5 +26,5 @@ where
     N: NominationValue,
     C: PeerConn<N>,
 {
-    fn build(&self, peer_id: &PeerID) -> C;
+    fn build(&self, peer: &QuorumNode) -> C;
 }
