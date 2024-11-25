@@ -1,21 +1,16 @@
 use std::{
     collections::{BTreeSet, HashSet},
-    fs,
+    fs, io,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     sync::Arc,
     thread,
     time::Duration,
 };
 
-use clap::Parser;
+use clap::{Command, Parser};
 use general_scp::{
     application::{
-        app_config::AppConfig,
-        application::Application,
-        clock::VirtualClock,
-        command_line::Cli,
-        config::Config,
-        quorum::{QuorumSet, QuorumSlice},
+        app_config::AppConfig, application::Application, clock::VirtualClock, command::SCPCommand, command_line::Cli, config::Config, quorum::{QuorumSet, QuorumSlice}
     },
     mock::state::{MockState, MockStateDriver},
     overlay::rpc_gateway::TestRpcGateway,
@@ -37,6 +32,22 @@ use std::{fs::File, io::Write};
 
 // #[tokio::main]
 fn main() {
+    let mut input = String::new();
+
+    loop {
+        match io::stdin().read_line(&mut input) {
+            Ok(_) => {
+                if let Some(cmd) = SCPCommand::parse(&input) {
+                    println!("{:?}", cmd);
+
+                } else {
+                    println!("Invalid command.");
+                }
+            }
+            Err(error) => println!("error: {}", error),
+        }
+    }
+
     // let mut rng = rand::thread_rng();
     // let components = Components::generate(&mut rng, KeySize::DSA_2048_256);
     // let signing_key = SigningKey::generate(&mut rng, components);

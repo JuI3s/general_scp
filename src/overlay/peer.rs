@@ -122,6 +122,7 @@ impl State {
 
 #[derive(Debug)]
 pub enum SCPPeerConnState {
+    
     Connecting,
     Connected,
     GotAuth,

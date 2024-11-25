@@ -1,4 +1,5 @@
 pub mod app_config;
+pub mod command;
 pub mod application;
 pub mod clock;
 pub mod command_line;
