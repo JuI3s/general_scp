@@ -76,19 +76,12 @@ where
         peer_idx: PeerID,
         herder: H,
         conn_builder: CB,
-        global_state: &Rc<RefCell<InMemoryGlobalState<N>>>,
         local_node_info: LocalNodeInfo<N>,
         work_scheduler: Rc<RefCell<WorkScheduler>>,
     ) -> Self {
-        let msg_queue = MessageController::new();
-        global_state
-            .borrow_mut()
-            .peer_msg_queues
-            .insert(peer_idx.to_string(), msg_queue.clone());
-
         Self {
             peer_idx,
-            message_controller: msg_queue,
+            message_controller: MessageController::new(),
             herder: Rc::new(RefCell::new(herder)),
             conn_builder,
             peer_conns: BTreeMap::new(),

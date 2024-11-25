@@ -12,6 +12,7 @@ use crate::{
     scp::{local_node::LocalNodeInfo, nomination_protocol::NominationValue},
 };
 
+#[derive(Debug)]
 pub struct TCPConn<N>
 where
     N: NominationValue,

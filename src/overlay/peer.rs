@@ -22,7 +22,9 @@ use crate::{
 };
 
 use super::{
-    conn::PeerConn, message::{HelloEnvelope, SCPMessage}, overlay_manager::OverlayManager
+    conn::PeerConn,
+    message::{HelloEnvelope, SCPMessage},
+    overlay_manager::OverlayManager,
 };
 
 type ArcState = Arc<Mutex<State>>;
@@ -39,7 +41,6 @@ pub struct Peer {
 }
 
 impl Peer {
-
     fn get_state(&mut self) -> std::sync::MutexGuard<'_, State> {
         self.state.lock().unwrap()
     }
@@ -119,6 +120,7 @@ impl State {
     }
 }
 
+#[derive(Debug)]
 pub enum SCPPeerConnState {
     Connecting,
     Connected,

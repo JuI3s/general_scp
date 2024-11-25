@@ -7,10 +7,14 @@ use crate::{
         clock::VirtualClock,
         quorum::{QuorumNode, QuorumSet, QuorumSlice},
         work_queue::WorkScheduler,
-    }, herder::herder::{HerderBuilder, HerderDriver}, mock::{
+    },
+    herder::herder::{HerderBuilder, HerderDriver},
+    mock::{
         scp_driver::MockSCPDriver,
         state::{MockState, MockStateDriver, MockStateDriverBuilder},
-    }, overlay::peer_node::PeerNode, scp::{local_node::LocalNodeInfo, nomination_protocol::NominationValue}
+    },
+    overlay::peer_node::PeerNode,
+    scp::{local_node::LocalNodeInfo, nomination_protocol::NominationValue},
 };
 
 use super::{
@@ -54,15 +58,20 @@ where
     ) -> Rc<RefCell<PeerNode<N, H, InMemoryConn<N>, InMemoryConnBuilder<N>>>> {
         let conn_builder: InMemoryConnBuilder<N> = InMemoryConnBuilder::new(&self.global_state);
         let work_scheduler = Rc::new(RefCell::new(WorkScheduler::new(None)));
+        let peer_idx = local_node_info.node_id.clone();
 
         let node = PeerNode::new(
-            local_node_info.node_id.clone(),
+            peer_idx.clone(),
             self.herder_builder.build(),
             conn_builder,
-            &self.global_state,
             local_node_info,
             work_scheduler,
         );
+
+        self.global_state
+            .borrow_mut()
+            .peer_msg_queues
+            .insert(peer_idx.clone(), node.message_controller.clone());
 
         Rc::new(RefCell::new(node))
     }

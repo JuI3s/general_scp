@@ -1,10 +1,43 @@
-use std::marker::PhantomData;
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
-use crate::scp::nomination_protocol::NominationValue;
+use crate::{
+    application::work_queue::WorkScheduler,
+    herder::herder::{HerderBuilder, HerderDriver},
+    overlay::{node::LocalNode, peer_node::PeerNode},
+    scp::{local_node::LocalNodeInfo, nomination_protocol::NominationValue},
+};
 
-pub struct TCPPeer<N>
+use super::tcp_conn::TCPConnBuilder;
+
+pub struct TCPPeerBuilder<N, H, HB>
 where
     N: NominationValue,
+    H: HerderDriver<N> + 'static,
+    HB: HerderBuilder<N, H>,
 {
-    phantom: PhantomData<N>, // snip
+    herder_builder: HB,
+    phantom_h: PhantomData<H>,
+    phantom_n: PhantomData<N>,
+}
+
+impl<N, H, HB> TCPPeerBuilder<N, H, HB>
+where
+    N: NominationValue,
+    H: HerderDriver<N> + 'static,
+    HB: HerderBuilder<N, H>,
+{
+    pub fn build_node(
+        &mut self,
+        local_node_info: LocalNodeInfo<N>,
+    ) -> Rc<RefCell<PeerNode<N, H, super::tcp_conn::TCPConn<N>, TCPConnBuilder<N>>>> {
+        let conn_builder = TCPConnBuilder::new();
+        let node = PeerNode::new(
+            local_node_info.node_id.clone(),
+            self.herder_builder.build(),
+            conn_builder,
+            local_node_info,
+            Rc::new(RefCell::new(WorkScheduler::new(None))),
+        );
+        Rc::new(RefCell::new(node))
+    }
 }
