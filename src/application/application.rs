@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    io,
     sync::{Arc, Mutex},
 };
 
@@ -10,14 +11,51 @@ use tokio::{
 };
 
 use crate::{
-    overlay::peer::{HPeer, PeerID},
+    mock::{
+        scp_driver::MockSCPDriver,
+        state::{MockStateDriver, MockStateDriverBuilder},
+    },
+    overlay::{
+        node,
+        peer::{HPeer, PeerID},
+    },
+    overlay_impl::tcp_peer::{self, TCPPeerBuilder},
     rpc::args::RpcArg,
+    scp::local_node::LocalNodeInfo,
 };
 
-use super::{app_config::AppConfig, work_queue::EventQueue};
+use super::{app_config::AppConfig, command::SCPCommand, work_queue::EventQueue};
 
 pub type PendingRequestQueue = UnboundedReceiver<RpcArg>;
 pub type RpcRequestWriteQueue = Arc<Mutex<UnboundedSender<RpcArg>>>;
+
+pub fn start_local_node_server() {
+    let herder_builder = MockStateDriverBuilder::new();
+    let mut tcp_peer_builder = TCPPeerBuilder::new(herder_builder);
+    let node_info = LocalNodeInfo::new(false, Default::default(), "node1".to_string());
+
+    let mut tcp_peer = tcp_peer_builder.build_node(node_info);
+    let mut input = String::new();
+
+    loop {
+        match io::stdin().read_line(&mut input) {
+            Ok(_) => {
+                if let Some(cmd) = SCPCommand::parse(&input) {
+                    match cmd {
+                        SCPCommand::Nominate => {
+                            tcp_peer.borrow_mut().slot_nominate(0);
+                        }
+                        SCPCommand::Hello => {}
+                    }
+                    println!("{:?}", cmd);
+                } else {
+                    println!("Invalid command.");
+                }
+            }
+            Err(error) => println!("error: {}", error),
+        }
+    }
+}
 
 pub struct Application {
     local_node_id: PeerID,

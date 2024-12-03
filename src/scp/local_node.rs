@@ -3,7 +3,11 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     env,
     f32::consts::E,
+    fs::{self, create_dir, create_dir_all},
+    io::Write,
+    iter::{self, zip},
     marker::PhantomData,
+    path::PathBuf,
     rc::Rc,
     sync::{Arc, Mutex},
 };
@@ -11,7 +15,9 @@ use std::{
 use serde_derive::{Deserialize, Serialize};
 use syn::token::Mut;
 
-use crate::application::quorum::{HQuorumSet, QuorumSet, QuorumSlice};
+use crate::{
+    application::quorum::{HQuorumSet, QuorumNode, QuorumSet, QuorumSlice}, mock::state::MockState, utils::config::test_data_dir
+};
 
 use super::{
     envelope::{SCPEnvelopeController, SCPEnvelopeID},
@@ -23,7 +29,108 @@ use super::{
 
 pub type HLocalNode<N> = Rc<RefCell<LocalNodeInfo<N>>>;
 
+pub struct LocalNodeInfoBuilderFromFile {
+    nodes: BTreeMap<NodeID, QuorumNode>,
+    quorum_dir: PathBuf,
+}
+
+impl LocalNodeInfoBuilderFromFile {
+
+    pub fn new(quorum_dir_path: &str) -> Self {
+        let quorum_dir = test_data_dir()
+            .join(LocalNodeInfo::<MockState>::TEST_DATA_DIR)
+            .join(quorum_dir_path);
+
+        Self {
+            nodes: BTreeMap::new(),
+            quorum_dir,
+        }
+    }
+
+    fn build_local_info_from_toml<N: NominationValue>(
+        &mut self,
+        toml_info: LocalNodeInfoToml,
+    ) -> Option<LocalNodeInfo<N>> {
+        for node_id in toml_info
+            .quorum_set
+            .iter()
+            .flatten()
+            .chain(iter::once(&toml_info.node_id))
+        {
+            if !self.nodes.contains_key(node_id) {
+                let node = QuorumNode::from_toml(node_id)?;
+                self.nodes.insert(node_id.to_owned(), node);
+            }
+        }
+
+        let slices = toml_info
+            .quorum_set
+            .iter()
+            .map(|node_slice| QuorumSlice {
+                data: node_slice
+                    .iter()
+                    .map(|node_id| self.nodes.get(node_id).unwrap().to_owned())
+                    .collect(),
+            })
+            .collect();
+
+        let quorum_set = QuorumSet {
+            slices,
+            threshold: 0,
+        };
+
+        let local_node_info = LocalNodeInfo::<N>::from_toml_info(toml_info, quorum_set);
+
+        Some(local_node_info)
+    }
+
+    pub fn build_from_file<N: NominationValue>(
+        &mut self,
+        node_id: String,
+    ) -> Option<LocalNodeInfo<N>> {
+        let path = self.quorum_dir.join(node_id.clone());
+        let toml_str = fs::read_to_string(path).ok()?;
+        let node_toml = toml::from_str(&toml_str).ok()?;
+
+        let node_info = self.build_local_info_from_toml(node_toml)?;
+        Some(node_info)
+    }
+}
+
 #[derive(Serialize, Deserialize)]
+pub struct LocalNodeInfoToml {
+    pub is_validator: bool,
+    pub quorum_set: BTreeSet<BTreeSet<NodeID>>,
+    pub node_id: NodeID,
+}
+
+impl<N> From<LocalNodeInfo<N>> for LocalNodeInfoToml
+where
+    N: NominationValue,
+{
+    fn from(local_node_info: LocalNodeInfo<N>) -> Self {
+        let quorum_set = local_node_info
+            .quorum_set
+            .slices
+            .iter()
+            .map(|slice| {
+                slice
+                    .data
+                    .iter()
+                    .map(|node_data| node_data.node_id.clone())
+                    .collect()
+            })
+            .collect();
+
+        Self {
+            is_validator: local_node_info.is_validator,
+            quorum_set,
+            node_id: local_node_info.node_id,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct LocalNodeInfo<N>
 where
     N: NominationValue + 'static,
@@ -47,6 +154,8 @@ impl<N> LocalNodeInfo<N>
 where
     N: NominationValue,
 {
+    const TEST_DATA_DIR: &'static str = "node_info";
+
     pub fn new(is_validator: bool, quorum_set: QuorumSet, node_id: NodeID) -> Self {
         Self {
             is_validator,
@@ -54,6 +163,28 @@ where
             node_id,
             phantom: PhantomData,
         }
+    }
+
+    pub fn from_toml_info(toml_info: LocalNodeInfoToml, quorum_set: QuorumSet) -> Self {
+        Self {
+            is_validator: toml_info.is_validator,
+            quorum_set,
+            node_id: toml_info.node_id,
+            phantom: PhantomData,
+        }
+    }
+
+    pub fn write_toml(&self, dir_name: &str) {
+        let path = test_data_dir()
+            .join(Self::TEST_DATA_DIR)
+            .join(dir_name)
+            .join(self.node_id.clone());
+        let _ = create_dir_all(path.parent().unwrap());
+        let local_node_info_toml = LocalNodeInfoToml::from(self.clone());
+
+        let toml = toml::to_string(&local_node_info_toml).unwrap();
+        let mut file = std::fs::File::create(path).unwrap();
+        file.write_all(toml.as_bytes()).unwrap();
     }
 
     pub fn for_all_nodes(

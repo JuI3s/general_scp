@@ -67,6 +67,12 @@ impl MockStateDriver {
 
 pub struct MockStateDriverBuilder {}
 
+impl MockStateDriverBuilder {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 impl HerderBuilder<MockState, MockStateDriver> for MockStateDriverBuilder {
     fn build(&self) -> MockStateDriver {
         MockStateDriver::new()
@@ -151,14 +157,21 @@ mod tests {
     };
 
     use crate::{
-        application::{clock::VirtualClock, quorum::QuorumSet, work_queue::EventQueue}, overlay::{
+        application::{clock::VirtualClock, quorum::QuorumSet, work_queue::EventQueue},
+        overlay::{
             loopback_peer::{LoopbackPeer, LoopbackPeerConnection},
             message::SCPMessage,
             node,
-        }, overlay_impl::{in_memory_conn::{InMemoryConn, InMemoryConnBuilder}, in_memory_global::InMemoryGlobalState, in_memory_peer::{test_data_create_mock_in_memory_nodes, InMemoryPeerBuilder}}, scp::{
+        },
+        overlay_impl::{
+            in_memory_conn::{InMemoryConn, InMemoryConnBuilder},
+            in_memory_global::InMemoryGlobalState,
+            in_memory_peer::{test_data_create_mock_in_memory_nodes, InMemoryPeerBuilder},
+        },
+        scp::{
             local_node::LocalNodeInfo, local_node_builder::LocalNodeBuilder, scp::NodeID,
             scp_driver_builder::SlotDriverBuilder,
-        }
+        },
     };
 
     use std::{cell::RefCell, rc::Rc};

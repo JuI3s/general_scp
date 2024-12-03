@@ -1,7 +1,9 @@
 use std::{
     collections::{btree_set, hash_map::DefaultHasher, BTreeSet},
     f32::consts::E,
+    fs::{self, create_dir},
     hash::{Hash, Hasher},
+    io::Write,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     sync::{Arc, Mutex},
 };
@@ -11,7 +13,10 @@ use blake2::{Blake2b512, Blake2s256, Digest};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    crypto::types::{Blake2Hash, Blake2Hashable}, overlay::peer::PeerID, scp::{scp::NodeID, scp_driver::HashValue}
+    crypto::types::{Blake2Hash, Blake2Hashable},
+    overlay::peer::PeerID,
+    scp::{scp::NodeID, scp_driver::HashValue},
+    utils::config::test_data_dir,
 };
 
 // pub type QuorumSet = HashSet<SocketAddr>;
@@ -34,11 +39,43 @@ impl From<PeerID> for QuorumNode {
     }
 }
 
+const BASE_PORT: u16 = 8080;
+pub fn make_quorum_node_for_test(node_idx: u16) -> QuorumNode {
+    let node_id = format!("node{}", node_idx);
+
+    let ip_addr = Some(SocketAddrV4::new(
+        Ipv4Addr::new(127, 0, 0, 1),
+        BASE_PORT + node_idx,
+    ));
+
+    QuorumNode { node_id, ip_addr }
+}
+
 impl QuorumNode {
+    const TEST_DATA_DIR: &'static str = "quorum_node";
+
     pub fn new(node_id: NodeID, ip_addr: Option<SocketAddrV4>) -> QuorumNode {
         QuorumNode { node_id, ip_addr }
     }
 
+    pub fn write_toml(&self) {
+        let path = test_data_dir()
+            .join(Self::TEST_DATA_DIR)
+            .join(self.node_id.clone());
+        let _ = create_dir(path.parent().unwrap());
+
+        let toml = toml::to_string(self).unwrap();
+        let mut file = std::fs::File::create(path).unwrap();
+        file.write_all(toml.as_bytes()).unwrap();
+    }
+
+    pub fn from_toml(node_id: &NodeID) -> Option<Self> {
+        let path = test_data_dir().join(Self::TEST_DATA_DIR).join(node_id);
+
+        let toml_str = fs::read_to_string(path).ok()?;
+        let node = toml::from_str(&toml_str).ok()?;
+        node
+    }
 }
 
 // Set of quorum slices for local node.
@@ -74,7 +111,7 @@ impl QuorumSet {
     pub fn new(threshold: usize) -> Self {
         QuorumSet {
             slices: BTreeSet::new(),
-            threshold: threshold,
+            threshold,
         }
     }
 

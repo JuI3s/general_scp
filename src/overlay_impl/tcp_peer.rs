@@ -26,6 +26,14 @@ where
     H: HerderDriver<N> + 'static,
     HB: HerderBuilder<N, H>,
 {
+    pub fn new(herder_builder: HB) -> Self {
+        Self {
+            herder_builder,
+            phantom_h: PhantomData,
+            phantom_n: PhantomData,
+        }
+    }
+
     pub fn build_node(
         &mut self,
         local_node_info: LocalNodeInfo<N>,
