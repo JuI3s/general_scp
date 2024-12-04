@@ -60,3 +60,19 @@ impl MockNodeBuilder {
         Some(peer)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_mock_node_builder_ok() {
+        let mut builder = super::MockNodeBuilder::new("test");
+        let node1 = builder.build_node("node1");
+        assert!(node1.is_some());
+
+        let node2 = builder.build_node("node2");
+        assert!(node2.is_some());
+
+        let node3 = builder.build_node("node3");
+        assert!(node3.is_none());
+    }
+}

@@ -381,10 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn in_memory_peer_nominate_from_local_node_on_file() {
-        
-
-    }
+    fn in_memory_peer_nominate_from_local_node_on_file() {}
 
     //     #[test]
     //     fn loopback_peer_nominate() {
