@@ -44,7 +44,7 @@ where
     HB: HerderBuilder<N, H>,
 {
     pub fn new(herder_builder: HB) -> Self {
-        let global_state = InMemoryGlobalState::new();
+        let global_state = InMemoryGlobalState::new_handle();
         Self {
             global_state,
             herder_builder,

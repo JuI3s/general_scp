@@ -1,20 +1,15 @@
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
-    env::{self, consts::FAMILY},
+    collections::{BTreeMap, BTreeSet},
     hash::Hash,
     marker::PhantomData,
-    os::macos::raw::stat,
     sync::{Arc, Mutex},
     time::SystemTime,
 };
 
-use env_logger::fmt::Timestamp;
 use serde::{Deserialize, Serialize};
-use tokio::join;
-use typenum::False;
 
 use crate::{
-    application::{quorum::QuorumSet, work_queue::ClockEvent},
+    application::quorum::QuorumSet,
     herder::herder::HerderDriver,
     scp::{
         local_node::LocalNodeInfo,
@@ -24,10 +19,10 @@ use crate::{
 };
 
 use super::{
-    envelope::{self, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
-    nomination_protocol::{HNominationProtocolState, NominationProtocolState, NominationValue},
+    envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
+    nomination_protocol::{NominationProtocolState, NominationValue},
     queue::{AbandonBallotArg, SlotJob, SlotTask},
-    scp::{EnvelopeState, NodeID, SCP},
+    scp::{EnvelopeState, NodeID},
     scp_driver::{HSCPEnvelope, HashValue, SlotDriver, ValidationLevel},
     statement::{SCPStatement, SCPStatementConfirm, SCPStatementExternalize, SCPStatementPrepare},
 };

@@ -86,7 +86,7 @@ impl LocalNodeInfoBuilderFromFile {
 
     pub fn build_from_file<N: NominationValue>(
         &mut self,
-        node_id: String,
+        node_id: &str,
     ) -> Option<LocalNodeInfo<N>> {
         let path = self.quorum_dir.join(node_id.clone());
         let toml_str = fs::read_to_string(path).ok()?;

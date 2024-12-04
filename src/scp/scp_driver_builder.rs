@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::f32::consts::E;
 use std::process::id;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -8,13 +9,14 @@ use typenum::U6;
 use crate::application::clock::{HVirtualClock, VirtualClock};
 use crate::application::work_queue::{EventQueue, HWorkScheduler, WorkScheduler};
 use crate::herder::herder::HerderDriver;
+use crate::scp::local_node;
 
 use super::ballot_protocol::BallotProtocolState;
-use super::local_node::{HLocalNode, LocalNodeInfo};
+use super::local_node::{HLocalNode, LocalNodeInfo, LocalNodeInfoBuilderFromFile};
 use super::nomination_protocol::{NominationProtocolState, NominationValue};
 use super::queue::SlotJobQueue;
 use super::scp_driver::SlotDriver;
-use super::slot::SlotIndex;
+use super::slot::{self, SlotIndex};
 
 pub struct SlotDriverBuilder<N, T>
 where
@@ -93,6 +95,42 @@ where
     pub fn task_queue(mut self, task_queue: Rc<RefCell<SlotJobQueue<N, T>>>) -> Self {
         self.task_queue = Some(task_queue);
         self
+    }
+
+    pub fn build_driver_from_node_info_file(
+        &self,
+        node_idx: &str,
+        local_node_info_builder: &mut LocalNodeInfoBuilderFromFile,
+    ) -> Result<SlotDriver<N, T>, &'static str> {
+        if self.slot_index.is_none() {
+            return Err("Missing slot index.");
+        }
+
+        if self.timer.is_none() {
+            return Err("Missing timer.");
+        }
+
+        if self.herder_driver.is_none() {
+            return Err("Missing Herder driver.");
+        }
+
+        match local_node_info_builder.build_from_file(node_idx) {
+            // TODO: need to share state???
+            Some(local_node_info) => {
+                let slot_driver = SlotDriver::<N, T>::new(
+                    self.slot_index.clone().unwrap(),
+                    Rc::new(RefCell::new(local_node_info)),
+                    self.herder_driver.clone().unwrap(),
+                    self.task_queue
+                        .clone()
+                        .unwrap_or(Rc::new(RefCell::new(SlotJobQueue::new()))),
+                    self.timer.clone().unwrap(),
+                );
+                Ok(slot_driver)
+            }
+
+            None => Err("Build error."),
+        }
     }
 
     pub fn build(self) -> Result<SlotDriver<N, T>, &'static str> {

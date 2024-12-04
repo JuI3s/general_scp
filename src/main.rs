@@ -1,45 +1,13 @@
 use std::{
-    collections::{BTreeSet, HashSet},
-    fs, io, iter,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::Path,
-    sync::Arc,
-    thread,
-    time::Duration,
+    collections::BTreeSet, iter,
 };
 
-use clap::{Command, Parser};
 use general_scp::{
-    application::{
-        app_config::AppConfig,
-        application::{start_local_node_server, Application},
-        clock::VirtualClock,
-        command::SCPCommand,
-        command_line::Cli,
-        config::Config,
-        quorum::{make_quorum_node_for_test, QuorumNode, QuorumSet, QuorumSlice},
-    },
-    mock::state::{MockState, MockStateDriver},
-    overlay::{node, rpc_gateway::TestRpcGateway},
-    scp::{
-        local_node::{LocalNodeInfo, LocalNodeInfoBuilderFromFile},
-        local_node_builder::LocalNodeBuilder,
-        nomination_protocol::{self, NominationProtocol, NominationProtocolState},
-        scp::NodeID,
-        scp_driver_builder::SlotDriverBuilder,
-        scp_state_builder::NominationProtocolStateBuilder,
-    },
-    utils::config::test_data_dir,
+    application::quorum::{make_quorum_node_for_test, QuorumSet, QuorumSlice},
+    mock::state::MockState,
+    scp::local_node::{LocalNodeInfo, LocalNodeInfoBuilderFromFile},
 };
 
-use digest::Digest;
-use dsa::{Components, KeySize, SigningKey};
-use pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding, PrivateKeyInfo};
-use rand_core::le;
-use sha1::Sha1;
-use signature::{RandomizedDigestSigner, SignatureEncoding};
-use typenum::False;
-use std::{fs::File, io::Write};
 
 // #[tokio::main]
 fn main() {
@@ -71,15 +39,14 @@ fn main() {
     let mut local_node_info_builder = LocalNodeInfoBuilderFromFile::new("test");
 
     let local_node_info1_from_file = local_node_info_builder
-        .build_from_file::<MockState>(node1.node_id.clone())
+        .build_from_file::<MockState>(&node1.node_id)
         .unwrap();
     let local_node_info2_from_file = local_node_info_builder
-        .build_from_file::<MockState>(node2.node_id.clone())
+        .build_from_file::<MockState>(&node2.node_id)
         .unwrap();
 
     assert!(local_node_info1 == local_node_info1_from_file);
     assert!(local_node_info2 == local_node_info2_from_file);
-
 
     // let local_node_info = LocalNodeInfo::new(false, quorum_set, node_id)
 
