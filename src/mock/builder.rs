@@ -15,6 +15,18 @@ use crate::{
 
 use super::state::{MockState, MockStateDriver};
 
+pub enum NodeBuilderDir {
+    Test,
+}
+
+impl NodeBuilderDir {
+    pub fn get_dir_path(&self) -> &'static str {
+        match self {
+            NodeBuilderDir::Test => "test",
+        }
+    }
+}
+
 // Build nodes used for testing. Initiate nodes from quorum sets data stored on file. Use in memory connectoins.
 pub struct MockNodeBuilder {
     local_node_info_builder: LocalNodeInfoBuilderFromFile,
@@ -63,9 +75,12 @@ impl MockNodeBuilder {
 
 #[cfg(test)]
 mod tests {
+    use crate::mock::builder::NodeBuilderDir;
+
     #[test]
     fn test_mock_node_builder_ok() {
-        let mut builder = super::MockNodeBuilder::new("test");
+        let mut builder = super::MockNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
+
         let node1 = builder.build_node("node1");
         assert!(node1.is_some());
 
