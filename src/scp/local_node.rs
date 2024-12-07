@@ -198,7 +198,7 @@ where
         let nodes = quorum_set.nodes();
 
         for node in &nodes {
-            if !predicate(node) {
+            if !predicate(&node.node_id) {
                 return false;
             }
         }

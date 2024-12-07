@@ -115,12 +115,12 @@ impl QuorumSet {
         }
     }
 
-    pub fn nodes(&self) -> BTreeSet<NodeID> {
+    pub fn nodes(&self) -> BTreeSet<QuorumNode> {
         // This method returns a set of all the node_ids in the quorum set.
         let mut nodes = BTreeSet::default();
         for slice in &self.slices {
             for node in &slice.data {
-                nodes.insert(node.node_id.to_owned());
+                nodes.insert(node.to_owned());
             }
         }
 

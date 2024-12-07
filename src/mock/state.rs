@@ -158,6 +158,7 @@ mod tests {
 
     use crate::{
         application::{clock::VirtualClock, quorum::QuorumSet, work_queue::EventQueue},
+        mock::builder::{MockNodeBuilder, NodeBuilderDir},
         overlay::{
             loopback_peer::{LoopbackPeer, LoopbackPeerConnection},
             message::SCPMessage,
@@ -354,7 +355,9 @@ mod tests {
     fn in_memory_pget_latest_messageeer_send_hello_message() {
         let (node1, node2, mut peers, node_builder) = set_up_test_nodes();
 
-        node1.borrow_mut().send_hello(&node2.borrow().peer_idx);
+        node1
+            .borrow_mut()
+            .send_hello_to_peer(&node2.borrow().peer_idx);
 
         assert_eq!(
             InMemoryGlobalState::process_messages(&node_builder.global_state, &mut peers),
@@ -366,7 +369,9 @@ mod tests {
     fn in_memory_peer_nominate() {
         let (node1, node2, mut peers, node_builder) = set_up_test_nodes();
 
-        node1.borrow_mut().send_hello(&node2.borrow().peer_idx);
+        node1
+            .borrow_mut()
+            .send_hello_to_peer(&node2.borrow().peer_idx);
         assert_eq!(
             InMemoryGlobalState::process_messages(&node_builder.global_state, &mut peers),
             2,
@@ -381,7 +386,30 @@ mod tests {
     }
 
     #[test]
-    fn in_memory_peer_nominate_from_local_node_on_file() {}
+    fn in_memory_peer_send_hello_from_local_node_on_file() {
+        let mut builder = MockNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
+        let node1 = builder.build_node("node1").unwrap();
+        let node2 = builder.build_node("node2").unwrap();
+
+        node1.borrow_mut().send_hello();
+
+        assert!(
+            InMemoryGlobalState::process_messages(&builder.global_state, &mut builder.nodes) > 0
+        );
+    }
+
+    #[test]
+    fn in_memory_peer_nominate_from_local_node_on_file() {
+        let mut builder = MockNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
+        let node1 = builder.build_node("node1").unwrap();
+        let node2 = builder.build_node("node2").unwrap();
+
+        node1.borrow_mut().slot_nominate(0);
+
+        assert!(
+            InMemoryGlobalState::process_messages(&builder.global_state, &mut builder.nodes) == 0
+        );
+    }
 
     //     #[test]
     //     fn loopback_peer_nominate() {

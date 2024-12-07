@@ -46,7 +46,7 @@ impl<N> MessageController<N>
 where
     N: NominationValue,
 {
-    pub fn new() -> Rc<RefCell<Self>> {
+    pub fn new_handle() -> Rc<RefCell<Self>> {
         let msg_queue = Self {
             messages: Default::default(),
         };

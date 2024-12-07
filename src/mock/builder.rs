@@ -1,15 +1,19 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet, HashMap},
+    rc::Rc,
+};
 
 use crate::{
     application::work_queue::WorkScheduler,
-    overlay::peer_node::PeerNode,
+    overlay::{message::MessageController, peer_node::PeerNode},
     overlay_impl::{
         in_memory_conn::{InMemoryConn, InMemoryConnBuilder},
         in_memory_global::InMemoryGlobalState,
     },
     scp::{
         local_node::LocalNodeInfoBuilderFromFile, local_node_builder::LocalNodeBuilder,
-        scp_driver::SlotDriver,
+        scp::NodeID, scp_driver::SlotDriver,
     },
 };
 
@@ -27,10 +31,14 @@ impl NodeBuilderDir {
     }
 }
 
+pub type MockPeerNode =
+    PeerNode<MockState, MockStateDriver, InMemoryConn<MockState>, InMemoryConnBuilder<MockState>>;
+
 // Build nodes used for testing. Initiate nodes from quorum sets data stored on file. Use in memory connectoins.
 pub struct MockNodeBuilder {
+    pub global_state: Rc<RefCell<InMemoryGlobalState<MockState>>>,
+    pub nodes: HashMap<NodeID, Rc<RefCell<MockPeerNode>>>,
     local_node_info_builder: LocalNodeInfoBuilderFromFile,
-    global_state: Rc<RefCell<InMemoryGlobalState<MockState>>>,
 }
 
 impl MockNodeBuilder {
@@ -40,20 +48,11 @@ impl MockNodeBuilder {
         Self {
             local_node_info_builder,
             global_state: InMemoryGlobalState::new_handle(),
+            nodes: Default::default(),
         }
     }
 
-    pub fn build_node(
-        &mut self,
-        node_idx: &str,
-    ) -> Option<
-        PeerNode<
-            MockState,
-            MockStateDriver,
-            InMemoryConn<MockState>,
-            InMemoryConnBuilder<MockState>,
-        >,
-    > {
+    pub fn build_node(&mut self, node_idx: &str) -> Option<Rc<RefCell<MockPeerNode>>> {
         let local_node_info: crate::scp::local_node::LocalNodeInfo<MockState> =
             self.local_node_info_builder.build_from_file(node_idx)?;
 
@@ -69,7 +68,16 @@ impl MockNodeBuilder {
             work_scheduler,
         );
 
-        Some(peer)
+        let peer_handle = Rc::new(RefCell::new(peer));
+
+        self.nodes.insert(node_idx.to_owned(), peer_handle.clone());
+
+        self.global_state
+            .borrow_mut()
+            .peer_msg_queues
+            .insert(node_idx.to_owned(), MessageController::new_handle());
+
+        Some(peer_handle)
     }
 }
 

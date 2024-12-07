@@ -79,12 +79,19 @@ where
         local_node_info: LocalNodeInfo<N>,
         work_scheduler: Rc<RefCell<WorkScheduler>>,
     ) -> Self {
+        let conns = local_node_info
+            .quorum_set
+            .nodes()
+            .iter()
+            .map(|node| (node.node_id.to_owned(), conn_builder.build(node)))
+            .collect();
+
         Self {
             peer_idx,
-            message_controller: MessageController::new(),
+            message_controller: MessageController::new_handle(),
             herder: Rc::new(RefCell::new(herder)),
             conn_builder,
-            peer_conns: BTreeMap::new(),
+            peer_conns: conns,
             scp_envelope_controller: SCPEnvelopeController::new(),
             slots: Default::default(),
             work_scheduler,
@@ -109,8 +116,12 @@ where
     }
 
     pub fn send_broadcast_message(&mut self, msg: &SCPMessage<N>) {
-        for peer_conn in self.peer_conns.values_mut() {
-            peer_conn.send_message(&msg);
+        for peer in self.local_node_info.borrow().quorum_set.nodes().iter() {
+            let conn = self
+                .peer_conns
+                .entry(peer.node_id.to_owned())
+                .or_insert_with(|| self.conn_builder.build(peer));
+            conn.send_message(msg);
         }
     }
 
@@ -135,10 +146,25 @@ where
             let scp_msg = SCPMessage::SCP(scp_env);
 
             self.send_broadcast_message(&scp_msg);
+        } else {
+            panic!("No env emitted");
         }
     }
 
-    pub fn send_hello(&mut self, peer_id: &PeerID) {
+    pub fn send_hello(&mut self) {
+        // let peers: Vec<PeerID> =  self.local_node_info.borrow().quorum_set.nodes().iter().map(|node|{node.node_id.clone()}).collect();
+        // for peer in peers {
+        //     self.send_hello_to_peer(&peer);
+        // }
+
+        let hello_env = HelloEnvelope {
+            id: self.peer_idx.clone(),
+        };
+        let msg = SCPMessage::Hello(hello_env);
+        self.send_broadcast_message(&msg);
+    }
+
+    pub fn send_hello_to_peer(&mut self, peer_id: &PeerID) {
         let hello_env = HelloEnvelope {
             id: self.peer_idx.clone(),
         };
@@ -176,7 +202,7 @@ where
                 .unwrap()
                 .set_state(super::peer::SCPPeerConnState::Connected);
 
-            self.send_hello(&hello_env.id);
+            self.send_hello_to_peer(&hello_env.id);
         } else {
             self.peer_conns
                 .get_mut(peer_id)
