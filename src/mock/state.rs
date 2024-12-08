@@ -158,7 +158,7 @@ mod tests {
 
     use crate::{
         application::{clock::VirtualClock, quorum::QuorumSet, work_queue::EventQueue},
-        mock::builder::{MockNodeBuilder, NodeBuilderDir},
+        mock::builder::{MockInMemoryNodeBuilder, NodeBuilderDir},
         overlay::{
             loopback_peer::{LoopbackPeer, LoopbackPeerConnection},
             message::SCPMessage,
@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn in_memory_peer_send_hello_from_local_node_on_file() {
-        let mut builder = MockNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
+        let mut builder = MockInMemoryNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
         let node1 = builder.build_node("node1").unwrap();
         let node2 = builder.build_node("node2").unwrap();
 
@@ -400,7 +400,7 @@ mod tests {
 
     #[test]
     fn in_memory_peer_nominate_from_local_node_on_file() {
-        let mut builder = MockNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
+        let mut builder = MockInMemoryNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
         let node1 = builder.build_node("node1").unwrap();
         let node2 = builder.build_node("node2").unwrap();
 
