@@ -1,27 +1,18 @@
 use std::{
-    ascii::AsciiExt,
     borrow::BorrowMut,
-    collections::{btree_map::Entry, BTreeMap, BTreeSet},
-    marker::PhantomData,
-    os::unix::ffi::OsStrExt,
-    sync::{Arc, Mutex},
+    collections::BTreeMap,
 };
 
-use ct_merkle::inclusion::InclusionProof;
-use digest::Key;
-use log::Log;
 use serde::Serialize;
-use sha2::Sha256;
-use syn::braced;
 
-use crate::{herder::herder::HerderDriver, scp::nomination_protocol::NominationValue};
+use crate::scp::nomination_protocol::NominationValue;
 
 use super::{
     ca_type::PublicKey,
-    cell::{Cell, CellRef},
+    cell::Cell,
     merkle::MerkleTree,
     operation::{CellMerkleProof, SetOperation, TableMerkleProof},
-    root::{self, RootEntry, RootEntryKey, RootListing},
+    root::{RootEntry, RootEntryKey, RootListing},
     table::{HDelegateEntry, HTable, HValueEntry, Table, TableOpError},
 };
 
@@ -205,7 +196,7 @@ impl CAState {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
+    
 
     #[test]
     fn box_value() {

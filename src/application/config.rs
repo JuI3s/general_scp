@@ -1,12 +1,11 @@
 use std::{
     fs,
-    net::{Ipv4Addr, SocketAddrV4},
     process::exit,
 };
 
 use serde::{Deserialize, Serialize};
 
-use super::quorum::{QuorumSet, QuorumSlice};
+use super::quorum::QuorumSet;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {

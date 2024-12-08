@@ -1,6 +1,6 @@
-use std::{collections::HashMap, str};
+use std::collections::HashMap;
 
-use crate::scp::{envelope::SCPEnvelope, nomination_protocol::NominationValue, scp::NodeID};
+use crate::scp::{nomination_protocol::NominationValue, scp::NodeID};
 
 use super::{
     conn::PeerConn, message::SCPMessage, peer::SCPPeer

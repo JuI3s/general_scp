@@ -1,31 +1,21 @@
 use std::{
-    borrow::{Borrow, BorrowMut},
     cell::RefCell,
-    env,
     marker::PhantomData,
-    rc::{Rc, Weak},
+    rc::Rc,
     sync::{Arc, Mutex},
     time::SystemTime,
 };
 
-use clap::builder::Str;
-use log::info;
 
 use crate::{
     application::work_queue::{ClockEvent, EventQueue},
-    herder::herder::HerderDriver,
     scp::{
-        envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
         nomination_protocol::NominationValue,
         scp::NodeID,
     },
 };
 
-use super::{
-    conn::PeerConn,
-    message::{HelloEnvelope, SCPMessage},
-    overlay_manager::OverlayManager,
-};
+use super::conn::PeerConn;
 
 type ArcState = Arc<Mutex<State>>;
 pub type PeerID = String;

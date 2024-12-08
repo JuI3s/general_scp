@@ -1,13 +1,11 @@
 use std::{
     collections::HashMap,
-    hash::Hash,
-    io::StderrLock,
     sync::{Arc, Mutex},
 };
 
 use crate::{application::application::RpcRequestWriteQueue, rpc::args::RpcArg};
 
-use super::peer::{Peer, PeerID};
+use super::peer::PeerID;
 
 pub type HRpcGateway = Arc<Mutex<dyn RpcGateway>>;
 // When an application is constructed, it needs to register with an RpcGateway

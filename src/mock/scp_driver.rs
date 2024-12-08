@@ -1,10 +1,7 @@
-use std::{cell::RefCell, collections::HashMap, env, rc::Rc, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
-use serde_derive::{Deserialize, Serialize};
 
 use crate::scp::{
-    envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
-    nomination_protocol::NominationValue,
     scp_driver::SlotDriver,
     slot::SlotIndex,
 };

@@ -1,32 +1,29 @@
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     fmt::Debug,
-    marker::PhantomData,
     rc::Rc,
     sync::Arc,
 };
 
 use crate::{
     application::work_queue::WorkScheduler,
-    herder::{self, herder::HerderDriver},
-    overlay_impl::in_memory_global::InMemoryGlobalState,
+    herder::{herder::HerderDriver},
     scp::{
         ballot_protocol::BallotProtocolState,
         envelope::{SCPEnvelope, SCPEnvelopeController},
-        local_node::{self, LocalNodeInfo},
+        local_node::{LocalNodeInfo},
         nomination_protocol::{NominationProtocol, NominationProtocolState, NominationValue},
-        scp_driver::{SCPDriver, SlotDriver},
+        scp_driver::SlotDriver,
         scp_driver_builder::SlotDriverBuilder,
-        slot::{self, Slot, SlotIndex},
-        statement::{SCPStatement, SCPStatementNominate},
+        slot::{SlotIndex},
     },
 };
 
 use super::{
     conn::{PeerConn, PeerConnBuilder},
     message::{HelloEnvelope, MessageController, SCPMessage},
-    peer::{PeerID, SCPPeerState},
+    peer::PeerID,
 };
 
 pub struct PeerNode<N, H, C, CB>

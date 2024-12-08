@@ -1,20 +1,5 @@
-use std::{cell::RefCell, collections::HashMap, ops::Deref, rc::Rc};
-
-use crate::{
-    application::work_queue::WorkScheduler,
-    ca::cell::Cell,
-    herder::herder::HerderDriver,
-    scp::{local_node::HLocalNode, scp_driver::SlotDriver, slot::SlotIndex},
-};
-
-use super::{scp_driver::MockSCPDriver, state::MockState};
-
 mod tests {
-    use std::collections::HashMap;
-
-    use syn::token::Ref;
-
-    use super::*;
+    use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
     #[test]
     fn borrow_rule() {
@@ -77,7 +62,7 @@ mod tests {
                 Self { a: a, b: b }
             }
 
-            pub fn modify(a: &mut u64, mut b: &mut u64) {
+            pub fn modify(a: &mut u64, b: &mut u64) {
                 *a += 1;
                 *b += 1;
             }

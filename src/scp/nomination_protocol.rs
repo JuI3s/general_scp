@@ -1,40 +1,30 @@
 use std::{
-    cell::RefCell,
     collections::hash_map::DefaultHasher,
-    env,
     fmt::Debug,
-    hash::{self, Hash, Hasher},
-    ops::Deref,
-    sync::Weak,
+    hash::{Hash, Hasher},
 };
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
-    rc::Rc,
+    collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
     time::SystemTime,
 };
 
 use log::debug;
-use serde::{Deserialize, Deserializer, Serialize};
-use tokio::time::timeout;
+use serde::Serialize;
 
 use crate::{
-    application::{quorum::QuorumSet, work_queue::ClockEvent},
-    crypto::types::Blake2Hashable,
     herder::herder::HerderDriver,
     overlay::peer::PeerID,
-    scp::{slot, statement::SCPStatementPrepare},
-    utils::weak_self::WeakSelf,
 };
 
 use super::{
     ballot_protocol::BallotProtocolState,
-    envelope::{self, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
+    envelope::{SCPEnvelopeController, SCPEnvelopeID},
     queue::{RetryNominateArg, SlotJob, SlotTask},
-    scp::{EnvelopeState, NodeID, SCP},
-    scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver, SlotStateTimer, ValidationLevel},
-    slot::{Slot, SlotIndex},
+    scp::{EnvelopeState, NodeID},
+    scp_driver::{SCPDriver, SlotDriver, SlotStateTimer, ValidationLevel},
+    slot::SlotIndex,
     statement::{SCPStatement, SCPStatementNominate},
 };
 
@@ -703,5 +693,5 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    
 }

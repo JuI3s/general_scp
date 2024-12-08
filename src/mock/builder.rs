@@ -1,20 +1,20 @@
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::HashMap,
     rc::Rc,
 };
 
 use crate::{
     application::work_queue::WorkScheduler,
-    overlay::{message::MessageController, node, peer_node::PeerNode},
+    overlay::{message::MessageController, peer_node::PeerNode},
     overlay_impl::{
         in_memory_conn::{InMemoryConn, InMemoryConnBuilder},
         in_memory_global::InMemoryGlobalState,
         tcp_conn::{TCPConn, TCPConnBuilder},
     },
     scp::{
-        local_node::LocalNodeInfoBuilderFromFile, local_node_builder::LocalNodeBuilder,
-        scp::NodeID, scp_driver::SlotDriver,
+        local_node::LocalNodeInfoBuilderFromFile,
+        scp::NodeID,
     },
 };
 

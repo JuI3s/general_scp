@@ -1134,12 +1134,12 @@ where
             None => nomination_value.clone(),
         };
 
-        let mut new_ballot = SCPBallot {
+        let new_ballot = SCPBallot {
             counter: n,
             value: value,
         };
 
-        let mut updated = self.update_current_value(state, &new_ballot);
+        let updated = self.update_current_value(state, &new_ballot);
 
         if updated {
             self.emit_current_state_statement(state, nomination_state, envelope_controller);
@@ -1797,7 +1797,7 @@ where
 
         let boundaries =
             ballot_state.get_commit_boundaries_from_statements(&ballot, envelope_controller);
-        let mut candidate: Interval = (0, 0);
+        let candidate: Interval = (0, 0);
         let predicate = |cur: &Interval| {
             self.federated_ratify(
                 |statement| BallotProtocolUtils::commit_predicate(&ballot, cur, statement),

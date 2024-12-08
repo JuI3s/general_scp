@@ -3,7 +3,7 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 use crate::{
     application::work_queue::WorkScheduler,
     herder::herder::{HerderBuilder, HerderDriver},
-    overlay::{node::LocalNode, peer_node::PeerNode},
+    overlay::peer_node::PeerNode,
     scp::{local_node::LocalNodeInfo, nomination_protocol::NominationValue},
 };
 

@@ -4,7 +4,7 @@ use sha2::Sha256;
 use super::{
     ca_type::SCPSignature,
     cell::Cell,
-    merkle::{MerkleHash, MerkleRoot, MerkleSiblingHashes},
+    merkle::MerkleRoot,
     root::RootEntry,
     table::{Table, TableMeta},
 };

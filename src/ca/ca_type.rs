@@ -1,16 +1,14 @@
-use std::fmt::{self, write, Display};
+use std::fmt::{self, Display};
 
 use digest::Digest;
 use dsa::{Signature, SigningKey, VerifyingKey};
 use pkcs8::{
-    der::{Decode, Encode},
     DecodePrivateKey, DecodePublicKey, EncodePublicKey,
 };
 use serde::{de, ser, Deserialize, Deserializer, Serialize};
 use sha2::Sha256;
-use signature::{DigestVerifier, RandomizedDigestSigner, SignatureEncoding};
+use signature::{DigestVerifier, RandomizedDigestSigner};
 
-use crate::scp::scp::SCP;
 
 // pub type PublicKey = [u8; 64];
 // pub type PublicKey = String;
@@ -192,12 +190,12 @@ impl Default for SCPSignature {
 mod tests {
 
     use digest::Digest;
-    use dsa::{Components, KeySize, SigningKey, VerifyingKey};
+    use dsa::{SigningKey, VerifyingKey};
     use pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding};
-    use sha1::Sha1;
+    
     use sha2::Sha256;
-    use signature::{DigestVerifier, RandomizedDigestSigner, SignatureEncoding};
-    use std::{fs::File, io::Write};
+    use signature::{DigestVerifier, RandomizedDigestSigner};
+    
 
     use super::*;
 

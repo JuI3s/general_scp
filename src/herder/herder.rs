@@ -1,8 +1,5 @@
 use std::{
-    cell::RefCell,
     collections::{BTreeMap, BTreeSet},
-    ops::Deref,
-    rc::Rc,
     sync::Arc,
     time::Duration,
 };
@@ -10,11 +7,11 @@ use std::{
 use crate::{
     application::quorum::HQuorumSet,
     scp::{
-        envelope::{self, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
-        nomination_protocol::{NominationValue, SCPNominationValue, SCPNominationValueSet},
+        envelope::{SCPEnvelope},
+        nomination_protocol::{NominationValue, SCPNominationValue},
         scp_driver::{HashValue, ValidationLevel},
         slot::SlotIndex,
-        statement::{HSCPStatement, SCPStatement},
+        statement::SCPStatement,
     },
 };
 

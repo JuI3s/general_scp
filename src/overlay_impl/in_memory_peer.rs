@@ -1,18 +1,14 @@
-use std::{arch::global_asm, cell::RefCell, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use itertools::Itertools;
 
 use crate::{
     application::{
-        clock::VirtualClock,
         quorum::{QuorumNode, QuorumSet, QuorumSlice},
         work_queue::WorkScheduler,
     },
     herder::herder::{HerderBuilder, HerderDriver},
-    mock::{
-        scp_driver::MockSCPDriver,
-        state::{MockState, MockStateDriver, MockStateDriverBuilder},
-    },
+    mock::state::{MockState, MockStateDriver, MockStateDriverBuilder},
     overlay::peer_node::PeerNode,
     scp::{local_node::LocalNodeInfo, nomination_protocol::NominationValue},
 };
@@ -77,7 +73,7 @@ where
     }
 }
 
-pub type InMemoryPeerNode<N: NominationValue, H: HerderDriver<N>> =
+pub type InMemoryPeerNode<N, H> =
     PeerNode<N, H, InMemoryConn<N>, InMemoryConnBuilder<N>>;
 
 pub fn create_mock_state_in_memory_peer_builder(

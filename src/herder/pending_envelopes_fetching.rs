@@ -1,13 +1,10 @@
 use std::{
-    cell::{Ref, RefCell},
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    env,
-    future::Pending,
+    cell::RefCell,
+    collections::{BTreeMap, HashMap, HashSet},
     marker::PhantomData,
     rc::Rc,
 };
 
-use rand::distributions::Alphanumeric;
 
 use crate::{
     application::quorum::{QuorumSet, QuorumSetHash},
@@ -15,8 +12,7 @@ use crate::{
     scp::{
         envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
         nomination_protocol::NominationValue,
-        scp::EnvelopeState,
-        slot::{self, SlotIndex},
+        slot::{SlotIndex},
     },
 };
 

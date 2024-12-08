@@ -1,14 +1,13 @@
 use std::{
-    collections::{btree_set, hash_map::DefaultHasher, BTreeSet},
-    f32::consts::E,
+    collections::{hash_map::DefaultHasher, BTreeSet},
     fs::{self, create_dir},
     hash::{Hash, Hasher},
     io::Write,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{Ipv4Addr, SocketAddrV4},
     sync::{Arc, Mutex},
 };
 
-use blake2::{Blake2b512, Blake2s256, Digest};
+use blake2::Digest;
 
 use serde::{Deserialize, Serialize};
 

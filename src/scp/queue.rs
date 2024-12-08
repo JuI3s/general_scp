@@ -1,27 +1,22 @@
 use std::{
-    borrow::BorrowMut,
-    cell::RefCell,
     collections::{BTreeMap, HashMap, VecDeque},
-    env,
     marker::PhantomData,
-    rc::Rc,
     sync::Arc,
     time::SystemTime,
 };
 
-use syn::token::Ref;
 
-use crate::{ca::cell::Cell, herder::herder::HerderDriver};
+use crate::herder::herder::HerderDriver;
 
 use super::{
-    ballot_protocol::{BallotProtocolState, HBallotProtocolState},
-    envelope::{self, SCPEnvelopeController},
+    ballot_protocol::BallotProtocolState,
+    envelope::{SCPEnvelopeController},
     nomination_protocol::{
-        HNominationProtocolState, HSCPNominationValue, NominationProtocol, NominationProtocolState,
+        HSCPNominationValue, NominationProtocol, NominationProtocolState,
         NominationValue,
     },
     scp_driver::SlotDriver,
-    slot::{self, SlotIndex},
+    slot::{SlotIndex},
 };
 
 pub struct SlotJobQueue<N, H>

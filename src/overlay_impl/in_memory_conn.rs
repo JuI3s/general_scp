@@ -1,7 +1,5 @@
-use core::panic;
-use std::{cell::RefCell, collections::HashMap, fmt::Debug, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, fmt::Debug, marker::PhantomData, rc::Rc};
 
-use syn::token::LArrow;
 
 use crate::{
     application::quorum::QuorumNode,
@@ -10,13 +8,10 @@ use crate::{
         message::SCPMessage,
         peer::{PeerID, SCPPeerConnState},
     },
-    scp::{
-        envelope::{self, SCPEnvelopeController},
-        nomination_protocol::NominationValue,
-    },
+    scp::nomination_protocol::NominationValue,
 };
 
-use super::in_memory_global::{self, InMemoryGlobalState};
+use super::in_memory_global::{InMemoryGlobalState};
 
 // InMemoryConn keeps track of connections with an in-memory peer.
 pub struct InMemoryConn<N>

@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use serde::Deserialize;
 
 use crate::overlay::{
     peer::PeerID,

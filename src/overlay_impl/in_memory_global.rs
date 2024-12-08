@@ -5,7 +5,6 @@ use std::{
     rc::Rc,
 };
 
-use syn::token::Ref;
 
 use crate::{herder::herder::HerderDriver, overlay::{message::{MessageController, SCPMessage}, peer::PeerID}, scp::nomination_protocol::NominationValue};
 

@@ -1,22 +1,17 @@
 use std::cell::RefCell;
-use std::f32::consts::E;
-use std::process::id;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use typenum::U6;
 
-use crate::application::clock::{HVirtualClock, VirtualClock};
-use crate::application::work_queue::{EventQueue, HWorkScheduler, WorkScheduler};
+use crate::application::work_queue::WorkScheduler;
 use crate::herder::herder::HerderDriver;
-use crate::scp::local_node;
 
 use super::ballot_protocol::BallotProtocolState;
 use super::local_node::{HLocalNode, LocalNodeInfo, LocalNodeInfoBuilderFromFile};
 use super::nomination_protocol::{NominationProtocolState, NominationValue};
 use super::queue::SlotJobQueue;
 use super::scp_driver::SlotDriver;
-use super::slot::{self, SlotIndex};
+use super::slot::{SlotIndex};
 
 pub struct SlotDriverBuilder<N, T>
 where

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use blake2::{Blake2b512, Blake2s256, Digest};
+use blake2::{Blake2b512, Digest};
 use serde::Serialize;
 
 pub type Blake2Hash = [u8; 64];
@@ -71,7 +71,7 @@ mod serde_bytes_array {
 
 #[cfg(test)]
 mod tests {
-    use blake2::{Blake2b512, Blake2s256, Digest};
+    use blake2::{Blake2b512, Digest};
     use hex_literal::hex;
 
     use crate::crypto::types::Blake2Hash;

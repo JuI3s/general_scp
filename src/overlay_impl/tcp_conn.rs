@@ -1,15 +1,13 @@
 use std::{io::Write, marker::PhantomData, net::TcpStream};
 
-use serde::Serialize;
-use tokio::stream;
 
 use crate::{
     application::quorum::QuorumNode,
     overlay::{
         conn::{PeerConn, PeerConnBuilder},
-        peer::{PeerID, SCPPeerConnState},
+        peer::SCPPeerConnState,
     },
-    scp::{local_node::LocalNodeInfo, nomination_protocol::NominationValue},
+    scp::nomination_protocol::NominationValue,
 };
 
 #[derive(Debug)]

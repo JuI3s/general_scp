@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use crate::application::quorum::QuorumSet;
 
 use super::{
-    ballot_protocol::{SCPBallot, ToBallot},
-    nomination_protocol::{NominationProtocol, NominationValue, SCPNominationValue},
+    ballot_protocol::SCPBallot,
+    nomination_protocol::NominationValue,
     scp::NodeID,
     scp_driver::HashValue,
 };

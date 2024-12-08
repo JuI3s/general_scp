@@ -11,15 +11,9 @@ use tokio::{
 };
 
 use crate::{
-    mock::{
-        scp_driver::MockSCPDriver,
-        state::{MockStateDriver, MockStateDriverBuilder},
-    },
-    overlay::{
-        node,
-        peer::{HPeer, PeerID},
-    },
-    overlay_impl::tcp_peer::{self, TCPPeerBuilder},
+    mock::state::MockStateDriverBuilder,
+    overlay::peer::{HPeer, PeerID},
+    overlay_impl::tcp_peer::{TCPPeerBuilder},
     rpc::args::RpcArg,
     scp::local_node::LocalNodeInfo,
 };
@@ -34,7 +28,7 @@ pub fn start_local_node_server() {
     let mut tcp_peer_builder = TCPPeerBuilder::new(herder_builder);
     let node_info = LocalNodeInfo::new(false, Default::default(), "node1".to_string());
 
-    let mut tcp_peer = tcp_peer_builder.build_node(node_info);
+    let tcp_peer = tcp_peer_builder.build_node(node_info);
     let mut input = String::new();
 
     loop {

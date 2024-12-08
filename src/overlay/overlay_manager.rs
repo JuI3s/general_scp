@@ -1,25 +1,19 @@
 use std::{
     cell::RefCell,
-    collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
-    fmt::Display,
+    collections::{BTreeMap, BTreeSet},
     rc::Rc,
     sync::{Arc, Mutex},
 };
 
-use serde::Serialize;
-use syn::token::Percent;
 
 use crate::{
-    application::work_queue::{HWorkScheduler, WorkScheduler},
+    application::work_queue::HWorkScheduler,
     crypto::types::{Blake2Hash, Blake2Hashable},
     herder::herder::HerderDriver,
     scp::{nomination_protocol::NominationValue, scp::NodeID, slot::SlotIndex},
 };
 
-use super::{
-    message::SCPMessage,
-    peer::{HPeer, Peer, PeerID},
-};
+use super::message::SCPMessage;
 
 // The consensus protocol works on top of an underlying overlay network, and
 // envelopes emitted by the consensus algorithm are broadcast to remote peers.

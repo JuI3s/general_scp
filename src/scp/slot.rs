@@ -1,17 +1,13 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
     time::Duration,
 };
 
-use log::debug;
 
-use crate::overlay::peer::PeerID;
 
 use super::{
     ballot_protocol::BallotProtocolState,
     nomination_protocol::{NominationProtocolState, NominationValue},
-    scp_driver::SlotDriver,
 };
 
 pub type SlotIndex = u64;

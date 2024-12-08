@@ -1,12 +1,10 @@
-use hex_literal::hex;
 use std::{
-    cell::RefCell, collections::hash_map::DefaultHasher, fmt, hash::Hasher, process::id, rc::Rc,
+    cell::RefCell, hash::Hasher, rc::Rc,
 };
 
 use ct_merkle::{error::InclusionVerifError, inclusion::InclusionProof, CtMerkleTree, RootHash};
 use sha2::{Digest, Sha256};
 
-use super::{cell::Cell, operation::MerkleRootOperations};
 
 pub type MerkleHash = [u8; 32];
 pub type MerkleRoot = RootHash<Sha256>;
@@ -104,13 +102,13 @@ mod tests {
 
     use ct_merkle::inclusion::InclusionProof;
     use ct_merkle::CtMerkleTree;
-    use digest::consts::{U28, U32, U48, U64};
-    use sha2::digest::core_api::{CoreWrapper, CtVariableCoreWrapper};
+    
+    
     use sha2::{digest, Sha256};
-    use typenum::U0;
+    
 
-    use crate::ca::cell::Cell;
-    use crate::utils::hash::to_hash_value;
+    
+    
 
     #[test]
     fn merkle_tree_create_and_add() {

@@ -1,18 +1,11 @@
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
-};
 
-use crate::overlay::peer::PeerID;
 
 use super::{
-    ballot_protocol::BallotProtocol,
     nomination_protocol::{
-        HSCPNominationValue, NominationProtocol, NominationValue, SCPNominationValue,
+        HSCPNominationValue, NominationValue, SCPNominationValue,
     },
-    scp_driver::{HSCPEnvelope, SCPDriver, SlotDriver},
-    slot::{HSlot, Slot, SlotIndex},
-    statement::SCPStatement,
+    scp_driver::HSCPEnvelope,
+    slot::SlotIndex,
 };
 
 pub type NodeID = String;

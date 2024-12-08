@@ -1,19 +1,13 @@
-use syn::token::Ref;
 
 use crate::{
     herder::herder::HerderDriver,
-    mock::state::{MockState, MockStateDriver},
     overlay::message::SCPMessage,
-    scp::{
-        envelope::{MakeEnvelope, SCPEnvelopeController},
-        statement::MakeStatement,
-    },
+    scp::envelope::SCPEnvelopeController,
 };
 
 use std::{
     cell::RefCell,
     collections::VecDeque,
-    marker::PhantomData,
     rc::{Rc, Weak},
 };
 

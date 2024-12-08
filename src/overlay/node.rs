@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, marker::PhantomData, rc::Rc};
 use crate::{
     herder::herder::HerderDriver,
     mock::state::{MockState, MockStateDriver},
-    scp::{local_node::LocalNodeInfo, nomination_protocol::NominationValue, scp::NodeID},
+    scp::{nomination_protocol::NominationValue, scp::NodeID},
 };
 
 use super::overlay_manager::OverlayManager;

@@ -1,26 +1,16 @@
-use std::{cell::RefCell, collections::BTreeMap, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    application::{quorum::HQuorumSet, work_queue::WorkScheduler},
-    crypto::types::Blake2Hashable,
+    application::quorum::HQuorumSet,
     herder::herder::{HerderBuilder, HerderDriver},
     scp::{
-        self,
-        ballot_protocol::HBallotProtocolState,
-        envelope::{MakeEnvelope, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
-        local_node::{self, HLocalNode},
-        nomination_protocol::{HNominationProtocolState, NominationProtocol, NominationValue},
-        scp_driver::{HashValue, SlotDriver},
-        scp_driver_builder::SlotDriverBuilder,
+        envelope::SCPEnvelope, nomination_protocol::NominationValue, scp_driver::HashValue,
         slot::SlotIndex,
-        statement::{MakeStatement, SCPStatementNominate},
     },
 };
-
-use super::scp_driver::MockSCPDriver;
 
 // Just hold a vector u8 integers.
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize, Debug)]
@@ -145,33 +135,21 @@ impl HerderDriver<MockState> for MockStateDriver {
 #[cfg(test)]
 mod tests {
 
-    use env_logger;
-    use log::debug;
-    use scp::{
-        ballot_protocol::BallotProtocolState, envelope::SCPEnvelopeController,
-        nomination_protocol::NominationProtocolState,
-    };
     use std::{
         collections::{BTreeSet, HashMap},
-        sync::Mutex,
+        sync::Arc,
     };
 
     use crate::{
-        application::{clock::VirtualClock, quorum::QuorumSet, work_queue::EventQueue},
+        application::{clock::VirtualClock, quorum::QuorumSet},
         mock::builder::{MockInMemoryNodeBuilder, NodeBuilderDir},
-        overlay::{
-            loopback_peer::{LoopbackPeer, LoopbackPeerConnection},
-            message::SCPMessage,
-            node,
-        },
         overlay_impl::{
             in_memory_conn::{InMemoryConn, InMemoryConnBuilder},
             in_memory_global::InMemoryGlobalState,
             in_memory_peer::{test_data_create_mock_in_memory_nodes, InMemoryPeerBuilder},
         },
         scp::{
-            local_node::LocalNodeInfo, local_node_builder::LocalNodeBuilder, scp::NodeID,
-            scp_driver_builder::SlotDriverBuilder,
+            ballot_protocol::BallotProtocolState, envelope::SCPEnvelopeController, local_node::LocalNodeInfo, local_node_builder::LocalNodeBuilder, nomination_protocol::{NominationProtocol, NominationProtocolState}, scp::NodeID, scp_driver::SlotDriver, scp_driver_builder::SlotDriverBuilder
         },
     };
 
@@ -180,12 +158,9 @@ mod tests {
     use crate::{
         application::work_queue::WorkScheduler,
         mock::state::{MockState, MockStateDriver},
-        overlay::message::HelloEnvelope,
     };
 
     use super::*;
-
-    use backtrace::Backtrace;
 
     #[test]
     fn slot_driver_builder() {

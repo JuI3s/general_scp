@@ -3,7 +3,6 @@ use super::nomination_protocol::{
     HLatestCompositeCandidateValue, NominationProtocolState, NominationValue, SCPNominationValueSet,
 };
 
-use super::scp_driver::HSCPEnvelope;
 
 use std::collections::{BTreeMap, BTreeSet};
 

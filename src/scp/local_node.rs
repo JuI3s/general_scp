@@ -1,19 +1,15 @@
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
-    env,
-    f32::consts::E,
-    fs::{self, create_dir, create_dir_all},
+    fs::{self, create_dir_all},
     io::Write,
-    iter::{self, zip},
+    iter::{self},
     marker::PhantomData,
     path::PathBuf,
     rc::Rc,
-    sync::{Arc, Mutex},
 };
 
 use serde_derive::{Deserialize, Serialize};
-use syn::token::Mut;
 
 use crate::{
     application::quorum::{HQuorumSet, QuorumNode, QuorumSet, QuorumSlice}, mock::state::MockState, utils::config::test_data_dir
@@ -23,8 +19,7 @@ use super::{
     envelope::{SCPEnvelopeController, SCPEnvelopeID},
     nomination_protocol::NominationValue,
     scp::NodeID,
-    scp_driver::HSCPEnvelope,
-    statement::{HSCPStatement, SCPStatement},
+    statement::SCPStatement,
 };
 
 pub type HLocalNode<N> = Rc<RefCell<LocalNodeInfo<N>>>;
@@ -88,7 +83,7 @@ impl LocalNodeInfoBuilderFromFile {
         &mut self,
         node_id: &str,
     ) -> Option<LocalNodeInfo<N>> {
-        let path = self.quorum_dir.join(node_id.clone());
+        let path = self.quorum_dir.join(node_id);
         let toml_str = fs::read_to_string(path).ok()?;
         let node_toml = toml::from_str(&toml_str).ok()?;
 
@@ -356,7 +351,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::net::{Ipv4Addr, SocketAddrV4};
+    use std::{net::{Ipv4Addr, SocketAddrV4}, sync::{Arc, Mutex}};
 
     use crate::{
         application::quorum::QuorumNode,

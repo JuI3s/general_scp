@@ -1,12 +1,10 @@
-use std::{borrow::BorrowMut, cell::RefCell, collections::BTreeSet, f32::consts::E, rc::Rc};
+use std::{borrow::BorrowMut, cell::RefCell, rc::Rc};
 
-use serde::Serialize;
 
-use crate::ca::table;
 
 use super::{
     ca_type::{PublicKey, SCPSignature},
-    cell::{Cell, DelegateCell, InnerCellType, ValueCell},
+    cell::{Cell, DelegateCell, ValueCell},
     merkle::{MerkleHash, MerkleTree},
 };
 

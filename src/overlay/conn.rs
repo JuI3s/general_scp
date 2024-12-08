@@ -1,6 +1,6 @@
 use crate::{application::quorum::QuorumNode, scp::{envelope::SCPEnvelope, nomination_protocol::NominationValue}};
 
-use super::{message::{HelloEnvelope, SCPMessage}, peer::{PeerID, SCPPeerConnState}};
+use super::{message::{HelloEnvelope, SCPMessage}, peer::SCPPeerConnState};
 
 pub trait PeerConn<N>
 where

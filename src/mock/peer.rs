@@ -1,7 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    herder::herder::HerderDriver,
     overlay::{conn::PeerConn, peer::SCPPeerState},
     scp::scp::NodeID,
 };

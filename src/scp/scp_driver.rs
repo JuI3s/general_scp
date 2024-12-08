@@ -1,43 +1,35 @@
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet, HashMap},
-    env,
-    os::fd::RawFd,
+    collections::{BTreeMap, HashMap},
     rc::Rc,
-    sync::{Arc, Mutex, Weak},
-    time::SystemTime,
+    sync::{Arc, Mutex},
 };
 
 // pub type HashValue = Vec<u8>;
 pub type HashValue = [u8; 64];
 
-use serde::{Deserialize, Serialize};
-use syn::token::Mut;
-use tokio::task;
+use serde::Serialize;
 
 use crate::{
     application::{
-        quorum::{QuorumSet, QuorumSetHash},
-        work_queue::{self, ClockEvent, HClockEvent, WorkScheduler},
+        quorum::QuorumSet,
+        work_queue::{HClockEvent, WorkScheduler},
     },
     crypto::types::{test_default_blake2, Blake2Hashable},
     herder::herder::HerderDriver,
-    overlay::overlay_manager::OverlayManager,
-    scp::{ballot_protocol::SCPPhase, nomination_protocol::NominationProtocol},
-    utils::weak_self::WeakSelf,
+    scp::nomination_protocol::NominationProtocol,
 };
 
 use super::{
-    ballot_protocol::{self, BallotProtocol, BallotProtocolState, HBallotProtocolState, SCPBallot},
-    envelope::{self, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
+    ballot_protocol::{BallotProtocol, BallotProtocolState, SCPBallot},
+    envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
     local_node::{HLocalNode, LocalNodeInfo},
     nomination_protocol::{
-        HLatestCompositeCandidateValue, HNominationProtocolState, HSCPNominationValue,
-        NominationProtocolState, NominationValue, SCPNominationValue,
+        NominationProtocolState, NominationValue,
     },
     queue::SlotJobQueue,
     scp::NodeID,
-    slot::{HSlot, Slot, SlotIndex},
+    slot::SlotIndex,
     statement::SCPStatement,
 };
 

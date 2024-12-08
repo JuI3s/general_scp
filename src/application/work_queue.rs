@@ -1,14 +1,9 @@
 use std::{
-    alloc::System,
     cell::RefCell,
     collections::{BTreeMap, VecDeque},
-    f32::consts::E,
     rc::Rc,
-    sync::{Arc, Mutex},
     time::SystemTime,
 };
-
-use serde_derive::{Deserialize, Serialize};
 
 use super::clock::{HVirtualClock, VirtualClock};
 
@@ -189,13 +184,15 @@ impl EventQueue {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
     use crate::application::work_queue::WorkScheduler;
 
     use super::*;
 
     #[test]
     fn add_one_task_to_work_schedular() {
-        let mut work_scheduler = WorkScheduler::default();
+        let work_scheduler = WorkScheduler::default();
         let x = 0;
         let pt = Arc::new(Mutex::new(x));
         let pt_copy = pt.clone();
@@ -216,7 +213,7 @@ mod tests {
 
     #[test]
     fn add_two_tasks_and_execute_both() {
-        let mut work_scheduler = WorkScheduler::default();
+        let work_scheduler = WorkScheduler::default();
         let x = 0;
         let pt = Arc::new(Mutex::new(x));
         let pt_copy_1 = pt.clone();
