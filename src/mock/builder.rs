@@ -1,8 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     application::work_queue::WorkScheduler,
@@ -12,10 +8,7 @@ use crate::{
         in_memory_global::InMemoryGlobalState,
         tcp_conn::{TCPConn, TCPConnBuilder},
     },
-    scp::{
-        local_node::LocalNodeInfoBuilderFromFile,
-        scp::NodeID,
-    },
+    scp::{local_node::LocalNodeInfoBuilderFromFile, scp::NodeID},
 };
 
 use super::state::{MockState, MockStateDriver};
@@ -117,6 +110,7 @@ impl MockInMemoryNodeBuilder {
             work_scheduler,
         );
 
+        let msg_controller = peer.message_controller.clone();
         let peer_handle = Rc::new(RefCell::new(peer));
 
         self.nodes.insert(node_idx.to_owned(), peer_handle.clone());
@@ -124,7 +118,7 @@ impl MockInMemoryNodeBuilder {
         self.global_state
             .borrow_mut()
             .peer_msg_queues
-            .insert(node_idx.to_owned(), MessageController::new_handle());
+            .insert(node_idx.to_owned(), msg_controller);
 
         Some(peer_handle)
     }

@@ -1,7 +1,4 @@
-use std::{
-    fs,
-    process::exit,
-};
+use std::{fs, process::exit};
 
 use serde::{Deserialize, Serialize};
 

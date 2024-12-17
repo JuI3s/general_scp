@@ -5,12 +5,16 @@ use std::{
     rc::Rc,
 };
 
-
-use crate::{herder::herder::HerderDriver, overlay::{message::{MessageController, SCPMessage}, peer::PeerID}, scp::nomination_protocol::NominationValue};
-
-use super::{
-    in_memory_peer::InMemoryPeerNode,
+use crate::{
+    herder::herder::HerderDriver,
+    overlay::{
+        message::{MessageController, SCPMessage},
+        peer::PeerID,
+    },
+    scp::nomination_protocol::NominationValue,
 };
+
+use super::in_memory_peer::InMemoryPeerNode;
 
 pub struct InMemoryGlobalState<N>
 where
@@ -40,6 +44,8 @@ where
             .as_ref()
             .borrow_mut()
             .add_message(msg);
+
+        println!("send_message to: {:?}", peer_id);
     }
 
     pub fn process_messages<H: HerderDriver<N> + 'static>(
@@ -57,14 +63,18 @@ where
             if peer_id.is_none() {
                 break;
             }
-            let peer_id = peer_id.unwrap();
 
-            peers
+            let peer_id = peer_id.unwrap();
+            println!("process msg sent to: {:?}", peer_id);
+
+            let processed_new_msg = peers
                 .get(&peer_id)
                 .unwrap()
                 .as_ref()
                 .borrow_mut()
                 .process_one_message();
+
+            assert!(processed_new_msg);
 
             num_msg_processed += 1;
         }

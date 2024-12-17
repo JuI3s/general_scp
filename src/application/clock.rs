@@ -1,8 +1,4 @@
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    time::SystemTime,
-};
+use std::{cell::RefCell, rc::Rc, time::SystemTime};
 
 pub type HVirtualClock = Rc<RefCell<VirtualClock>>;
 pub struct VirtualClock {

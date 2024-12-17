@@ -24,21 +24,15 @@ use super::{
     ballot_protocol::{BallotProtocol, BallotProtocolState, SCPBallot},
     envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
     local_node::{HLocalNode, LocalNodeInfo},
-    nomination_protocol::{
-        NominationProtocolState, NominationValue,
-    },
+    nomination_protocol::{NominationProtocolState, NominationValue},
     queue::SlotJobQueue,
-    scp::NodeID,
+    scp::{EnvelopeState, NodeID},
     slot::SlotIndex,
     statement::SCPStatement,
 };
 
 pub type HSCPDriver<N> = Arc<Mutex<dyn SCPDriver<N>>>;
 
-pub enum EnvelopeState {
-    Invalid,
-    Valid,
-}
 
 #[derive(PartialEq, Eq)]
 pub enum ValidationLevel {
@@ -255,7 +249,7 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         env_id: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
-    ) {
+    ) -> EnvelopeState{
         let env = envelope_controller.get_envelope(env_id).unwrap();
         println!("Received an envelope: {:?}", env_id);
         match env.get_statement() {
@@ -266,17 +260,15 @@ where
                     env,
                     true,
                     envelope_controller,
-                );
-            }
-            SCPStatement::Nominate(st) => {
-                self.process_nomination_envelope(
-                    nomination_state,
-                    ballot_state,
-                    &env_id,
-                    envelope_controller,
-                );
-            }
-        };
+                )
+            },
+            SCPStatement::Nominate(st) => self.process_nomination_envelope(
+                nomination_state,
+                ballot_state,
+                &env_id,
+                envelope_controller,
+            ),
+        }
     }
 
     pub fn bump_state_(

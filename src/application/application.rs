@@ -13,7 +13,7 @@ use tokio::{
 use crate::{
     mock::state::MockStateDriverBuilder,
     overlay::peer::{HPeer, PeerID},
-    overlay_impl::tcp_peer::{TCPPeerBuilder},
+    overlay_impl::tcp_peer::TCPPeerBuilder,
     rpc::args::RpcArg,
     scp::local_node::LocalNodeInfo,
 };

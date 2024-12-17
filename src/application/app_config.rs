@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-
 use crate::overlay::{
     peer::PeerID,
     rpc_gateway::{HRpcGateway, TestRpcGateway},

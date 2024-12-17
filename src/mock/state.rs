@@ -382,7 +382,7 @@ mod tests {
         node1.borrow_mut().slot_nominate(0);
 
         assert!(
-            InMemoryGlobalState::process_messages(&builder.global_state, &mut builder.nodes) == 0
+            InMemoryGlobalState::process_messages(&builder.global_state, &mut builder.nodes) == 2
         );
     }
 

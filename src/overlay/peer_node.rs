@@ -1,22 +1,19 @@
-use std::{
-    cell::RefCell,
-    collections::BTreeMap,
-    fmt::Debug,
-    rc::Rc,
-    sync::Arc,
-};
+use std::{cell::RefCell, collections::BTreeMap, fmt::Debug, rc::Rc, sync::Arc};
+
+use bincode::de;
+use log::debug;
 
 use crate::{
     application::work_queue::WorkScheduler,
-    herder::{herder::HerderDriver},
+    herder::herder::HerderDriver,
     scp::{
         ballot_protocol::BallotProtocolState,
         envelope::{SCPEnvelope, SCPEnvelopeController},
-        local_node::{LocalNodeInfo},
+        local_node::LocalNodeInfo,
         nomination_protocol::{NominationProtocol, NominationProtocolState, NominationValue},
         scp_driver::SlotDriver,
         scp_driver_builder::SlotDriverBuilder,
-        slot::{SlotIndex},
+        slot::SlotIndex,
     },
 };
 
@@ -181,8 +178,12 @@ where
         match msg_option {
             Some(msg) => {
                 match msg {
-                    SCPMessage::SCP(scp_env) => self.on_scp_env(scp_env),
-                    SCPMessage::Hello(hello_env) => self.on_hello_env(hello_env),
+                    SCPMessage::SCP(scp_env) => {
+                        self.on_scp_env(scp_env)
+                    }
+                    SCPMessage::Hello(hello_env) => {
+                        self.on_hello_env(hello_env);
+                    }
                 }
                 true
             }
@@ -241,12 +242,14 @@ where
         let env_id = self.scp_envelope_controller.add_envelope(scp_env);
 
         let slot = self.get_or_create_slot_and_states(slot_idx);
-        slot.recv_scp_envelvope(
+        let res = slot.recv_scp_envelvope(
             self.nomination_protocol_states.get_mut(&slot_idx).unwrap(),
             self.ballot_protocol_states.get_mut(&slot_idx).unwrap(),
             &env_id,
             &mut self.scp_envelope_controller,
         );
+
+        println!("Slot {} recv env {:?}", slot_idx, res);
     }
 
     pub fn process_all_messages(&mut self) -> usize {

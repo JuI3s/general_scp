@@ -9,7 +9,7 @@ use crate::{
 
 use super::peer::PeerID;
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug)]
 pub enum SCPMessage<N>
 where
     N: NominationValue,
@@ -29,7 +29,7 @@ where
     }
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct HelloEnvelope {
     pub id: PeerID,
 }
@@ -58,6 +58,7 @@ where
 
 
     pub fn pop(&mut self ) -> Option<SCPMessage<N>> {
+        assert!(self.messages.len() > 0);
 
         self.messages.pop_front()
     }

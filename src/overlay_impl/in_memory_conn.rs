@@ -1,6 +1,5 @@
 use std::{cell::RefCell, fmt::Debug, marker::PhantomData, rc::Rc};
 
-
 use crate::{
     application::quorum::QuorumNode,
     overlay::{
@@ -11,7 +10,7 @@ use crate::{
     scp::nomination_protocol::NominationValue,
 };
 
-use super::in_memory_global::{InMemoryGlobalState};
+use super::in_memory_global::InMemoryGlobalState;
 
 // InMemoryConn keeps track of connections with an in-memory peer.
 pub struct InMemoryConn<N>
@@ -54,7 +53,23 @@ where
     fn send_message(&mut self, msg: &SCPMessage<N>) {
         self.in_memory_global_state
             .borrow_mut()
-            .send_message(self.peer_id.clone(), msg.clone())
+            .send_message(self.peer_id.clone(), msg.clone());
+
+        // Sanity check
+        assert!(self.in_memory_global_state.borrow().msg_peer_id_queue.len() > 0);
+        assert!(
+            self.in_memory_global_state
+                .borrow()
+                .peer_msg_queues
+                .get(&self.peer_id)
+                .unwrap()
+                .borrow()
+                .messages
+                .len()
+                > 0
+        );
+
+        println!("InMemoryConn::send_message: to {:?}", self.peer_id);
     }
 
     fn set_state(&mut self, state: SCPPeerConnState) {
