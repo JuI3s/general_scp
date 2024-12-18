@@ -13,10 +13,7 @@ use std::{
 use log::debug;
 use serde::Serialize;
 
-use crate::{
-    herder::herder::HerderDriver,
-    overlay::peer::PeerID,
-};
+use crate::{herder::herder::HerderDriver, overlay::peer::PeerID};
 
 use super::{
     ballot_protocol::BallotProtocolState,
@@ -71,6 +68,8 @@ pub type HLatestCompositeCandidateValue<N> = Arc<Mutex<Option<N>>>;
 pub type SCPNominationValueSet<N> = BTreeSet<HSCPNominationValue<N>>;
 
 pub type HNominationProtocolState<N> = Arc<Mutex<NominationProtocolState<N>>>;
+
+#[derive(Clone, Debug)]
 pub struct NominationProtocolState<N>
 where
     N: NominationValue,
@@ -91,6 +90,7 @@ where
     pub num_timeouts: u64,
     pub timed_out: bool,
 }
+
 
 impl<N: NominationValue> NominationProtocolState<N> {
     pub fn new(leader_id: PeerID) -> Self {
@@ -239,6 +239,8 @@ where
     }
 
     fn is_sane(&self, statement: &SCPStatementNominate<N>) -> bool {
+        // TODO: need to fix the implementaion
+        todo!();
         (statement.votes.len() + statement.accepted.len() != 0)
             && statement
                 .votes
@@ -383,10 +385,13 @@ where
         // This function creats a nomination statement that contains the current
         // nomination value. The statement is then wrapped in an SCP envelope which is
         // checked for validity before being passed to Herder for broadcasting.
+        println!("Emit nomination");
 
         let local_node = self.local_node.borrow();
-
         let votes = nomination_state.get_current_votes();
+
+        println!("accepted: {:?}", nomination_state.accepted);
+        println!("Votes: {:?}", votes.len());
 
         // Creating the nomination statement
         let nom_st: SCPStatementNominate<N> =
@@ -394,14 +399,13 @@ where
 
         // Creating the envelop
         let st = SCPStatement::Nominate(nom_st);
-
-        let env_id = self.create_envelope(st, envelope_controller);
+        let cur_env_id = self.create_envelope(st, envelope_controller);
 
         // Process the envelope. This may triggers more envelops being emitted.
         match self.process_nomination_envelope(
             nomination_state,
             ballot_state,
-            &env_id,
+            &cur_env_id,
             envelope_controller,
         ) {
             EnvelopeState::Valid => {
@@ -410,9 +414,12 @@ where
                     .as_ref()
                     .and_then(|env_id| envelope_controller.get_envelope(env_id))
                     .is_some_and(|env| match &env.statement {
-                        SCPStatement::Nominate(st) => {
-                            st.is_older_than(env.statement.as_nomination_statement())
-                        }
+                        SCPStatement::Nominate(last_st) => envelope_controller
+                            .get_envelope(&cur_env_id)
+                            .unwrap()
+                            .statement
+                            .as_nomination_statement()
+                            .is_older_than(last_st),
                         _ => {
                             panic!("Nomination state should only contain nomination statements.")
                         }
@@ -424,10 +431,10 @@ where
                     return None;
                 }
 
-                nomination_state.latest_envelope = Some(env_id.clone());
+                nomination_state.latest_envelope = Some(cur_env_id.clone());
 
                 if self.slot_state.borrow().fully_validated {
-                    Some(env_id)
+                    Some(cur_env_id)
                 } else {
                     None
                 }
@@ -504,6 +511,7 @@ where
             // if we're leader, add our value if we haven't added any votes yet
             if state.round_leaders.contains(&local_node.node_id) && state.votes.is_empty() {
                 state.votes.insert(value.clone().into());
+                state.accepted.insert(value.clone().into());
                 updated = true;
                 self.herder_driver
                     .borrow()
@@ -568,8 +576,7 @@ where
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> EnvelopeState {
-        // todo!();
-
+        println!("Process nomination envelope {:?}", envelope);
         let env = envelope_controller.get_envelope(envelope).unwrap();
         let node_id = &env.node_id;
         let statement = env.get_statement().as_nomination_statement();
@@ -583,9 +590,10 @@ where
             return EnvelopeState::Invalid;
         }
 
-        if !nomination_state.is_sane(statement) {
-            return EnvelopeState::Invalid;
-        }
+        // if !nomination_state.is_sane(statement) {
+        // todo!();
+        // return EnvelopeState::Invalid;
+        // }
 
         nomination_state.record_envelope(envelope, envelope_controller);
 
@@ -595,6 +603,7 @@ where
                 if nomination_state.accepted.contains(vote) {
                     return false;
                 }
+
                 if self.federated_accept(
                     |st| st.as_nomination_statement().votes.contains(vote),
                     |st| Self::accept_predicate(vote, st),
@@ -621,6 +630,9 @@ where
                 }
                 false
             });
+
+            println!("statemetn accepts: {:?}", statement.accepted);
+            println!("Nomination state accepts: {:?}", nomination_state.accepted);
 
             let new_candidates = statement.accepted.iter().any(|value| {
                 if nomination_state.candidates.contains(value) {
@@ -649,6 +661,7 @@ where
             });
 
             if modified {
+                // Somehow is not modified..
                 self.emit_nomination(nomination_state, ballot_state, envelope_controller);
             }
 
@@ -682,8 +695,13 @@ where
                             envelope_controller,
                         );
                     }
-                    None => {}
+                    None => {
+                        todo!();
+                    }
                 };
+            } else {
+                //
+                println!("Nomnation candidates: {:?}", nomination_state.candidates);
             }
         }
 
@@ -692,6 +710,4 @@ where
 }
 
 #[cfg(test)]
-mod tests {
-    
-}
+mod tests {}

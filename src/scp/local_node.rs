@@ -231,6 +231,8 @@ where
                 nodes.push(entry.0.clone());
             }
         });
+        println!("nodes: {:?}", nodes);
+        todo!();
         LocalNodeInfo::<N>::is_v_blocking(quorum_set, &nodes)
     }
 

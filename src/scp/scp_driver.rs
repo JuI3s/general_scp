@@ -33,7 +33,6 @@ use super::{
 
 pub type HSCPDriver<N> = Arc<Mutex<dyn SCPDriver<N>>>;
 
-
 #[derive(PartialEq, Eq)]
 pub enum ValidationLevel {
     Invalid,
@@ -249,7 +248,7 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         env_id: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
-    ) -> EnvelopeState{
+    ) -> EnvelopeState {
         let env = envelope_controller.get_envelope(env_id).unwrap();
         println!("Received an envelope: {:?}", env_id);
         match env.get_statement() {
@@ -261,7 +260,7 @@ where
                     true,
                     envelope_controller,
                 )
-            },
+            }
             SCPStatement::Nominate(st) => self.process_nomination_envelope(
                 nomination_state,
                 ballot_state,
@@ -279,6 +278,7 @@ where
         force: bool,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
+        println!("Bumping state");
         self.bump_state(
             ballot_state,
             nomination_state,
@@ -295,6 +295,7 @@ where
         envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
+        println!("Federated accept {:?}", envelopes);
         if LocalNodeInfo::<N>::is_v_blocking_with_predicate(
             &self.local_node.borrow().quorum_set,
             envelopes,
@@ -448,4 +449,7 @@ mod tests {
         assert_ne!(hash_1, hash_2);
         assert_eq!(hash_1, env1.to_blake2());
     }
+
+    #[test]
+    fn test_federated_accept() {}
 }

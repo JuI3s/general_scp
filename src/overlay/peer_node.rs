@@ -34,8 +34,8 @@ where
     pub message_controller: Rc<RefCell<MessageController<N>>>,
     pub peer_conns: BTreeMap<PeerID, C>,
     pub slots: BTreeMap<SlotIndex, Arc<SlotDriver<N, H>>>,
-    nomination_protocol_states: BTreeMap<SlotIndex, NominationProtocolState<N>>,
-    ballot_protocol_states: BTreeMap<SlotIndex, BallotProtocolState<N>>,
+    pub nomination_protocol_states: BTreeMap<SlotIndex, NominationProtocolState<N>>,
+    pub ballot_protocol_states: BTreeMap<SlotIndex, BallotProtocolState<N>>,
 
     conn_builder: CB,
     scp_envelope_controller: SCPEnvelopeController<N>,
@@ -93,6 +93,15 @@ where
             nomination_protocol_states: Default::default(),
             ballot_protocol_states: Default::default(),
         }
+    }
+
+    pub fn get_current_nomination_state(
+        &self,
+        slot_idx: &SlotIndex,
+    ) -> Option<NominationProtocolState<N>> {
+        self.nomination_protocol_states
+            .get(slot_idx)
+            .and_then(|val| Some(val.clone()))
     }
 
     pub fn send_message(&mut self, peer_id: &PeerID, msg: &SCPMessage<N>) {
@@ -178,9 +187,7 @@ where
         match msg_option {
             Some(msg) => {
                 match msg {
-                    SCPMessage::SCP(scp_env) => {
-                        self.on_scp_env(scp_env)
-                    }
+                    SCPMessage::SCP(scp_env) => self.on_scp_env(scp_env),
                     SCPMessage::Hello(hello_env) => {
                         self.on_hello_env(hello_env);
                     }

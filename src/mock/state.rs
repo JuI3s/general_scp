@@ -1,4 +1,10 @@
-use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
+use core::str;
+use std::{
+    cell::RefCell,
+    collections::BTreeMap,
+    fmt::{Debug, Error},
+    rc::Rc,
+};
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -13,7 +19,7 @@ use crate::{
 };
 
 // Just hold a vector u8 integers.
-#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
 pub struct MockState(Vec<[u8; 32]>);
 
 impl MockState {
@@ -31,6 +37,25 @@ impl MockState {
 
         // Generate a random sample containing a vector of size 3.
         Self(vec)
+    }
+}
+
+impl Debug for MockState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // https://stackoverflow.com/questions/28991050/how-to-iterate-a-vect-with-the-indexed-position
+        let max_hex_to_display = 10;
+
+        f.write_str("0x")?;
+        f.write_str(
+            &self
+                .0
+                .as_flattened()
+                .iter()
+                .enumerate()
+                .take_while(|(idx, __)| *idx < max_hex_to_display)
+                .map(|(_, b)| format!("{:02X}", b))
+                .collect::<String>(),
+        )
     }
 }
 
@@ -149,7 +174,14 @@ mod tests {
             in_memory_peer::{test_data_create_mock_in_memory_nodes, InMemoryPeerBuilder},
         },
         scp::{
-            ballot_protocol::BallotProtocolState, envelope::SCPEnvelopeController, local_node::LocalNodeInfo, local_node_builder::LocalNodeBuilder, nomination_protocol::{NominationProtocol, NominationProtocolState}, scp::NodeID, scp_driver::SlotDriver, scp_driver_builder::SlotDriverBuilder
+            ballot_protocol::BallotProtocolState,
+            envelope::SCPEnvelopeController,
+            local_node::LocalNodeInfo,
+            local_node_builder::LocalNodeBuilder,
+            nomination_protocol::{NominationProtocol, NominationProtocolState},
+            scp::NodeID,
+            scp_driver::SlotDriver,
+            scp_driver_builder::SlotDriverBuilder,
         },
     };
 
@@ -376,7 +408,16 @@ mod tests {
     #[test]
     fn in_memory_peer_nominate_from_local_node_on_file() {
         let mut builder = MockInMemoryNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
-        let node1 = builder.build_node("node1").unwrap();
+        let node1: Rc<
+            RefCell<
+                crate::overlay::peer_node::PeerNode<
+                    MockState,
+                    MockStateDriver,
+                    InMemoryConn<MockState>,
+                    InMemoryConnBuilder<MockState>,
+                >,
+            >,
+        > = builder.build_node("node1").unwrap();
         let node2 = builder.build_node("node2").unwrap();
 
         node1.borrow_mut().slot_nominate(0);
@@ -384,6 +425,15 @@ mod tests {
         assert!(
             InMemoryGlobalState::process_messages(&builder.global_state, &mut builder.nodes) == 2
         );
+
+        let node1_nomnination_state = node1.borrow().get_current_nomination_state(&0).unwrap();
+
+        // let node2_candidate = node2.borrow().nomination_protocol_states.get(&0);
+
+        println!("node1 state: {:?}", node1_nomnination_state);
+        // println!("node2 state: {:?}", node2_candidate);
+
+        assert!(false);
     }
 
     //     #[test]
