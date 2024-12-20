@@ -1,16 +1,25 @@
-use std::{cell::RefCell, collections::BTreeMap, fmt::Debug, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt::Debug,
+    rc::Rc,
+    sync::Arc,
+};
 
 use bincode::de;
 use log::debug;
+use pkcs8::der::DerOrd;
 
 use crate::{
     application::work_queue::WorkScheduler,
     herder::herder::HerderDriver,
     scp::{
+        self,
         ballot_protocol::BallotProtocolState,
         envelope::{SCPEnvelope, SCPEnvelopeController},
         local_node::LocalNodeInfo,
         nomination_protocol::{NominationProtocol, NominationProtocolState, NominationValue},
+        scp::NodeID,
         scp_driver::SlotDriver,
         scp_driver_builder::SlotDriverBuilder,
         slot::SlotIndex,
@@ -20,6 +29,7 @@ use crate::{
 use super::{
     conn::{PeerConn, PeerConnBuilder},
     message::{HelloEnvelope, MessageController, SCPMessage},
+    node,
     peer::PeerID,
 };
 
@@ -43,6 +53,8 @@ where
 
     work_scheduler: Rc<RefCell<WorkScheduler>>,
     local_node_info: Rc<RefCell<LocalNodeInfo<N>>>,
+
+    leaders: VecDeque<NodeID>,
 }
 
 impl<N, H, C, CB> Debug for PeerNode<N, H, C, CB>
@@ -92,7 +104,13 @@ where
             local_node_info: Rc::new(RefCell::new(local_node_info)),
             nomination_protocol_states: Default::default(),
             ballot_protocol_states: Default::default(),
+            leaders: Default::default(),
         }
+    }
+
+    pub fn add_leader(&mut self, node_idx: &NodeID) {
+        println!("Node {:?} add leader {:?}", self.peer_idx, node_idx);
+        self.leaders.push_front(node_idx.clone());
     }
 
     pub fn get_current_nomination_state(
@@ -234,7 +252,7 @@ where
 
             self.nomination_protocol_states.insert(
                 slot_idx.clone(),
-                NominationProtocolState::new(self.peer_idx.clone()),
+                NominationProtocolState::new(self.leaders.front().unwrap().to_owned()),
             );
 
             self.ballot_protocol_states
@@ -245,6 +263,15 @@ where
     }
 
     fn on_scp_env(&mut self, scp_env: SCPEnvelope<N>) {
+        // Do not process it if it is not from the leader.
+        if let Some(leader) = self.leaders.front() {
+            if leader != &scp_env.node_id {
+                return;
+            }
+        } else {
+            return;
+        }
+
         let slot_idx: u64 = scp_env.slot_index.clone();
         let env_id = self.scp_envelope_controller.add_envelope(scp_env);
 

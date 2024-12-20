@@ -122,6 +122,12 @@ impl MockInMemoryNodeBuilder {
 
         Some(peer_handle)
     }
+
+    pub fn set_leader(&mut self, node_idx: &NodeID) {
+        for peer in self.nodes.values() {
+            peer.borrow_mut().add_leader(node_idx);
+        }
+    }
 }
 
 #[cfg(test)]

@@ -162,6 +162,7 @@ mod tests {
 
     use std::{
         collections::{BTreeSet, HashMap},
+        f64::consts::E,
         sync::Arc,
     };
 
@@ -408,17 +409,12 @@ mod tests {
     #[test]
     fn in_memory_peer_nominate_from_local_node_on_file() {
         let mut builder = MockInMemoryNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
-        let node1: Rc<
-            RefCell<
-                crate::overlay::peer_node::PeerNode<
-                    MockState,
-                    MockStateDriver,
-                    InMemoryConn<MockState>,
-                    InMemoryConnBuilder<MockState>,
-                >,
-            >,
-        > = builder.build_node("node1").unwrap();
+        let node1 = builder.build_node("node1").unwrap();
+
         let node2 = builder.build_node("node2").unwrap();
+
+        let leader_id = node1.borrow().peer_idx.clone();
+        builder.set_leader(&leader_id);
 
         node1.borrow_mut().slot_nominate(0);
 
@@ -426,14 +422,21 @@ mod tests {
             InMemoryGlobalState::process_messages(&builder.global_state, &mut builder.nodes) == 2
         );
 
-        let node1_nomnination_state = node1.borrow().get_current_nomination_state(&0).unwrap();
+        let node1_nomnination_state: NominationProtocolState<MockState> =
+            node1.borrow().get_current_nomination_state(&0).unwrap();
+        let node2_nomnination_state = node2.borrow().get_current_nomination_state(&0).unwrap();
 
-        // let node2_candidate = node2.borrow().nomination_protocol_states.get(&0);
+        // TODO: need to fix this
+        assert_eq!(
+            node1_nomnination_state.round_leaders,
+            node2_nomnination_state.round_leaders
+        );
+
+        assert_eq!(node1_nomnination_state.nomination_started, true);
+        assert_eq!(node2_nomnination_state.nomination_started, true);
 
         println!("node1 state: {:?}", node1_nomnination_state);
-        // println!("node2 state: {:?}", node2_candidate);
-
-        assert!(false);
+        println!("node2 state: {:?}", node2_nomnination_state);
     }
 
     //     #[test]

@@ -91,9 +91,9 @@ where
     pub timed_out: bool,
 }
 
-
 impl<N: NominationValue> NominationProtocolState<N> {
     pub fn new(leader_id: PeerID) -> Self {
+        println!("NominationProtocolState::new: leader_id: {:?}", leader_id);
         let mut state: NominationProtocolState<N> = Default::default();
         state.round_leaders.insert(leader_id);
         state
@@ -402,12 +402,15 @@ where
         let cur_env_id = self.create_envelope(st, envelope_controller);
 
         // Process the envelope. This may triggers more envelops being emitted.
-        match self.process_nomination_envelope(
+        let env_state = self.process_nomination_envelope(
             nomination_state,
             ballot_state,
             &cur_env_id,
             envelope_controller,
-        ) {
+        );
+
+        match env_state {
+            
             EnvelopeState::Valid => {
                 if nomination_state
                     .latest_envelope
@@ -580,6 +583,7 @@ where
         let env = envelope_controller.get_envelope(envelope).unwrap();
         let node_id = &env.node_id;
         let statement = env.get_statement().as_nomination_statement();
+        let mut env_id_to_emit = None;
 
         // TODO: this comment seems to be wrong
         // If we've processed the same envelope, we'll process it again
@@ -587,7 +591,7 @@ where
         // (e.g., tx set fetch)
 
         if nomination_state.processed_newer_statement(&node_id, statement, envelope_controller) {
-            return EnvelopeState::Invalid;
+            return EnvelopeState::Invalid ;
         }
 
         // if !nomination_state.is_sane(statement) {
@@ -662,7 +666,9 @@ where
 
             if modified {
                 // Somehow is not modified..
-                self.emit_nomination(nomination_state, ballot_state, envelope_controller);
+                println!("Emit nomination");
+                env_id_to_emit =
+                    self.emit_nomination(nomination_state, ballot_state, envelope_controller);
             }
 
             if new_candidates {
@@ -705,7 +711,7 @@ where
             }
         }
 
-        EnvelopeState::Valid
+        EnvelopeState::Valid 
     }
 }
 
