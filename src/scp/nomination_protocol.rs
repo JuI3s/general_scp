@@ -126,7 +126,7 @@ impl<N> SCPStatement<N>
 where
     N: NominationValue,
 {
-    fn as_nomination_statement(&self) -> &SCPStatementNominate<N> {
+    pub fn as_nomination_statement(&self) -> &SCPStatementNominate<N> {
         match self {
             SCPStatement::Nominate(st) => st,
             _ => panic!("Not a nomination statement."),
@@ -410,7 +410,6 @@ where
         );
 
         match env_state {
-            
             EnvelopeState::Valid => {
                 if nomination_state
                     .latest_envelope
@@ -448,7 +447,7 @@ where
         }
     }
 
-    fn accept_predicate(value: &N, statement: &SCPStatement<N>) -> bool {
+    pub fn accept_predicate(value: &N, statement: &SCPStatement<N>) -> bool {
         statement.as_nomination_statement().accepted.contains(value)
     }
 }
@@ -591,7 +590,7 @@ where
         // (e.g., tx set fetch)
 
         if nomination_state.processed_newer_statement(&node_id, statement, envelope_controller) {
-            return EnvelopeState::Invalid ;
+            return EnvelopeState::Invalid;
         }
 
         // if !nomination_state.is_sane(statement) {
@@ -601,117 +600,105 @@ where
 
         nomination_state.record_envelope(envelope, envelope_controller);
 
-        if nomination_state.nomination_started {
-            // Whether we have modified nomination state.
-            let modified = statement.votes.iter().any(|vote| {
-                if nomination_state.accepted.contains(vote) {
-                    return false;
-                }
+        println!(
+            "node {:?} nomination state {:?}",
+            self.node_idx(),
+            nomination_state
+        );
 
-                if self.federated_accept(
-                    |st| st.as_nomination_statement().votes.contains(vote),
-                    |st| Self::accept_predicate(vote, st),
-                    &nomination_state.latest_nominations,
-                    envelope_controller,
-                ) {
-                    match self.herder_driver.borrow().validate_value(vote, true) {
-                        ValidationLevel::FullyValidated => {
-                            let value = Arc::new(vote.clone());
-                            nomination_state.accepted.insert(value.clone());
-                            nomination_state.votes.insert(value.clone());
-                            return true;
-                        }
-                        _ => {
-                            if let Some(value) =
-                                self.herder_driver.borrow().extract_valid_value(vote)
-                            {
-                                nomination_state.accepted.insert(Arc::new(value.clone()));
-                                nomination_state.votes.insert(Arc::new(value.clone()));
-                                return true;
-                            }
-                        }
-                    }
-                }
-                false
-            });
+        // Whether we have modified nomination state.
+        let modified =
+            self.state_may_have_changed(statement, nomination_state, &envelope_controller);
 
-            println!("statemetn accepts: {:?}", statement.accepted);
-            println!("Nomination state accepts: {:?}", nomination_state.accepted);
+        println!(
+            "node {:?} statemetn accepts: {:?}",
+            self.node_idx(),
+            statement.accepted
+        );
+        println!(
+            "node {:?} Nomination state accepts: {:?}",
+            self.node_idx(),
+            nomination_state.accepted
+        );
+        println!(
+            "node {:?} quorum {:?}",
+            self.node_idx(),
+            self.local_node.borrow().quorum_set
+        );
 
-            let new_candidates = statement.accepted.iter().any(|value| {
-                if nomination_state.candidates.contains(value) {
-                    return false;
-                }
-
-                if self.federated_ratify(
-                    |st| Self::accept_predicate(value, st),
-                    &nomination_state.latest_nominations,
-                    envelope_controller,
-                ) {
-                    nomination_state.candidates.insert(Arc::new(value.clone()));
-
-                    // Stop the timer, as there's no need to continue nominating,
-                    // per the whitepaper:
-                    // "As soon as `v` has a candidate value, however, it must cease
-                    // voting to nominate `x` for any new values `x`"
-                    self.slot_state
-                        .borrow_mut()
-                        .stop_timer(&SlotStateTimer::NominationProtocol);
-
-                    return true;
-                }
-
-                false
-            });
-
-            if modified {
-                // Somehow is not modified..
-                println!("Emit nomination");
-                env_id_to_emit =
-                    self.emit_nomination(nomination_state, ballot_state, envelope_controller);
+        let new_candidates = statement.accepted.iter().any(|value| {
+            if nomination_state.candidates.contains(value) {
+                return false;
             }
 
-            if new_candidates {
-                // TODO: Is this correct?
+            if self.federated_ratify(
+                |st| Self::accept_predicate(value, st),
+                &nomination_state.latest_nominations,
+                envelope_controller,
+            ) {
+                nomination_state.candidates.insert(Arc::new(value.clone()));
 
-                if let Some(value) = self
-                    .herder_driver
-                    .borrow()
-                    .combine_candidates(&nomination_state.candidates)
-                {}
+                // Stop the timer, as there's no need to continue nominating,
+                // per the whitepaper:
+                // "As soon as `v` has a candidate value, however, it must cease
+                // voting to nominate `x` for any new values `x`"
+                self.slot_state
+                    .borrow_mut()
+                    .stop_timer(&SlotStateTimer::NominationProtocol);
 
-                *nomination_state.latest_composite_candidate.lock().unwrap() = self
-                    .herder_driver
-                    .borrow()
-                    .combine_candidates(&nomination_state.candidates);
-
-                let _ = match nomination_state
-                    .latest_composite_candidate
-                    .clone()
-                    .lock()
-                    .unwrap()
-                    .as_ref()
-                {
-                    Some(val) => {
-                        self.bump_state_(
-                            val,
-                            ballot_state,
-                            nomination_state,
-                            false,
-                            envelope_controller,
-                        );
-                    }
-                    None => {
-                        todo!();
-                    }
-                };
-            } else {
-                //
-                println!("Nomnation candidates: {:?}", nomination_state.candidates);
+                return true;
             }
+
+            false
+        });
+
+        if modified {
+            // Somehow is not modified..
+            println!("Node {} emit nomination", self.node_idx());
+            env_id_to_emit =
+                self.emit_nomination(nomination_state, ballot_state, envelope_controller);
         }
 
-        EnvelopeState::Valid 
+        if new_candidates {
+            // TODO: Is this correct?
+
+            if let Some(value) = self
+                .herder_driver
+                .borrow()
+                .combine_candidates(&nomination_state.candidates)
+            {}
+
+            *nomination_state.latest_composite_candidate.lock().unwrap() = self
+                .herder_driver
+                .borrow()
+                .combine_candidates(&nomination_state.candidates);
+
+            let _ = match nomination_state
+                .latest_composite_candidate
+                .clone()
+                .lock()
+                .unwrap()
+                .as_ref()
+            {
+                Some(val) => {
+                    self.bump_state_(
+                        val,
+                        ballot_state,
+                        nomination_state,
+                        false,
+                        envelope_controller,
+                    );
+                }
+                None => {
+                    todo!();
+                }
+            };
+        } else {
+            //
+            println!("Nomnation candidates: {:?}", nomination_state.candidates);
+        }
+
+        EnvelopeState::Valid
     }
 }
 

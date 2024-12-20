@@ -28,7 +28,7 @@ use super::{
     queue::SlotJobQueue,
     scp::{EnvelopeState, NodeID},
     slot::SlotIndex,
-    statement::SCPStatement,
+    statement::{SCPStatement, SCPStatementNominate},
 };
 
 pub type HSCPDriver<N> = Arc<Mutex<dyn SCPDriver<N>>>;
@@ -242,6 +242,48 @@ where
         }
     }
 
+    pub fn state_may_have_changed(
+        &self,
+        statement: &SCPStatementNominate<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+        envelope_controller: &SCPEnvelopeController<N>,
+    ) -> bool {
+        let modified = statement.votes.iter().any(|vote| {
+            if nomination_state.accepted.contains(vote) {
+                return false;
+            }
+
+            if self.federated_accept(
+                |st| st.as_nomination_statement().votes.contains(vote),
+                |st| Self::accept_predicate(vote, st),
+                &nomination_state.latest_nominations,
+                envelope_controller,
+            ) {
+                match self.herder_driver.borrow().validate_value(vote, true) {
+                    ValidationLevel::FullyValidated => {
+                        let value = Arc::new(vote.clone());
+                        nomination_state.accepted.insert(value.clone());
+                        nomination_state.votes.insert(value.clone());
+                        true;
+                    }
+                    _ => {
+                        if let Some(value) = self.herder_driver.borrow().extract_valid_value(vote) {
+                            nomination_state.accepted.insert(Arc::new(value.clone()));
+                            nomination_state.votes.insert(Arc::new(value.clone()));
+                            true;
+                        }
+                    }
+                }
+            }
+            false
+        });
+        modified
+    }
+
+    pub fn node_idx(&self) -> NodeID {
+        self.local_node.borrow().node_id.to_owned()
+    }
+
     pub fn recv_scp_envelvope(
         self: &Arc<Self>,
         nomination_state: &mut NominationProtocolState<N>,
@@ -345,13 +387,17 @@ where
         statement: SCPStatement<N>,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> SCPEnvelopeID {
+        /// Create an envelope and add it to the queue of envelopes to be emitted.
         let env = SCPEnvelope {
             statement,
             node_id: self.local_node.borrow().node_id.clone(),
             slot_index: self.slot_index.clone(),
             signature: test_default_blake2(),
         };
-        envelope_controller.add_envelope(env)
+
+        let env_id = envelope_controller.add_envelope(env);
+        envelope_controller.add_env_to_emit(&env_id);
+        env_id
     }
 
     fn get_latest_message(

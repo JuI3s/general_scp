@@ -410,7 +410,6 @@ mod tests {
     fn in_memory_peer_nominate_from_local_node_on_file() {
         let mut builder = MockInMemoryNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
         let node1 = builder.build_node("node1").unwrap();
-
         let node2 = builder.build_node("node2").unwrap();
 
         let leader_id = node1.borrow().peer_idx.clone();
@@ -432,11 +431,16 @@ mod tests {
             node2_nomnination_state.round_leaders
         );
 
-        assert_eq!(node1_nomnination_state.nomination_started, true);
-        assert_eq!(node2_nomnination_state.nomination_started, true);
+        assert!(node1.borrow().scp_envelope_controller.envs_to_emit.len() == 1);
+        assert!(node2.borrow().scp_envelope_controller.envs_to_emit.len() > 0);
+        
 
-        println!("node1 state: {:?}", node1_nomnination_state);
-        println!("node2 state: {:?}", node2_nomnination_state);
+
+    //     assert_eq!(node1_nomnination_state.nomination_started, true);
+    //     assert_eq!(node2_nomnination_state.nomination_started, true);
+
+    //     println!("node1 state: {:?}", node1_nomnination_state);
+    //     println!("node2 state: {:?}", node2_nomnination_state);
     }
 
     //     #[test]

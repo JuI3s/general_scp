@@ -10,7 +10,7 @@ use crate::{
     overlay::{
         message::{MessageController, SCPMessage},
         peer::PeerID,
-    },
+},
     scp::nomination_protocol::NominationValue,
 };
 

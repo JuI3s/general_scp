@@ -48,7 +48,7 @@ where
     pub ballot_protocol_states: BTreeMap<SlotIndex, BallotProtocolState<N>>,
 
     conn_builder: CB,
-    scp_envelope_controller: SCPEnvelopeController<N>,
+    pub scp_envelope_controller: SCPEnvelopeController<N>,
     herder: Rc<RefCell<H>>,
 
     work_scheduler: Rc<RefCell<WorkScheduler>>,
@@ -283,7 +283,8 @@ where
             &mut self.scp_envelope_controller,
         );
 
-        println!("Slot {} recv env {:?}", slot_idx, res);
+
+        println!("Node: {} Slot {} recv env {:?}", self.local_node_info.borrow().node_id, slot_idx, res);
     }
 
     pub fn process_all_messages(&mut self) -> usize {

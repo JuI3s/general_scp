@@ -12,7 +12,9 @@ use std::{
 use serde_derive::{Deserialize, Serialize};
 
 use crate::{
-    application::quorum::{HQuorumSet, QuorumNode, QuorumSet, QuorumSlice}, mock::state::MockState, utils::config::test_data_dir
+    application::quorum::{HQuorumSet, QuorumNode, QuorumSet, QuorumSlice},
+    mock::state::MockState,
+    utils::config::test_data_dir,
 };
 
 use super::{
@@ -30,7 +32,6 @@ pub struct LocalNodeInfoBuilderFromFile {
 }
 
 impl LocalNodeInfoBuilderFromFile {
-
     pub fn new(quorum_dir_path: &str) -> Self {
         let quorum_dir = test_data_dir()
             .join(LocalNodeInfo::<MockState>::TEST_DATA_DIR)
@@ -231,8 +232,6 @@ where
                 nodes.push(entry.0.clone());
             }
         });
-        println!("nodes: {:?}", nodes);
-        todo!();
         LocalNodeInfo::<N>::is_v_blocking(quorum_set, &nodes)
     }
 
@@ -353,7 +352,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{net::{Ipv4Addr, SocketAddrV4}, sync::{Arc, Mutex}};
+    use std::{
+        arch::aarch64::veor3q_s16,
+        net::{Ipv4Addr, SocketAddrV4},
+        sync::{Arc, Mutex},
+    };
 
     use crate::{
         application::quorum::QuorumNode,
@@ -455,5 +458,33 @@ mod tests {
             LocalNodeInfo::is_quorum(None, &envelopes, get_quorum_set_predicate, &env_controller),
             false
         );
+    }
+
+    #[test]
+    fn test_is_v_blocking() {
+        let mut builder = LocalNodeInfoBuilderFromFile::new("test");
+        let node1_info: LocalNodeInfo<MockState> = builder.build_from_file("node1").unwrap();
+
+        let node_sets = vec![
+            vec!["node1".to_string()],
+            vec!["node1".to_string(), "node2".to_string()],
+            vec!["node2".to_string()],
+            vec![
+                "node1".to_string(),
+                "node2".to_string(),
+                "node3".to_string(),
+            ],
+        ];
+
+        for node_set in node_sets {
+            let is_v_blocking =
+                LocalNodeInfo::<MockState>::is_v_blocking(&node1_info.quorum_set, &node_set);
+            assert!(is_v_blocking);
+        }
+
+        assert!(!LocalNodeInfo::<MockState>::is_v_blocking(
+            &node1_info.quorum_set,
+            &vec!["node3".to_string()]
+        ));
     }
 }

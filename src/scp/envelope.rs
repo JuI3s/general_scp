@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, time::SystemTime};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    time::SystemTime,
+};
 
 use serde_derive::{Deserialize, Serialize};
 
@@ -32,6 +35,7 @@ pub struct SCPEnvelopeController<N>
 where
     N: NominationValue,
 {
+    pub envs_to_emit: VecDeque<SCPEnvelopeID>,
     envelopes: BTreeMap<SCPEnvelopeID, SCPEnvelope<N>>,
     // envelopes:
 }
@@ -42,8 +46,17 @@ where
 {
     pub fn new() -> Self {
         Self {
+            envs_to_emit: Default::default(),
             envelopes: Default::default(),
         }
+    }
+
+    pub fn pop_next_env_to_emit(&mut self) -> Option<SCPEnvelopeID> {
+        self.envs_to_emit.pop_front()
+    }
+
+    pub fn add_env_to_emit(&mut self, env_id: &SCPEnvelopeID) {
+        self.envs_to_emit.push_back(env_id.clone());
     }
 
     pub fn add_envelope(&mut self, envelope: SCPEnvelope<N>) -> SCPEnvelopeID {
