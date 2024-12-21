@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
+    env,
     fs::{self, create_dir_all},
     io::Write,
     iter::{self},
@@ -12,7 +13,7 @@ use std::{
 use serde_derive::{Deserialize, Serialize};
 
 use crate::{
-    application::quorum::{HQuorumSet, QuorumNode, QuorumSet, QuorumSlice},
+    application::quorum::{is_v_blocking, HQuorumSet, QuorumNode, QuorumSet, QuorumSlice},
     mock::state::MockState,
     utils::config::test_data_dir,
 };
@@ -202,23 +203,6 @@ where
         true
     }
 
-    // This implementation is different from the Stellar implementation because we
-    // have different data structures.
-    pub fn is_v_blocking(quorum_set: &QuorumSet, node_set: &Vec<NodeID>) -> bool {
-        // TODO: do we need this? Now validators are represented by quorum slices.
-        // if quorum_set.threshold == 0 {
-        // return false;
-        // }
-        quorum_set.slices.iter().all(|quorum_slice| {
-            node_set.iter().any(|node| {
-                quorum_slice
-                    .data
-                    .iter()
-                    .any(|node_data| node_data.node_id == *node)
-            })
-        })
-    }
-
     pub fn is_v_blocking_with_predicate(
         quorum_set: &QuorumSet,
         envelope_map: &BTreeMap<NodeID, SCPEnvelopeID>,
@@ -228,11 +212,17 @@ where
         let mut nodes: Vec<NodeID> = vec![];
         envelope_map.iter().for_each(|entry| {
             let env = envelope_controller.get_envelope(entry.1).unwrap();
+            println!(
+                "env st votes: {:?}",
+                env.get_statement().get_nomination_values()
+            );
+
             if filter(env.get_statement()) {
                 nodes.push(entry.0.clone());
             }
         });
-        LocalNodeInfo::<N>::is_v_blocking(quorum_set, &nodes)
+        println!("is_v_blocking_with_predicate nodes: {:?}", nodes);
+        is_v_blocking(quorum_set, &nodes)
     }
 
     fn nodes_fill_quorum_slice(quorum_slice: &QuorumSlice, nodes: &Vec<NodeID>) -> bool {
@@ -266,6 +256,10 @@ where
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
         // let mut nodes: Vec<NodeID> = vec![];
+        println!(
+            "is_quorum_with_node_filter local_quorum: {:?}, envelopes: {:?}",
+            local_quorum, envelopes
+        );
 
         let mut nodes: Vec<NodeID> = envelopes
             .iter()
@@ -282,9 +276,11 @@ where
             .map(|x| x.unwrap())
             .collect();
 
-        if let Some((_, local_node_id)) = local_quorum {
-            nodes.push(local_node_id.to_owned());
-        }
+        // TODO: do not need input from self?
+        // if let Some((_, local_node_id)) = local_quorum {
+        //     nodes.push(local_node_id.to_owned());
+        // }
+        println!("nodes: {:?}", nodes);
 
         // Definition (quorum). A set of nodes 𝑈 ⊆ 𝐕 in FBAS ⟨𝐕,𝐐⟩ is a quorum iff 𝑈 ≠ ∅
         // and 𝑈 contains a slice for each member—i.e., ∀𝑣 ∈ 𝑈 , ∃𝑞 ∈ 𝐐(𝑣) such that 𝑞 ⊆
@@ -326,6 +322,7 @@ where
         get_quorum_set_predicate: impl Fn(&SCPStatement<N>) -> Option<HQuorumSet>,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
+        todo!();
         LocalNodeInfo::is_quorum_with_node_filter(
             local_quorum,
             envelopes,
@@ -458,33 +455,5 @@ mod tests {
             LocalNodeInfo::is_quorum(None, &envelopes, get_quorum_set_predicate, &env_controller),
             false
         );
-    }
-
-    #[test]
-    fn test_is_v_blocking() {
-        let mut builder = LocalNodeInfoBuilderFromFile::new("test");
-        let node1_info: LocalNodeInfo<MockState> = builder.build_from_file("node1").unwrap();
-
-        let node_sets = vec![
-            vec!["node1".to_string()],
-            vec!["node1".to_string(), "node2".to_string()],
-            vec!["node2".to_string()],
-            vec![
-                "node1".to_string(),
-                "node2".to_string(),
-                "node3".to_string(),
-            ],
-        ];
-
-        for node_set in node_sets {
-            let is_v_blocking =
-                LocalNodeInfo::<MockState>::is_v_blocking(&node1_info.quorum_set, &node_set);
-            assert!(is_v_blocking);
-        }
-
-        assert!(!LocalNodeInfo::<MockState>::is_v_blocking(
-            &node1_info.quorum_set,
-            &vec!["node3".to_string()]
-        ));
     }
 }

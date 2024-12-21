@@ -205,8 +205,24 @@ impl<const N: usize> From<[QuorumNode; N]> for QuorumSlice {
     }
 }
 
+pub fn is_v_blocking(quorum_set: &QuorumSet, node_set: &Vec<NodeID>) -> bool {
+    quorum_set.slices.iter().all(|quorum_slice| {
+        node_set.iter().any(|node| {
+            quorum_slice
+                .data
+                .iter()
+                .any(|node_data| node_data.node_id == *node)
+        })
+    })
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::{
+        mock::state::MockState,
+        scp::local_node::{LocalNodeInfo, LocalNodeInfoBuilderFromFile},
+    };
+
     use super::*;
 
     #[test]
@@ -239,5 +255,31 @@ mod tests {
 
         let quorum_set = QuorumSet::from([quorum_slice1, quorum_slice2]);
         assert_eq!(quorum_set.slices.len(), 2);
+    }
+    #[test]
+    fn test_is_v_blocking() {
+        let mut builder = LocalNodeInfoBuilderFromFile::new("test");
+        let node1_info: LocalNodeInfo<MockState> = builder.build_from_file("node1").unwrap();
+
+        let node_sets = vec![
+            vec!["node1".to_string()],
+            vec!["node1".to_string(), "node2".to_string()],
+            vec!["node2".to_string()],
+            vec![
+                "node1".to_string(),
+                "node2".to_string(),
+                "node3".to_string(),
+            ],
+        ];
+
+        for node_set in node_sets {
+            let is_v_blocking = is_v_blocking(&node1_info.quorum_set, &node_set);
+            assert!(is_v_blocking);
+        }
+
+        assert!(is_v_blocking(
+            &node1_info.quorum_set,
+            &vec!["node3".to_string()]
+        ));
     }
 }

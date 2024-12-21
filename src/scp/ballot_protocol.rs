@@ -1218,6 +1218,7 @@ where
                 }
             };
 
+            todo!();
             if LocalNodeInfo::is_quorum(
                 Some((
                     &self.local_node.borrow().quorum_set,

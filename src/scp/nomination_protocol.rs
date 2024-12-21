@@ -652,6 +652,8 @@ where
             false
         });
 
+        println!("node {:?} process_nomination_envelope new_candidates: {:?}", self.node_idx(), new_candidates);
+
         if modified {
             // Somehow is not modified..
             println!("Node {} emit nomination", self.node_idx());
@@ -681,6 +683,7 @@ where
                 .as_ref()
             {
                 Some(val) => {
+                    todo!();
                     self.bump_state_(
                         val,
                         ballot_state,

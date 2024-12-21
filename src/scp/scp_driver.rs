@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::{
     application::{
-        quorum::QuorumSet,
+        quorum::{is_v_blocking, QuorumSet},
         work_queue::{HClockEvent, WorkScheduler},
     },
     crypto::types::{test_default_blake2, Blake2Hashable},
@@ -242,16 +242,39 @@ where
         }
     }
 
+    fn try_accept_value(
+        &self,
+        statement: &SCPStatementNominate<N>,
+        nomination_state: &mut NominationProtocolState<N>,
+        envelope_controller: &SCPEnvelopeController<N>,
+    ) -> bool {
+        // Logic for accepting a nomination value as described in the paper (copied below) https://johnpconley.com/wp-content/uploads/2021/01/stellar-consensus-protocol.pdf. Returns true if the value was accepted, false otherwise.
+        //
+        //  (1) There exists a quorum 𝑈 such that 𝑣 ∈ 𝑈 and each member of 𝑈 either voted for 𝑎 or claims to accept 𝑎, or
+        //  (2) Each member of a 𝑣-blocking set claims to accept 𝑎.
+
+        false
+    }
+
     pub fn state_may_have_changed(
         &self,
         statement: &SCPStatementNominate<N>,
         nomination_state: &mut NominationProtocolState<N>,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
+        // TODO: Need to check if we need to accept the statement.
+
+        println!("state_may_have_changed votes: {:?}", statement.votes);
         let modified = statement.votes.iter().any(|vote| {
+            println!("state_may_have_changed cur vote: {:?}", vote);
             if nomination_state.accepted.contains(vote) {
                 return false;
             }
+            println!("Node idx: {:?}", self.node_idx());
+            println!(
+                "latest nominations: {:?}",
+                nomination_state.latest_nominations
+            );
 
             if self.federated_accept(
                 |st| st.as_nomination_statement().votes.contains(vote),
@@ -444,7 +467,7 @@ where
             true
         });
 
-        if LocalNodeInfo::<N>::is_v_blocking(&local_node.quorum_set, &nodes) {
+        if is_v_blocking(&local_node.quorum_set, &nodes) {
             self.slot_state.borrow_mut().got_v_blocking = true;
         }
     }
@@ -497,5 +520,7 @@ mod tests {
     }
 
     #[test]
-    fn test_federated_accept() {}
+    fn test_federated_accept() {
+        todo!()
+    }
 }
