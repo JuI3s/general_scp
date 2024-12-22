@@ -25,11 +25,16 @@ impl NodeBuilderDir {
     }
 }
 
-pub type MockInMemoryPeerNode =
-    PeerNode<MockState, MockStateDriver, InMemoryConn<MockState>, InMemoryConnBuilder<MockState>>;
+pub type MockInMemoryPeerNode<'a> = PeerNode<
+    'a,
+    MockState,
+    MockStateDriver,
+    InMemoryConn<MockState>,
+    InMemoryConnBuilder<MockState>,
+>;
 
-pub type MockTCPPeerNode =
-    PeerNode<MockState, MockStateDriver, TCPConn<MockState>, TCPConnBuilder<MockState>>;
+pub type MockTCPPeerNode<'a> =
+    PeerNode<'a, MockState, MockStateDriver, TCPConn<MockState>, TCPConnBuilder<MockState>>;
 
 pub fn start_tcp_node(node_idx: &str) -> Rc<RefCell<MockTCPPeerNode>> {
     let mut builder = MockTCPNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
@@ -38,12 +43,12 @@ pub fn start_tcp_node(node_idx: &str) -> Rc<RefCell<MockTCPPeerNode>> {
     peer
 }
 
-pub struct MockTCPNodeBuilder {
-    pub nodes: HashMap<NodeID, Rc<RefCell<MockTCPPeerNode>>>,
+pub struct MockTCPNodeBuilder<'a> {
+    pub nodes: HashMap<NodeID, Rc<RefCell<MockTCPPeerNode<'a>>>>,
     local_node_info_builder: LocalNodeInfoBuilderFromFile,
 }
 
-impl MockTCPNodeBuilder {
+impl<'a> MockTCPNodeBuilder<'a> {
     pub fn new(quorum_dir_path: &str) -> Self {
         let local_node_info_builder = LocalNodeInfoBuilderFromFile::new(quorum_dir_path);
 

@@ -896,7 +896,7 @@ where
     }
 }
 
-impl<N, H> SlotDriver<N, H>
+impl<'a, N, H> SlotDriver<'a, N, H>
 where
     N: NominationValue + 'static,
     H: HerderDriver<N> + 'static,
@@ -918,7 +918,7 @@ where
         let mut contains_maybe_valid = false;
 
         for value in &values {
-            let res = self.herder_driver.borrow().validate_value(value, false);
+            let res = self.herder_driver.validate_value(value, false);
             if res == ValidationLevel::Invalid {
                 return ValidationLevel::Invalid;
             }
@@ -942,11 +942,8 @@ where
     fn is_statement_sane(self: &Arc<Self>, st: &SCPStatement<N>, from_self: bool) -> bool {
         if !self
             .herder_driver
-            .borrow()
             .get_quorum_set(st)
-            .is_some_and(|qs| {
-                self.is_quorum_set_sane(std::borrow::Borrow::borrow(&qs.lock().unwrap()))
-            })
+            .is_some_and(|qs| self.is_quorum_set_sane(qs))
         {
             return false;
         }
@@ -973,7 +970,6 @@ where
             }
             state.last_envelope_emitted = state.last_envelope.to_owned();
             self.herder_driver
-                .borrow()
                 .emit_envelope(&last_envelope.lock().unwrap())
         }
     }
@@ -989,8 +985,8 @@ where
         }
 
         let statement: SCPStatement<N> =
-            state.create_statement(self.local_node.borrow().quorum_set.hash_value());
-        let local_node_id = self.local_node.borrow().node_id.clone();
+            state.create_statement(self.local_node.quorum_set.hash_value());
+        let local_node_id = self.local_node.node_id.clone();
         // TODO:
         let envelope = SCPEnvelope::<N>::new(
             statement,
@@ -1044,9 +1040,8 @@ where
         counter: u32,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
-        let local_node = self.local_node.borrow();
         LocalNodeInfo::is_v_blocking_with_predicate(
-            &self.local_node.borrow().quorum_set,
+            &self.local_node.quorum_set,
             envelopes,
             &|st| st.ballot_counter() > counter,
             envelope_controller,
@@ -1225,17 +1220,20 @@ where
                 |_| true,
             );
 
-            let get_quorum_set_predicate = |node_id| {
+            let get_quorum_set_predicate = |node_id: &NodeID| {
+                if node_id == self.local_node.node_id.as_str() {
+                    return Some(&self.local_node.quorum_set);
+                }
                 let env_id = ballot_state.latest_envelopes.get(node_id).clone().unwrap();
                 let env = envelope_controller.get_envelope(env_id).unwrap();
                 let st = env.get_statement();
-                self.herder_driver.borrow().get_quorum_set(st)
+                self.herder_driver.get_quorum_set(st)
             };
 
             if is_quorum_with_node_filter(
                 Some((
-                    &self.local_node.borrow().quorum_set,
-                    &self.local_node.borrow().node_id,
+                    &self.local_node.quorum_set,
+                    &self.local_node.node_id,
                 )),
                 get_quorum_set_predicate,
                 &nodes,
@@ -1270,7 +1268,7 @@ where
     }
 
     fn start_ballot_protocol_timer(self: &Arc<Self>, ballot_state: &BallotProtocolState<N>) {
-        let timeout = self.herder_driver.borrow().compute_timeout(
+        let timeout = self.herder_driver.compute_timeout(
             ballot_state
                 .current_ballot
                 .lock()
@@ -1302,7 +1300,7 @@ where
     }
 }
 
-impl<N, H> BallotProtocol<N> for SlotDriver<N, H>
+impl<'a, N, H> BallotProtocol<N> for SlotDriver<'a, N, H>
 where
     N: NominationValue,
     H: HerderDriver<N> + 'static,

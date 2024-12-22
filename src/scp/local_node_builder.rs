@@ -53,7 +53,7 @@ where
         self
     }
 
-    pub fn build(self) -> Result<HLocalNode<N>, &'static str> {
+    pub fn build(self) -> Result<LocalNodeInfo<N>, &'static str> {
         if self.is_validator.is_none() {
             return Err("Missing is_validator.");
         }

@@ -10,7 +10,7 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    application::quorum::HQuorumSet,
+    application::quorum::{HQuorumSet, QuorumSet},
     herder::herder::{HerderBuilder, HerderDriver},
     scp::{
         envelope::SCPEnvelope, nomination_protocol::NominationValue, scp_driver::HashValue,
@@ -69,7 +69,7 @@ impl NominationValue for MockState {}
 
 #[derive(Clone)]
 pub struct MockStateDriver {
-    quorum_set_map: BTreeMap<HashValue, HQuorumSet>,
+    quorum_set_map: BTreeMap<HashValue, QuorumSet>,
 }
 
 impl MockStateDriver {
@@ -129,10 +129,8 @@ impl HerderDriver<MockState> for MockStateDriver {
     fn get_quorum_set(
         &self,
         statement: &crate::scp::statement::SCPStatement<MockState>,
-    ) -> Option<crate::application::quorum::HQuorumSet> {
-        self.quorum_set_map
-            .get(&statement.quorum_set_hash_value())
-            .map(|val| val.clone())
+    ) -> std::option::Option<&QuorumSet> {
+        self.quorum_set_map.get(&statement.quorum_set_hash_value())
     }
 
     fn validate_value(
@@ -168,7 +166,11 @@ mod tests {
 
     use crate::{
         application::{clock::VirtualClock, quorum::QuorumSet},
-        mock::builder::{MockInMemoryNodeBuilder, NodeBuilderDir},
+        mock::{
+            self,
+            builder::{MockInMemoryNodeBuilder, NodeBuilderDir},
+        },
+        overlay::peer_node::PeerNode,
         overlay_impl::{
             in_memory_conn::{InMemoryConn, InMemoryConnBuilder},
             in_memory_global::InMemoryGlobalState,
@@ -214,9 +216,9 @@ mod tests {
 
         let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
             .slot_index(0)
-            .herder_driver(Rc::new(RefCell::new(state_driver)))
+            .herder_driver(&state_driver)
             .timer(Rc::new(RefCell::new(timer_handle)))
-            .local_node(local_node)
+            .local_node(&local_node)
             .build()
             .unwrap();
     }
@@ -313,10 +315,11 @@ mod tests {
         herder
     }
 
-    fn set_up_test_nodes() -> (
+    fn set_up_test_nodes<'a>() -> (
         Rc<
             RefCell<
-                crate::overlay::peer_node::PeerNode<
+                PeerNode<
+                    'a,
                     MockState,
                     MockStateDriver,
                     InMemoryConn<MockState>,
@@ -326,7 +329,8 @@ mod tests {
         >,
         Rc<
             RefCell<
-                crate::overlay::peer_node::PeerNode<
+                PeerNode<
+                    'a,
                     MockState,
                     MockStateDriver,
                     InMemoryConn<MockState>,
@@ -335,10 +339,11 @@ mod tests {
             >,
         >,
         HashMap<
-            String,
+            std::string::String,
             Rc<
                 RefCell<
-                    crate::overlay::peer_node::PeerNode<
+                    PeerNode<
+                        'a,
                         MockState,
                         MockStateDriver,
                         InMemoryConn<MockState>,
@@ -347,7 +352,7 @@ mod tests {
                 >,
             >,
         >,
-        InMemoryPeerBuilder<MockState, MockStateDriver, MockStateDriverBuilder>,
+        InMemoryPeerBuilder<MockState, MockStateDriver, mock::state::MockStateDriverBuilder>,
     ) {
         let herder_builder = MockStateDriverBuilder {};
         let mut node_builder = InMemoryPeerBuilder::new(herder_builder);
@@ -433,14 +438,12 @@ mod tests {
 
         assert!(node1.borrow().scp_envelope_controller.envs_to_emit.len() == 1);
         assert!(node2.borrow().scp_envelope_controller.envs_to_emit.len() > 0);
-        
 
+        //     assert_eq!(node1_nomnination_state.nomination_started, true);
+        //     assert_eq!(node2_nomnination_state.nomination_started, true);
 
-    //     assert_eq!(node1_nomnination_state.nomination_started, true);
-    //     assert_eq!(node2_nomnination_state.nomination_started, true);
-
-    //     println!("node1 state: {:?}", node1_nomnination_state);
-    //     println!("node2 state: {:?}", node2_nomnination_state);
+        //     println!("node1 state: {:?}", node1_nomnination_state);
+        //     println!("node2 state: {:?}", node2_nomnination_state);
     }
 
     //     #[test]

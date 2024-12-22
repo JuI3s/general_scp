@@ -1,10 +1,5 @@
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
-    fs::{self, create_dir},
-    hash::{Hash, Hasher},
-    io::Write,
-    net::{Ipv4Addr, SocketAddrV4},
-    sync::{Arc, Mutex},
+    cell::RefCell, collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet}, fs::{self, create_dir}, hash::{Hash, Hasher}, io::Write, net::{Ipv4Addr, SocketAddrV4}, rc::Rc, sync::{Arc, Mutex}
 };
 
 use blake2::Digest;
@@ -28,7 +23,7 @@ use crate::{
 // pub type QuorumSet = HashSet<SocketAddr>;
 // pub type Quorum = HashSet<QuorumSet>;
 pub type QuorumSetHash = Blake2Hash;
-pub type HQuorumSet = Arc<Mutex<QuorumSet>>;
+pub type HQuorumSet = Rc<RefCell<QuorumSet>>;
 
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize)]
 pub struct QuorumNode {
@@ -259,7 +254,6 @@ pub fn nodes_fill_one_quorum_slice_in_quorum_set(
         .any(|slice| nodes_fill_quorum_slice(slice, nodes))
 }
 
-
 // `is_quorum_with_node_filter` tests if the filtered nodes V form a quorum
 // (meaning for each v \in V there is q \in Q(v)
 // isQuorumincluded in V and we have quorum on V for qSetHash). `qfun` extracts
@@ -267,18 +261,18 @@ pub fn nodes_fill_one_quorum_slice_in_quorum_set(
 // (required for transitivity)
 pub fn is_quorum_with_node_filter<'a>(
     local_quorum: Option<(&QuorumSet, &NodeID)>,
-    get_quorum_set: impl Fn(&'a NodeID) -> Option<HQuorumSet>,
+    get_quorum_set: impl Fn(&'a NodeID) -> Option<&QuorumSet>,
     nodes: &'a Vec<NodeID>,
 ) -> bool {
+    // Definition (quorum). A set of nodes 𝑈 ⊆ 𝐕 in FBAS ⟨𝐕,𝐐⟩ is a quorum iff 𝑈 ≠ ∅
+    // and 𝑈 contains a slice for each member—i.e., ∀𝑣 ∈ 𝑈 , ∃𝑞 ∈ 𝐐(𝑣) such that 𝑞 ⊆
+    // 𝑈 .
+
     // TODO: do not need input from self?
     // if let Some((_, local_node_id)) = local_quorum {
     //     nodes.push(local_node_id.to_owned());
     // }
     println!("nodes: {:?}", nodes);
-
-    // Definition (quorum). A set of nodes 𝑈 ⊆ 𝐕 in FBAS ⟨𝐕,𝐐⟩ is a quorum iff 𝑈 ≠ ∅
-    // and 𝑈 contains a slice for each member—i.e., ∀𝑣 ∈ 𝑈 , ∃𝑞 ∈ 𝐐(𝑣) such that 𝑞 ⊆
-    // 𝑈 .
 
     let mut ret = if nodes.is_empty() {
         false
@@ -289,13 +283,14 @@ pub fn is_quorum_with_node_filter<'a>(
             // let statement = env.get_statement();
 
             if let Some(quorum_set) = get_quorum_set(node) {
-                nodes_fill_one_quorum_slice_in_quorum_set(&quorum_set.lock().unwrap(), &nodes)
+                nodes_fill_one_quorum_slice_in_quorum_set(&quorum_set, &nodes)
             } else {
                 false
             }
         })
     };
 
+    // TODO: should refactor this outside the function
     // Check for local node.
     if let Some((local_quorum_set, _)) = local_quorum {
         ret = ret && nodes_fill_one_quorum_slice_in_quorum_set(local_quorum_set, &nodes);

@@ -13,7 +13,9 @@ use std::{
 use log::debug;
 use serde::Serialize;
 
-use crate::{application::quorum::accept_predicate, herder::herder::HerderDriver, overlay::peer::PeerID};
+use crate::{
+    application::quorum::accept_predicate, herder::herder::HerderDriver, overlay::peer::PeerID,
+};
 
 use super::{
     ballot_protocol::BallotProtocolState,
@@ -371,7 +373,7 @@ where
     }
 }
 
-impl<N, H> SlotDriver<N, H>
+impl<'a, N, H> SlotDriver<'a, N, H>
 where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
@@ -387,7 +389,6 @@ where
         // checked for validity before being passed to Herder for broadcasting.
         println!("Emit nomination");
 
-        let local_node = self.local_node.borrow();
         let votes = nomination_state.get_current_votes();
 
         println!("accepted: {:?}", nomination_state.accepted);
@@ -395,7 +396,7 @@ where
 
         // Creating the nomination statement
         let nom_st: SCPStatementNominate<N> =
-            SCPStatementNominate::<N>::new(&local_node.quorum_set, votes);
+            SCPStatementNominate::<N>::new(&self.local_node.quorum_set, votes);
 
         // Creating the envelop
         let st = SCPStatement::Nominate(nom_st);
@@ -446,11 +447,9 @@ where
             }
         }
     }
-
-    
 }
 
-impl<N, H> NominationProtocol<N> for SlotDriver<N, H>
+impl<'a, N, H> NominationProtocol<N> for SlotDriver<'a, N, H>
 where
     N: NominationValue + 'static,
     H: HerderDriver<N> + 'static,
@@ -486,42 +485,32 @@ where
         state.previous_value = previous_value.clone();
         state.round_number += 1;
 
-        let timeout: std::time::Duration = self
-            .herder_driver
-            .borrow()
-            .compute_timeout(state.round_number);
+        let timeout: std::time::Duration = self.herder_driver.compute_timeout(state.round_number);
 
         {
-            let local_node = &self.local_node.borrow();
-
             updated = updated
                 || state.gather_votes_from_round_leaders(
                     &self.slot_index,
-                    &local_node.node_id,
-                    &|value| self.herder_driver.borrow().extract_valid_value(value),
-                    &|value| self.herder_driver.borrow().validate_value(value, true),
-                    &|value| {
-                        self.herder_driver
-                            .borrow()
-                            .nominating_value(value, &self.slot_index)
-                    },
+                    &self.local_node.node_id,
+                    &|value| self.herder_driver.extract_valid_value(value),
+                    &|value| self.herder_driver.validate_value(value, true),
+                    &|value| self.herder_driver.nominating_value(value, &self.slot_index),
                     envelope_controller,
                 );
 
             // if we're leader, add our value if we haven't added any votes yet
-            if state.round_leaders.contains(&local_node.node_id) && state.votes.is_empty() {
+            if state.round_leaders.contains(&self.local_node.node_id) && state.votes.is_empty() {
                 state.votes.insert(value.clone().into());
                 state.accepted.insert(value.clone().into());
                 updated = true;
                 self.herder_driver
-                    .borrow()
                     .nominating_value(&value, &self.slot_index);
             }
 
             // state.add_value_from_leaders(self);
 
             // if we're leader, add our value if we haven't added any votes yet
-            if state.round_leaders.contains(&local_node.node_id) && state.votes.is_empty() {
+            if state.round_leaders.contains(&self.local_node.node_id) && state.votes.is_empty() {
                 if state.votes.insert(value.clone()) {
                     updated = true;
                     self.nominating_value(value.as_ref());
@@ -562,9 +551,9 @@ where
     }
 
     fn update_round_learders(&mut self) {
-        let local_id = &self.local_node.borrow().node_id;
+        let local_id = &self.local_node.node_id;
 
-        let max_leader_count = &self.local_node.borrow().quorum_set;
+        let max_leader_count = &self.local_node.quorum_set;
 
         todo!()
     }
@@ -621,7 +610,7 @@ where
         println!(
             "node {:?} quorum {:?}",
             self.node_idx(),
-            self.local_node.borrow().quorum_set
+            self.local_node.quorum_set
         );
 
         let new_candidates = statement.accepted.iter().any(|value| {
@@ -650,7 +639,11 @@ where
             false
         });
 
-        println!("node {:?} process_nomination_envelope new_candidates: {:?}", self.node_idx(), new_candidates);
+        println!(
+            "node {:?} process_nomination_envelope new_candidates: {:?}",
+            self.node_idx(),
+            new_candidates
+        );
 
         if modified {
             // Somehow is not modified..
@@ -664,13 +657,11 @@ where
 
             if let Some(value) = self
                 .herder_driver
-                .borrow()
                 .combine_candidates(&nomination_state.candidates)
             {}
 
             *nomination_state.latest_composite_candidate.lock().unwrap() = self
                 .herder_driver
-                .borrow()
                 .combine_candidates(&nomination_state.candidates);
 
             let _ = match nomination_state

@@ -5,9 +5,9 @@ use std::{
 };
 
 use crate::{
-    application::quorum::HQuorumSet,
+    application::quorum::{HQuorumSet, QuorumSet},
     scp::{
-        envelope::{SCPEnvelope},
+        envelope::SCPEnvelope,
         nomination_protocol::{NominationValue, SCPNominationValue},
         scp_driver::{HashValue, ValidationLevel},
         slot::SlotIndex,
@@ -55,8 +55,7 @@ where
     // now. Some(value.to_owned())
     // }
 
-    fn get_quorum_set(&self, statement: &SCPStatement<N>) -> Option<HQuorumSet>;
-
+    fn get_quorum_set(&self, statement: &SCPStatement<N>) -> Option<&QuorumSet>;
     fn compute_timeout(&self, round_number: u64) -> Duration {
         const MAX_TIMEOUT_SECONDS: u64 = 30 * 60;
 
@@ -69,7 +68,7 @@ where
 }
 
 struct HerderSCPDriver {
-    quorum_set_map: BTreeMap<HashValue, HQuorumSet>,
+    quorum_set_map: BTreeMap<HashValue, QuorumSet>,
 }
 
 impl HerderDriver<SCPNominationValue> for HerderSCPDriver {
@@ -77,10 +76,8 @@ impl HerderDriver<SCPNominationValue> for HerderSCPDriver {
         todo!()
     }
 
-    fn get_quorum_set(&self, statement: &SCPStatement<SCPNominationValue>) -> Option<HQuorumSet> {
-        self.quorum_set_map
-            .get(&statement.quorum_set_hash_value())
-            .map(|val| val.clone())
+    fn get_quorum_set(&self, statement: &SCPStatement<SCPNominationValue>) -> Option<&QuorumSet> {
+        self.quorum_set_map.get(&statement.quorum_set_hash_value())
     }
 
     fn extract_valid_value(&self, value: &SCPNominationValue) -> Option<SCPNominationValue> {

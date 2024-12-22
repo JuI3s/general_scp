@@ -33,7 +33,7 @@ use super::{
     peer::PeerID,
 };
 
-pub struct PeerNode<N, H, C, CB>
+pub struct PeerNode<'a, N, H, C, CB>
 where
     N: NominationValue,
     H: HerderDriver<N>,
@@ -43,21 +43,21 @@ where
     pub peer_idx: PeerID,
     pub message_controller: Rc<RefCell<MessageController<N>>>,
     pub peer_conns: BTreeMap<PeerID, C>,
-    pub slots: BTreeMap<SlotIndex, Arc<SlotDriver<N, H>>>,
+    pub slots: BTreeMap<SlotIndex, Arc<SlotDriver<'a, N, H>>>,
     pub nomination_protocol_states: BTreeMap<SlotIndex, NominationProtocolState<N>>,
     pub ballot_protocol_states: BTreeMap<SlotIndex, BallotProtocolState<N>>,
 
     conn_builder: CB,
     pub scp_envelope_controller: SCPEnvelopeController<N>,
-    herder: Rc<RefCell<H>>,
+    herder: H,
 
     work_scheduler: Rc<RefCell<WorkScheduler>>,
-    local_node_info: Rc<RefCell<LocalNodeInfo<N>>>,
+    local_node_info: LocalNodeInfo<N>,
 
     leaders: VecDeque<NodeID>,
 }
 
-impl<N, H, C, CB> Debug for PeerNode<N, H, C, CB>
+impl<'a, N, H, C, CB> Debug for PeerNode<'a, N, H, C, CB>
 where
     N: NominationValue,
     H: HerderDriver<N>,
@@ -71,7 +71,7 @@ where
     }
 }
 
-impl<N, H, C, CB> PeerNode<N, H, C, CB>
+impl<'a, N, H, C, CB> PeerNode<'a, N, H, C, CB>
 where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
@@ -95,13 +95,13 @@ where
         Self {
             peer_idx,
             message_controller: MessageController::new_handle(),
-            herder: Rc::new(RefCell::new(herder)),
+            herder: herder,
             conn_builder,
             peer_conns: conns,
             scp_envelope_controller: SCPEnvelopeController::new(),
             slots: Default::default(),
             work_scheduler,
-            local_node_info: Rc::new(RefCell::new(local_node_info)),
+            local_node_info: local_node_info,
             nomination_protocol_states: Default::default(),
             ballot_protocol_states: Default::default(),
             leaders: Default::default(),
@@ -137,7 +137,7 @@ where
     }
 
     pub fn send_broadcast_message(&mut self, msg: &SCPMessage<N>) {
-        for peer in self.local_node_info.borrow().quorum_set.nodes().iter() {
+        for peer in self.local_node_info.quorum_set.nodes().iter() {
             let conn = self
                 .peer_conns
                 .entry(peer.node_id.to_owned())
@@ -234,21 +234,24 @@ where
         }
     }
 
-    fn build_slot(&self, slot_idx: SlotIndex) -> Arc<SlotDriver<N, H>> {
+    fn build_slot(&'a self, slot_idx: SlotIndex) -> Arc<SlotDriver<'a, N, H>> {
         SlotDriverBuilder::<N, H>::new()
             .slot_index(slot_idx)
-            .herder_driver(self.herder.clone())
+            .herder_driver(&self.herder)
             .timer(self.work_scheduler.clone())
-            .local_node(self.local_node_info.clone())
+            .local_node(&self.local_node_info)
             .nomination_protocol_state(NominationProtocolState::new(self.peer_idx.clone()))
             .build_handle()
             .unwrap()
     }
 
-    fn get_or_create_slot_and_states(&mut self, slot_idx: SlotIndex) -> Arc<SlotDriver<N, H>> {
-        if !self.slots.contains_key(&slot_idx) {
-            self.slots
-                .insert(slot_idx.clone(), self.build_slot(slot_idx));
+    fn get_or_create_slot_and_states(&mut self, slot_idx: SlotIndex) -> Arc<SlotDriver<'a, N, H>> {
+        let insert = !self.slots.contains_key(&slot_idx);
+
+        if insert {
+            let val = self.build_slot(slot_idx);
+
+            self.slots.insert(slot_idx.clone(), val);
 
             self.nomination_protocol_states.insert(
                 slot_idx.clone(),
@@ -283,8 +286,12 @@ where
             &mut self.scp_envelope_controller,
         );
 
-
-        println!("Node: {} Slot {} recv env {:?}", self.local_node_info.borrow().node_id, slot_idx, res);
+        println!(
+            "Node: {} Slot {} recv env {:?}",
+            self.local_node_info.node_id,
+            slot_idx,
+            res
+        );
     }
 
     pub fn process_all_messages(&mut self) -> usize {

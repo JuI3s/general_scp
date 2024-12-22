@@ -357,9 +357,9 @@ mod tests {
         envelopes.insert(node_id3.to_owned(), env3);
         envelopes.insert(node_id4.to_owned(), env4);
 
-        let mut quorum_map: BTreeMap<HashValue, HQuorumSet> = BTreeMap::new();
-        quorum_map.insert(quorum1.hash_value(), Arc::new(Mutex::new(quorum1.clone())));
-        quorum_map.insert(quorum2.hash_value(), Arc::new(Mutex::new(quorum2.clone())));
+        let mut quorum_map: BTreeMap<HashValue, QuorumSet> = BTreeMap::new();
+        quorum_map.insert(quorum1.hash_value(), quorum1.clone());
+        quorum_map.insert(quorum2.hash_value(), quorum2.clone());
 
         {
             let get_quorum_set_predicate = |node_id| {
@@ -367,9 +367,7 @@ mod tests {
                 let env = env_controller.get_envelope(env_id).unwrap();
                 let st: &SCPStatement<SCPNominationValue> = env.get_statement();
 
-                quorum_map
-                    .get(&st.quorum_set_hash_value())
-                    .map(|val| val.clone())
+                quorum_map.get(&st.quorum_set_hash_value())
             };
 
             let nodes =
@@ -390,9 +388,7 @@ mod tests {
                 let env = env_controller.get_envelope(env_id).unwrap();
                 let st: &SCPStatement<SCPNominationValue> = env.get_statement();
 
-                quorum_map
-                    .get(&st.quorum_set_hash_value())
-                    .map(|val| val.clone())
+                quorum_map.get(&st.quorum_set_hash_value())
             };
 
             let nodes =

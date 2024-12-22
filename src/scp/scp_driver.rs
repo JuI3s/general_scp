@@ -44,15 +44,15 @@ pub enum ValidationLevel {
     FullyValidated,
 }
 // #[derive(WeakSelf)]
-pub struct SlotDriver<N, H>
+pub struct SlotDriver<'a, N, H>
 where
     N: NominationValue + 'static,
     H: HerderDriver<N>,
 {
     pub slot_index: SlotIndex,
-    pub local_node: HLocalNode<N>,
+    pub local_node: &'a LocalNodeInfo<N>,
     pub scheduler: Rc<RefCell<WorkScheduler>>,
-    pub herder_driver: Rc<RefCell<H>>,
+    pub herder_driver: &'a H,
     pub slot_state: RefCell<SlotState>,
     pub task_queue: Rc<RefCell<SlotJobQueue<N, H>>>,
 }
@@ -96,12 +96,12 @@ impl SlotState {
     }
 }
 
-impl<N, H> Into<Rc<RefCell<SlotDriver<N, H>>>> for SlotDriver<N, H>
+impl<'a, N, H> Into<Rc<RefCell<SlotDriver<'a, N, H>>>> for SlotDriver<'a, N, H>
 where
     N: NominationValue + 'static,
     H: HerderDriver<N>,
 {
-    fn into(self) -> Rc<RefCell<SlotDriver<N, H>>> {
+    fn into(self) -> Rc<RefCell<SlotDriver<'a, N, H>>> {
         RefCell::new(self).into()
     }
 }
@@ -223,15 +223,15 @@ where
     fn sign_envelope(envelope: &mut SCPEnvelope<N>);
 }
 
-impl<N, H> SlotDriver<N, H>
+impl<'a, N, H> SlotDriver<'a, N, H>
 where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
 {
     pub fn new(
         slot_index: SlotIndex,
-        local_node: HLocalNode<N>,
-        herder_driver: Rc<RefCell<H>>,
+        local_node: &'a LocalNodeInfo<N>,
+        herder_driver: &'a H,
         task_queue: Rc<RefCell<SlotJobQueue<N, H>>>,
         scheduler: Rc<RefCell<WorkScheduler>>,
     ) -> Self {
@@ -285,7 +285,7 @@ where
                 &nomination_state.latest_nominations,
                 envelope_controller,
             ) {
-                match self.herder_driver.borrow().validate_value(vote, true) {
+                match self.herder_driver.validate_value(vote, true) {
                     ValidationLevel::FullyValidated => {
                         let value = Arc::new(vote.clone());
                         nomination_state.accepted.insert(value.clone());
@@ -293,7 +293,7 @@ where
                         true;
                     }
                     _ => {
-                        if let Some(value) = self.herder_driver.borrow().extract_valid_value(vote) {
+                        if let Some(value) = self.herder_driver.extract_valid_value(vote) {
                             nomination_state.accepted.insert(Arc::new(value.clone()));
                             nomination_state.votes.insert(Arc::new(value.clone()));
                             true;
@@ -307,7 +307,7 @@ where
     }
 
     pub fn node_idx(&self) -> NodeID {
-        self.local_node.borrow().node_id.to_owned()
+        self.local_node.node_id.clone()
     }
 
     pub fn recv_scp_envelvope(
@@ -321,7 +321,8 @@ where
         println!("Received an envelope: {:?}", env_id);
         match env.get_statement() {
             SCPStatement::Prepare(_) | SCPStatement::Confirm(_) | SCPStatement::Externalize(_) => {
-                self.process_ballot_envelope(
+                Self::process_ballot_envelope(
+                    self,
                     ballot_state,
                     nomination_state,
                     env,
@@ -365,7 +366,7 @@ where
     ) -> bool {
         println!("Federated accept {:?}", envelopes);
         if LocalNodeInfo::<N>::is_v_blocking_with_predicate(
-            &self.local_node.borrow().quorum_set,
+            &self.local_node.quorum_set,
             envelopes,
             &accepted_predicate,
             envelope_controller,
@@ -375,8 +376,6 @@ where
             let ratify_filter =
                 move |st: &SCPStatement<N>| accepted_predicate(st) && voted_predicate(st);
 
-            let local_node = self.local_node.borrow();
-
             let nodes = extract_nodes_from_statement_with_filter(
                 envelopes,
                 envelope_controller,
@@ -384,12 +383,12 @@ where
             );
 
             if is_quorum_with_node_filter(
-                Some((&local_node.quorum_set, &local_node.node_id)),
+                Some((&self.local_node.quorum_set, &self.local_node.node_id)),
                 |node| {
                     let env_id = envelopes.get(node).unwrap();
                     let env = envelope_controller.get_envelope(env_id).unwrap();
                     let statement = env.get_statement();
-                    self.herder_driver.borrow().get_quorum_set(statement)
+                    self.herder_driver.get_quorum_set(statement)
                 },
                 &nodes,
             ) {
@@ -407,20 +406,18 @@ where
         envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
-        let local_node = self.local_node.borrow();
-
         let nodes = extract_nodes_from_statement_with_filter(
             envelopes,
             envelope_controller,
             voted_predicate,
         );
         is_quorum_with_node_filter(
-            Some((&local_node.quorum_set, &local_node.node_id)),
+            Some((&self.local_node.quorum_set, &self.local_node.node_id)),
             |node| {
                 let env_id = envelopes.get(node).unwrap();
                 let env = envelope_controller.get_envelope(env_id).unwrap();
                 let st = env.get_statement();
-                self.herder_driver.borrow().get_quorum_set(st)
+                self.herder_driver.get_quorum_set(st)
             },
             &nodes,
         )
@@ -434,7 +431,7 @@ where
         /// Create an envelope and add it to the queue of envelopes to be emitted.
         let env = SCPEnvelope {
             statement,
-            node_id: self.local_node.borrow().node_id.clone(),
+            node_id: self.local_node.node_id.clone(),
             slot_index: self.slot_index.clone(),
             signature: test_default_blake2(),
         };
@@ -476,25 +473,23 @@ where
             return;
         }
 
-        let local_node = self.local_node.borrow();
-
         // Add nodes that we have heard from.
         let mut nodes: Vec<NodeID> = Default::default();
 
-        LocalNodeInfo::<N>::for_all_nodes(&local_node.quorum_set, &mut |node| {
+        LocalNodeInfo::<N>::for_all_nodes(&self.local_node.quorum_set, &mut |node| {
             if Self::get_latest_message(node, ballot_state, nomination_state).is_some() {
                 nodes.push(node.to_owned());
             }
             true
         });
 
-        if is_v_blocking(&local_node.quorum_set, &nodes) {
+        if is_v_blocking(&self.local_node.quorum_set, &nodes) {
             self.slot_state.borrow_mut().got_v_blocking = true;
         }
     }
 }
 
-impl<N, H> SCPDriver<N> for SlotDriver<N, H>
+impl<'a, N, H> SCPDriver<N> for SlotDriver<'a, N, H>
 where
     N: NominationValue,
     H: HerderDriver<N>,
