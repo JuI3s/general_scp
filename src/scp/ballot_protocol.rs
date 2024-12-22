@@ -9,7 +9,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    application::quorum::QuorumSet,
+    application::quorum::{is_quorum_with_node_filter, QuorumSet},
     herder::herder::HerderDriver,
     scp::{
         local_node::LocalNodeInfo,
@@ -20,6 +20,7 @@ use crate::{
 
 use super::{
     envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
+    local_node::extract_nodes_from_statement_with_filter,
     nomination_protocol::{NominationProtocolState, NominationValue},
     queue::{AbandonBallotArg, SlotJob, SlotTask},
     scp::{EnvelopeState, NodeID},
@@ -1218,15 +1219,26 @@ where
                 }
             };
 
-            todo!();
-            if LocalNodeInfo::is_quorum(
+            let nodes = extract_nodes_from_statement_with_filter(
+                &ballot_state.latest_envelopes,
+                &envelope_controller,
+                |_| true,
+            );
+
+            let get_quorum_set_predicate = |node_id| {
+                let env_id = ballot_state.latest_envelopes.get(node_id).clone().unwrap();
+                let env = envelope_controller.get_envelope(env_id).unwrap();
+                let st = env.get_statement();
+                self.herder_driver.borrow().get_quorum_set(st)
+            };
+
+            if is_quorum_with_node_filter(
                 Some((
                     &self.local_node.borrow().quorum_set,
                     &self.local_node.borrow().node_id,
                 )),
-                &ballot_state.latest_envelopes,
-                |st| self.herder_driver.borrow().get_quorum_set(st),
-                envelope_controller,
+                get_quorum_set_predicate,
+                &nodes,
             ) {
                 let old_heard_from_quorum = ballot_state.heard_from_quorum;
                 ballot_state.heard_from_quorum = true;

@@ -17,7 +17,10 @@ use crate::{
     },
     crypto::types::{test_default_blake2, Blake2Hashable},
     herder::herder::HerderDriver,
-    scp::nomination_protocol::NominationProtocol,
+    scp::{
+        local_node::extract_nodes_from_statement_with_filter,
+        nomination_protocol::NominationProtocol,
+    },
 };
 
 use super::{
@@ -374,14 +377,21 @@ where
 
             let local_node = self.local_node.borrow();
 
-            let nodes = 
+            let nodes = extract_nodes_from_statement_with_filter(
+                envelopes,
+                envelope_controller,
+                ratify_filter,
+            );
 
             if is_quorum_with_node_filter(
                 Some((&local_node.quorum_set, &local_node.node_id)),
-                envelopes,
-                |st| self.herder_driver.borrow().get_quorum_set(st),
-                ratify_filter,
-                envelope_controller,
+                |node| {
+                    let env_id = envelopes.get(node).unwrap();
+                    let env = envelope_controller.get_envelope(env_id).unwrap();
+                    let statement = env.get_statement();
+                    self.herder_driver.borrow().get_quorum_set(statement)
+                },
+                &nodes,
             ) {
                 return true;
             }
@@ -399,12 +409,20 @@ where
     ) -> bool {
         let local_node = self.local_node.borrow();
 
+        let nodes = extract_nodes_from_statement_with_filter(
+            envelopes,
+            envelope_controller,
+            voted_predicate,
+        );
         is_quorum_with_node_filter(
             Some((&local_node.quorum_set, &local_node.node_id)),
-            envelopes,
-            |st| self.herder_driver.borrow().get_quorum_set(st),
-            voted_predicate,
-            envelope_controller,
+            |node| {
+                let env_id = envelopes.get(node).unwrap();
+                let env = envelope_controller.get_envelope(env_id).unwrap();
+                let st = env.get_statement();
+                self.herder_driver.borrow().get_quorum_set(st)
+            },
+            &nodes,
         )
     }
 

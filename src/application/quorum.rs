@@ -259,6 +259,7 @@ pub fn nodes_fill_one_quorum_slice_in_quorum_set(
         .any(|slice| nodes_fill_quorum_slice(slice, nodes))
 }
 
+
 // `is_quorum_with_node_filter` tests if the filtered nodes V form a quorum
 // (meaning for each v \in V there is q \in Q(v)
 // isQuorumincluded in V and we have quorum on V for qSetHash). `qfun` extracts

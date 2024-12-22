@@ -227,17 +227,6 @@ where
         println!("is_v_blocking_with_predicate nodes: {:?}", nodes);
         is_v_blocking(quorum_set, &nodes)
     }
-
-    pub fn is_quorum<'a>(
-        local_quorum: Option<(&QuorumSet, &NodeID)>,
-        envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
-        get_quorum_set_predicate: impl Fn(&'a NodeID) -> Option<HQuorumSet>,
-        envelope_controller: &SCPEnvelopeController<N>,
-    ) -> bool {
-        let nodes =
-            extract_nodes_from_statement_with_filter(envelopes, envelope_controller, |_| true);
-        is_quorum_with_node_filter(local_quorum, get_quorum_set_predicate, &nodes)
-    }
 }
 
 pub fn extract_nodes_from_statement_with_filter<N: NominationValue>(
@@ -383,13 +372,10 @@ mod tests {
                     .map(|val| val.clone())
             };
 
+            let nodes =
+                extract_nodes_from_statement_with_filter(&envelopes, &env_controller, |_| true);
             assert_eq!(
-                LocalNodeInfo::is_quorum(
-                    None,
-                    &envelopes,
-                    get_quorum_set_predicate,
-                    &env_controller
-                ),
+                is_quorum_with_node_filter(None, get_quorum_set_predicate, &nodes),
                 true
             );
         }
@@ -409,13 +395,10 @@ mod tests {
                     .map(|val| val.clone())
             };
 
+            let nodes =
+                extract_nodes_from_statement_with_filter(&envelopes, &env_controller, |_| true);
             assert_eq!(
-                LocalNodeInfo::is_quorum(
-                    None,
-                    &envelopes,
-                    get_quorum_set_predicate,
-                    &env_controller
-                ),
+                is_quorum_with_node_filter(None, get_quorum_set_predicate, &nodes),
                 false
             );
         }
