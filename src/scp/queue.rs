@@ -5,18 +5,16 @@ use std::{
     time::SystemTime,
 };
 
-
 use crate::herder::herder::HerderDriver;
 
 use super::{
     ballot_protocol::BallotProtocolState,
-    envelope::{SCPEnvelopeController},
+    envelope::SCPEnvelopeController,
     nomination_protocol::{
-        HSCPNominationValue, NominationProtocol, NominationProtocolState,
-        NominationValue,
+        HSCPNominationValue, NominationProtocol, NominationProtocolState, NominationValue,
     },
     scp_driver::SlotDriver,
-    slot::{SlotIndex},
+    slot::SlotIndex,
 };
 
 pub struct SlotJobQueue<N, H>
@@ -60,10 +58,18 @@ where
                     .get_mut(&job.id)
                     .expect("Ballot state not found for slot");
                 match job.task {
-                    SlotTask::RetryNominate(arg) => {
-                        arg.execute(slot_driver, nomination_state, ballot_state, envelope_controller)
-                    }
-                    SlotTask::AbandonBallot(arg) => arg.execute(slot_driver, nomination_state, ballot_state, envelope_controller),
+                    SlotTask::RetryNominate(arg) => arg.execute(
+                        slot_driver,
+                        nomination_state,
+                        ballot_state,
+                        envelope_controller,
+                    ),
+                    SlotTask::AbandonBallot(arg) => arg.execute(
+                        slot_driver,
+                        nomination_state,
+                        ballot_state,
+                        envelope_controller,
+                    ),
                 }
             }
         }
@@ -111,7 +117,14 @@ where
         let value = self.value;
         let prev_value = self.previous_value;
 
-        SlotDriver::nominate(slot_driver, nomination_state, ballot_state, value, &prev_value, envelope_controller);
+        SlotDriver::nominate(
+            slot_driver,
+            nomination_state,
+            ballot_state,
+            value,
+            &prev_value,
+            envelope_controller,
+        );
     }
 }
 
@@ -128,7 +141,6 @@ impl<N> AbandonBallotArg<N>
 where
     N: NominationValue,
 {
-
     pub fn new(slot: SlotIndex, n: u32) -> Self {
         Self {
             slot,
@@ -144,12 +156,6 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         envelope_controller: &SCPEnvelopeController<N>,
     ) {
-        SlotDriver::abandon_ballot(
-            slot_driver,
-            ballot_state,
-            nomination_state,
-            self.n,
-            envelope_controller,
-        );
+        slot_driver.abandon_ballot(ballot_state, nomination_state, self.n, envelope_controller);
     }
 }

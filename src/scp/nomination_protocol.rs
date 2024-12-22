@@ -32,19 +32,19 @@ where
     N: NominationValue,
 {
     fn nominate(
-        self: &Arc<Self>,
+        &self,
         nomination_state: &mut NominationProtocolState<N>,
         ballot_state: &mut BallotProtocolState<N>,
         value: HSCPNominationValue<N>,
         previous_value: &N,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> Option<SCPEnvelopeID>;
-    fn stop_nomination(self: &Arc<Self>, state: &mut NominationProtocolState<N>);
+    fn stop_nomination(&self, state: &mut NominationProtocolState<N>);
 
     fn update_round_learders(&mut self);
 
     fn process_nomination_envelope(
-        self: &Arc<Self>,
+        &self,
         nomination_state: &mut NominationProtocolState<N>,
         ballot_state: &mut BallotProtocolState<N>,
         envelope: &SCPEnvelopeID,
@@ -373,13 +373,13 @@ where
     }
 }
 
-impl<'a, N, H> SlotDriver<'a, N, H>
+impl<N, H> SlotDriver<N, H>
 where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
 {
     fn emit_nomination(
-        self: &Arc<Self>,
+        self: &Self,
         nomination_state: &mut NominationProtocolState<N>,
         ballot_state: &mut BallotProtocolState<N>,
         envelope_controller: &mut SCPEnvelopeController<N>,
@@ -449,13 +449,13 @@ where
     }
 }
 
-impl<'a, N, H> NominationProtocol<N> for SlotDriver<'a, N, H>
+impl<N, H> NominationProtocol<N> for SlotDriver<N, H>
 where
     N: NominationValue + 'static,
     H: HerderDriver<N> + 'static,
 {
     fn nominate(
-        self: &Arc<Self>,
+        self: &Self,
         state: &mut NominationProtocolState<N>,
         ballot_state: &mut BallotProtocolState<N>,
         value: HSCPNominationValue<N>,
@@ -546,7 +546,7 @@ where
         }
     }
 
-    fn stop_nomination(self: &Arc<Self>, state: &mut NominationProtocolState<N>) {
+    fn stop_nomination(&self, state: &mut NominationProtocolState<N>) {
         state.nomination_started = false;
     }
 
@@ -559,7 +559,7 @@ where
     }
 
     fn process_nomination_envelope(
-        self: &Arc<Self>,
+        &self,
         nomination_state: &mut NominationProtocolState<N>,
         ballot_state: &mut BallotProtocolState<N>,
         envelope: &SCPEnvelopeID,
@@ -672,7 +672,7 @@ where
                 .as_ref()
             {
                 Some(val) => {
-                    todo!();
+                    // todo!();
                     self.bump_state_(
                         val,
                         ballot_state,

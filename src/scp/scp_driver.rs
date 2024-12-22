@@ -44,15 +44,15 @@ pub enum ValidationLevel {
     FullyValidated,
 }
 // #[derive(WeakSelf)]
-pub struct SlotDriver<'a, N, H>
+pub struct SlotDriver<N, H>
 where
     N: NominationValue + 'static,
     H: HerderDriver<N>,
 {
     pub slot_index: SlotIndex,
-    pub local_node: &'a LocalNodeInfo<N>,
+    pub local_node: Arc<LocalNodeInfo<N>>,
     pub scheduler: Rc<RefCell<WorkScheduler>>,
-    pub herder_driver: &'a H,
+    pub herder_driver: Arc<H>,
     pub slot_state: RefCell<SlotState>,
     pub task_queue: Rc<RefCell<SlotJobQueue<N, H>>>,
 }
@@ -96,12 +96,12 @@ impl SlotState {
     }
 }
 
-impl<'a, N, H> Into<Rc<RefCell<SlotDriver<'a, N, H>>>> for SlotDriver<'a, N, H>
+impl<N, H> Into<Rc<RefCell<SlotDriver<N, H>>>> for SlotDriver<N, H>
 where
     N: NominationValue + 'static,
     H: HerderDriver<N>,
 {
-    fn into(self) -> Rc<RefCell<SlotDriver<'a, N, H>>> {
+    fn into(self) -> Rc<RefCell<SlotDriver<N, H>>> {
         RefCell::new(self).into()
     }
 }
@@ -204,16 +204,16 @@ where
 
     // ``nominating_value`` is called every time the local instance nominates a new
     // value.
-    fn nominating_value(self: &Arc<Self>, value: &N);
+    fn nominating_value(&self, value: &N);
     // `value_externalized` is called at most once per slot when the slot
     // externalize its value.
-    fn value_externalized(self: &Arc<Self>, slot_index: u64, value: &N);
+    fn value_externalized(&self, slot_index: u64, value: &N);
     // `accepted_bsallot_prepared` every time a ballot is accepted as prepared
-    fn accepted_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot<N>);
+    fn accepted_ballot_prepared(&self, slot_index: &u64, ballot: &SCPBallot<N>);
 
-    fn accepted_commit(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot<N>);
+    fn accepted_commit(&self, slot_index: &u64, ballot: &SCPBallot<N>);
 
-    fn confirm_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot<N>) {}
+    fn confirm_ballot_prepared(&self, slot_index: &u64, ballot: &SCPBallot<N>) {}
 
     // the following methods are used for monitoring of the SCP subsystem most
     // implementation don't really need to do anything with these.
@@ -223,15 +223,15 @@ where
     fn sign_envelope(envelope: &mut SCPEnvelope<N>);
 }
 
-impl<'a, N, H> SlotDriver<'a, N, H>
+impl<N, H> SlotDriver<N, H>
 where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
 {
     pub fn new(
         slot_index: SlotIndex,
-        local_node: &'a LocalNodeInfo<N>,
-        herder_driver: &'a H,
+        local_node: Arc<LocalNodeInfo<N>>,
+        herder_driver: Arc<H>,
         task_queue: Rc<RefCell<SlotJobQueue<N, H>>>,
         scheduler: Rc<RefCell<WorkScheduler>>,
     ) -> Self {
@@ -311,7 +311,7 @@ where
     }
 
     pub fn recv_scp_envelvope(
-        self: &Arc<Self>,
+        &self,
         nomination_state: &mut NominationProtocolState<N>,
         ballot_state: &mut BallotProtocolState<N>,
         env_id: &SCPEnvelopeID,
@@ -321,8 +321,7 @@ where
         println!("Received an envelope: {:?}", env_id);
         match env.get_statement() {
             SCPStatement::Prepare(_) | SCPStatement::Confirm(_) | SCPStatement::Externalize(_) => {
-                Self::process_ballot_envelope(
-                    self,
+                self.process_ballot_envelope(
                     ballot_state,
                     nomination_state,
                     env,
@@ -340,7 +339,7 @@ where
     }
 
     pub fn bump_state_(
-        self: &Arc<Self>,
+        &self,
         nomination_value: &N,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
@@ -489,12 +488,12 @@ where
     }
 }
 
-impl<'a, N, H> SCPDriver<N> for SlotDriver<'a, N, H>
+impl<N, H> SCPDriver<N> for SlotDriver<N, H>
 where
     N: NominationValue,
     H: HerderDriver<N>,
 {
-    fn nominating_value(self: &Arc<Self>, value: &N) {}
+    fn nominating_value(&self, value: &N) {}
 
     fn validate_value(slot_index: u64, value: &N, nomination: bool) -> ValidationLevel {
         ValidationLevel::FullyValidated
@@ -505,7 +504,7 @@ where
         println!("Emitting an envelope");
     }
 
-    fn value_externalized(self: &Arc<Self>, slot_index: u64, value: &N) {
+    fn value_externalized(&self, slot_index: u64, value: &N) {
         todo!()
     }
 
@@ -514,9 +513,9 @@ where
         envelope.signature = test_default_blake2();
     }
 
-    fn accepted_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot<N>) {}
-    fn accepted_commit(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot<N>) {}
-    fn confirm_ballot_prepared(self: &Arc<Self>, slot_index: &u64, ballot: &SCPBallot<N>) {}
+    fn accepted_ballot_prepared(&self, slot_index: &u64, ballot: &SCPBallot<N>) {}
+    fn accepted_commit(&self, slot_index: &u64, ballot: &SCPBallot<N>) {}
+    fn confirm_ballot_prepared(&self, slot_index: &u64, ballot: &SCPBallot<N>) {}
 }
 
 #[cfg(test)]

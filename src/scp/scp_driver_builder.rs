@@ -12,21 +12,21 @@ use super::queue::SlotJobQueue;
 use super::scp_driver::SlotDriver;
 use super::slot::SlotIndex;
 
-pub struct SlotDriverBuilder<'a, N, H>
+pub struct SlotDriverBuilder<N, H>
 where
     N: NominationValue + 'static,
     H: HerderDriver<N>,
 {
     slot_index: Option<SlotIndex>,
-    local_node: Option<&'a LocalNodeInfo<N>>,
+    local_node: Option<Arc<LocalNodeInfo<N>>>,
     timer: Option<Rc<RefCell<WorkScheduler>>>,
-    herder_driver: Option<&'a H>,
+    herder_driver: Option<Arc<H>>,
     nomination_protocol_state: Option<NominationProtocolState<N>>,
     ballot_protocol_state: Option<BallotProtocolState<N>>,
     task_queue: Option<Rc<RefCell<SlotJobQueue<N, H>>>>,
 }
 
-impl<'a, N, T> Default for SlotDriverBuilder<'a, N, T>
+impl<N, T> Default for SlotDriverBuilder<N, T>
 where
     N: NominationValue + 'static,
     T: HerderDriver<N>,
@@ -44,7 +44,7 @@ where
     }
 }
 
-impl<'a, N, H> SlotDriverBuilder<'a, N, H>
+impl<N, H> SlotDriverBuilder<N, H>
 where
     N: NominationValue + 'static,
     H: HerderDriver<N> + 'static,
@@ -58,8 +58,8 @@ where
         self
     }
 
-    pub fn local_node(mut self, local_node: &'a LocalNodeInfo<N>) -> Self {
-        self.local_node = Some(local_node.into());
+    pub fn local_node(mut self, local_node: Arc<LocalNodeInfo<N>>) -> Self {
+        self.local_node = Some(local_node);
         self
     }
 
@@ -68,7 +68,7 @@ where
         self
     }
 
-    pub fn herder_driver(mut self, herder_driver: &'a H) -> Self {
+    pub fn herder_driver(mut self, herder_driver: Arc<H>) -> Self {
         self.herder_driver = Some(herder_driver);
         self
     }
@@ -111,9 +111,9 @@ where
         match local_node_info_builder.build_from_file::<N>(node_idx) {
             // TODO: need to share state???
             Some(local_node_info) => {
-                let slot_driver = SlotDriver::<'a, N, H>::new(
+                let slot_driver = SlotDriver::<N, H>::new(
                     self.slot_index.clone().unwrap(),
-                    self.local_node.clone().unwrap(),
+                    Arc::new(local_node_info),
                     self.herder_driver.clone().unwrap(),
                     self.task_queue
                         .clone()
@@ -127,7 +127,7 @@ where
         }
     }
 
-    pub fn build(self) -> Result<SlotDriver<'a, N, H>, &'static str> {
+    pub fn build(self) -> Result<SlotDriver<N, H>, &'static str> {
         if self.slot_index.is_none() {
             return Err("Missing slot index.");
         }
@@ -144,7 +144,7 @@ where
             return Err("Missing Herder driver.");
         }
 
-        Ok(SlotDriver::<'a, N, H>::new(
+        Ok(SlotDriver::<N, H>::new(
             self.slot_index.unwrap(),
             self.local_node.unwrap(),
             self.herder_driver.unwrap(),
@@ -154,7 +154,7 @@ where
         ))
     }
 
-    pub fn build_handle(self) -> Result<Arc<SlotDriver<'a, N, H>>, &'static str> {
+    pub fn build_handle(self) -> Result<Arc<SlotDriver<N, H>>, &'static str> {
         match self.build() {
             Ok(ret) => Ok(Arc::new(ret)),
             Err(err) => Err(err),

@@ -33,7 +33,7 @@ use super::{
     peer::PeerID,
 };
 
-pub struct PeerNode<'a, N, H, C, CB>
+pub struct PeerNode<N, H, C, CB>
 where
     N: NominationValue,
     H: HerderDriver<N>,
@@ -43,21 +43,21 @@ where
     pub peer_idx: PeerID,
     pub message_controller: Rc<RefCell<MessageController<N>>>,
     pub peer_conns: BTreeMap<PeerID, C>,
-    pub slots: BTreeMap<SlotIndex, Arc<SlotDriver<'a, N, H>>>,
+    pub slots: BTreeMap<SlotIndex, SlotDriver<N, H>>,
     pub nomination_protocol_states: BTreeMap<SlotIndex, NominationProtocolState<N>>,
     pub ballot_protocol_states: BTreeMap<SlotIndex, BallotProtocolState<N>>,
 
     conn_builder: CB,
     pub scp_envelope_controller: SCPEnvelopeController<N>,
-    herder: H,
+    herder: Arc<H>,
 
     work_scheduler: Rc<RefCell<WorkScheduler>>,
-    local_node_info: LocalNodeInfo<N>,
+    local_node_info: Arc<LocalNodeInfo<N>>,
 
     leaders: VecDeque<NodeID>,
 }
 
-impl<'a, N, H, C, CB> Debug for PeerNode<'a, N, H, C, CB>
+impl<N, H, C, CB> Debug for PeerNode<N, H, C, CB>
 where
     N: NominationValue,
     H: HerderDriver<N>,
@@ -71,7 +71,7 @@ where
     }
 }
 
-impl<'a, N, H, C, CB> PeerNode<'a, N, H, C, CB>
+impl<N, H, C, CB> PeerNode<N, H, C, CB>
 where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
@@ -95,13 +95,13 @@ where
         Self {
             peer_idx,
             message_controller: MessageController::new_handle(),
-            herder: herder,
+            herder: Arc::new(herder),
             conn_builder,
             peer_conns: conns,
             scp_envelope_controller: SCPEnvelopeController::new(),
             slots: Default::default(),
             work_scheduler,
-            local_node_info: local_node_info,
+            local_node_info: Arc::new(local_node_info),
             nomination_protocol_states: Default::default(),
             ballot_protocol_states: Default::default(),
             leaders: Default::default(),
@@ -147,9 +147,9 @@ where
     }
 
     pub fn slot_nominate(&mut self, slot_idx: SlotIndex) {
-        let slot = self.get_or_create_slot_and_states(slot_idx);
+        self.maybe_create_slot_and_state(slot_idx);
 
-        let env_id = slot.nominate(
+        let env_id = self.slots.get(&slot_idx).unwrap().nominate(
             self.nomination_protocol_states.get_mut(&slot_idx).unwrap(),
             self.ballot_protocol_states.get_mut(&slot_idx).unwrap(),
             Arc::new(N::default()),
@@ -234,18 +234,18 @@ where
         }
     }
 
-    fn build_slot(&'a self, slot_idx: SlotIndex) -> Arc<SlotDriver<'a, N, H>> {
+    fn build_slot(&self, slot_idx: SlotIndex) -> SlotDriver<N, H> {
         SlotDriverBuilder::<N, H>::new()
             .slot_index(slot_idx)
-            .herder_driver(&self.herder)
+            .herder_driver(self.herder.clone())
             .timer(self.work_scheduler.clone())
-            .local_node(&self.local_node_info)
+            .local_node(self.local_node_info.clone())
             .nomination_protocol_state(NominationProtocolState::new(self.peer_idx.clone()))
-            .build_handle()
+            .build()
             .unwrap()
     }
 
-    fn get_or_create_slot_and_states(&mut self, slot_idx: SlotIndex) -> Arc<SlotDriver<'a, N, H>> {
+    fn maybe_create_slot_and_state(&mut self, slot_idx: SlotIndex) {
         let insert = !self.slots.contains_key(&slot_idx);
 
         if insert {
@@ -261,8 +261,6 @@ where
             self.ballot_protocol_states
                 .insert(slot_idx.clone(), Default::default());
         }
-
-        self.slots.get(&slot_idx).unwrap().clone()
     }
 
     fn on_scp_env(&mut self, scp_env: SCPEnvelope<N>) {
@@ -278,7 +276,8 @@ where
         let slot_idx: u64 = scp_env.slot_index.clone();
         let env_id = self.scp_envelope_controller.add_envelope(scp_env);
 
-        let slot = self.get_or_create_slot_and_states(slot_idx);
+        // let slot = self.get_or_create_slot_and_states(slot_idx);
+        let slot = self.slots.get(&slot_idx).unwrap();
         let res = slot.recv_scp_envelvope(
             self.nomination_protocol_states.get_mut(&slot_idx).unwrap(),
             self.ballot_protocol_states.get_mut(&slot_idx).unwrap(),
@@ -288,9 +287,7 @@ where
 
         println!(
             "Node: {} Slot {} recv env {:?}",
-            self.local_node_info.node_id,
-            slot_idx,
-            res
+            self.local_node_info.node_id, slot_idx, res
         );
     }
 

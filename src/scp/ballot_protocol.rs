@@ -197,7 +197,7 @@ where
     N: NominationValue,
 {
     fn process_ballot_envelope(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         envelope: &SCPEnvelope<N>,
@@ -206,7 +206,7 @@ where
     ) -> EnvelopeState;
 
     fn advance_slot(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
@@ -236,7 +236,7 @@ where
     ) -> bool;
     // prepared: ballot that should be prepared
     fn set_accept_prepared(
-        self: &Arc<Self>,
+        &self,
         state_handle: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         ballot: &SCPBallot<N>,
@@ -246,7 +246,7 @@ where
     // step 2+3+8 from the SCP paper
     // ballot is the candidate to record as 'confirmed prepared'
     fn attempt_confirm_prepared(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
@@ -254,7 +254,7 @@ where
     ) -> bool;
     // newC, newH : low/high bounds prepared confirmed
     fn set_confirm_prepared(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         newC: &SCPBallot<N>,
@@ -264,7 +264,7 @@ where
 
     // step (4 and 6)+8 from the SCP paper
     fn attempt_accept_commit(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
@@ -272,7 +272,7 @@ where
     ) -> bool;
     // new values for c and h
     fn set_accept_commit(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         c: &SCPBallot<N>,
@@ -282,14 +282,14 @@ where
 
     // step 7+8 from the SCP paper
     fn attempt_confirm_commit(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool;
     fn set_confirm_commit(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         acceptCommitLow: &SCPBallot<N>,
@@ -299,7 +299,7 @@ where
 
     // step 9 from the SCP paper
     fn attempt_bump(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         envelope_controller: &SCPEnvelopeController<N>,
@@ -896,14 +896,14 @@ where
     }
 }
 
-impl<'a, N, H> SlotDriver<'a, N, H>
+impl<N, H> SlotDriver<N, H>
 where
     N: NominationValue + 'static,
     H: HerderDriver<N> + 'static,
 {
     const MAXIMUM_ADVANCE_SLOT_RECURSION: u32 = 50;
 
-    fn validate_values(self: &Arc<Self>, st: &SCPStatement<N>) -> ValidationLevel {
+    fn validate_values(&self, st: &SCPStatement<N>) -> ValidationLevel {
         // Helper function for validating that the statement contains valid values.
         // First get all nomination values from the statement, then call the herder
         // validation function on each value. Return valid if all values are
@@ -935,11 +935,11 @@ where
         }
     }
 
-    fn is_quorum_set_sane(self: &Arc<Self>, quorum_set: &QuorumSet) -> bool {
+    fn is_quorum_set_sane(&self, quorum_set: &QuorumSet) -> bool {
         true
     }
 
-    fn is_statement_sane(self: &Arc<Self>, st: &SCPStatement<N>, from_self: bool) -> bool {
+    fn is_statement_sane(&self, st: &SCPStatement<N>, from_self: bool) -> bool {
         if !self
             .herder_driver
             .get_quorum_set(st)
@@ -951,7 +951,7 @@ where
         st.is_statement_sane(from_self)
     }
 
-    fn maybe_send_latest_envelope(self: &Arc<Self>, state: &mut BallotProtocolState<N>) {
+    fn maybe_send_latest_envelope(&self, state: &mut BallotProtocolState<N>) {
         if state.current_message_level != 0 {
             return;
         }
@@ -975,7 +975,7 @@ where
     }
 
     fn emit_current_state_statement(
-        self: &Arc<Self>,
+        &self,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         env_controller: &SCPEnvelopeController<N>,
@@ -1035,7 +1035,7 @@ where
     }
 
     fn has_v_blocking_subset_strictly_ahead_of(
-        self: &Arc<Self>,
+        &self,
         envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
         counter: u32,
         envelope_controller: &SCPEnvelopeController<N>,
@@ -1051,7 +1051,7 @@ where
     // This method abandons the current ballot and sets the state according to state
     // counter n.
     pub fn abandon_ballot(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         n: u32,
@@ -1088,7 +1088,7 @@ where
     }
 
     pub fn bump_state(
-        self: &Arc<Self>,
+        &self,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         nomination_value: &N,
@@ -1114,7 +1114,7 @@ where
     }
 
     fn bump_state_with_counter(
-        self: &Arc<Self>,
+        &self,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         nomination_value: &N,
@@ -1148,7 +1148,7 @@ where
     // updates the local state based to the specified ballot
     // (that could be a prepared ballot) enforcing invariants
     fn update_current_value(
-        self: &Arc<Self>,
+        &self,
         state: &mut BallotProtocolState<N>,
         ballot: &SCPBallot<N>,
     ) -> bool {
@@ -1195,7 +1195,7 @@ where
     }
 
     fn check_heard_from_quorum(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         envelope_controller: &SCPEnvelopeController<N>,
     ) {
@@ -1231,10 +1231,7 @@ where
             };
 
             if is_quorum_with_node_filter(
-                Some((
-                    &self.local_node.quorum_set,
-                    &self.local_node.node_id,
-                )),
+                Some((&self.local_node.quorum_set, &self.local_node.node_id)),
                 get_quorum_set_predicate,
                 &nodes,
             ) {
@@ -1267,7 +1264,7 @@ where
         self.abandon_ballot(ballot_state, nomination_state, 0, env_controller);
     }
 
-    fn start_ballot_protocol_timer(self: &Arc<Self>, ballot_state: &BallotProtocolState<N>) {
+    fn start_ballot_protocol_timer(&self, ballot_state: &BallotProtocolState<N>) {
         let timeout = self.herder_driver.compute_timeout(
             ballot_state
                 .current_ballot
@@ -1293,20 +1290,20 @@ where
         }
     }
 
-    fn stop_ballot_protocol_timer(self: &Arc<Self>, ballot_state: &BallotProtocolState<N>) {
+    fn stop_ballot_protocol_timer(&self, ballot_state: &BallotProtocolState<N>) {
         self.slot_state
             .borrow_mut()
             .stop_timer(&SlotStateTimer::BallotProtocol)
     }
 }
 
-impl<'a, N, H> BallotProtocol<N> for SlotDriver<'a, N, H>
+impl<N, H> BallotProtocol<N> for SlotDriver<N, H>
 where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
 {
     fn process_ballot_envelope(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         envelope: &SCPEnvelope<N>,
@@ -1434,7 +1431,7 @@ where
     }
 
     fn set_accept_prepared(
-        self: &Arc<Self>,
+        &self,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         ballot: &SCPBallot<N>,
@@ -1462,7 +1459,7 @@ where
     }
 
     fn attempt_confirm_prepared(
-        self: &Arc<Self>,
+        &self,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
@@ -1553,7 +1550,7 @@ where
     }
 
     fn set_confirm_prepared(
-        self: &Arc<Self>,
+        &self,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         new_commit: &SCPBallot<N>,
@@ -1597,7 +1594,7 @@ where
     }
 
     fn attempt_accept_commit(
-        self: &Arc<Self>,
+        &self,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
@@ -1712,7 +1709,7 @@ where
     }
 
     fn set_accept_commit(
-        self: &Arc<Self>,
+        &self,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         commit: &SCPBallot<N>,
@@ -1768,7 +1765,7 @@ where
     }
 
     fn attempt_confirm_commit(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
@@ -1839,7 +1836,7 @@ where
     }
 
     fn set_confirm_commit(
-        self: &Arc<Self>,
+        &self,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         accept_commit_low: &SCPBallot<N>,
@@ -1881,7 +1878,7 @@ where
     //   SCPExternalize messages, which implicitly have an infinite ballot
     //   counter.
     fn attempt_bump(
-        self: &Arc<Self>,
+        &self,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         envelope_controller: &SCPEnvelopeController<N>,
@@ -1944,7 +1941,7 @@ where
     }
 
     fn advance_slot(
-        self: &Arc<Self>,
+        &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,

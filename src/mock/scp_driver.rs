@@ -1,10 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-
-use crate::scp::{
-    scp_driver::SlotDriver,
-    slot::SlotIndex,
-};
+use crate::scp::{scp_driver::SlotDriver, slot::SlotIndex};
 
 use super::state::{MockState, MockStateDriver};
 pub struct MockSCPDriver {

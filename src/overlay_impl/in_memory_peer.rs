@@ -18,8 +18,8 @@ use super::{
     in_memory_global::InMemoryGlobalState,
 };
 
-type TestPeerType<'a> =
-    PeerNode<'a, MockState, MockStateDriver, InMemoryConn<MockState>, InMemoryConnBuilder<MockState>>;
+type TestPeerType =
+    PeerNode<MockState, MockStateDriver, InMemoryConn<MockState>, InMemoryConnBuilder<MockState>>;
 type TestPeerBuilder = InMemoryPeerBuilder<MockState, MockStateDriver, MockStateDriverBuilder>;
 
 pub struct InMemoryPeerBuilder<N, H, HB>
@@ -73,8 +73,7 @@ where
     }
 }
 
-pub type InMemoryPeerNode<'a, N, H> =
-    PeerNode<'a, N, H, InMemoryConn<N>, InMemoryConnBuilder<N>>;
+pub type InMemoryPeerNode<N, H> = PeerNode<N, H, InMemoryConn<N>, InMemoryConnBuilder<N>>;
 
 pub fn create_mock_state_in_memory_peer_builder(
 ) -> InMemoryPeerBuilder<MockState, MockStateDriver, MockStateDriverBuilder> {

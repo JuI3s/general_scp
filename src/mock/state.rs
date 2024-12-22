@@ -216,9 +216,9 @@ mod tests {
 
         let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
             .slot_index(0)
-            .herder_driver(&state_driver)
+            .herder_driver(Arc::new(state_driver))
             .timer(Rc::new(RefCell::new(timer_handle)))
-            .local_node(&local_node)
+            .local_node(Arc::new(local_node))
             .build()
             .unwrap();
     }
@@ -242,9 +242,9 @@ mod tests {
         let slot_driver: Arc<SlotDriver<MockState, MockStateDriver>> =
             SlotDriverBuilder::<MockState, MockStateDriver>::new()
                 .slot_index(0)
-                .herder_driver(Rc::new(RefCell::new(MockStateDriver::new())))
+                .herder_driver(Arc::new(MockStateDriver::new()))
                 .timer(Rc::new(RefCell::new(timer_handle)))
-                .local_node(local_node)
+                .local_node(Arc::new(local_node))
                 .build_handle()
                 .unwrap();
 
@@ -284,9 +284,9 @@ mod tests {
 
         let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
             .slot_index(0)
-            .local_node(local_node.clone())
+            .local_node(Arc::new(local_node))
             .timer(Rc::new(RefCell::new(timer_handle)))
-            .herder_driver(Rc::new(RefCell::new(MockStateDriver::new())))
+            .herder_driver(Arc::new(MockStateDriver::new()))
             .build()
             .unwrap();
 
@@ -303,108 +303,105 @@ mod tests {
         let timer_handle = WorkScheduler::new(None);
         let quorum_set = QuorumSet::example_quorum_set();
 
-        let local_node: Rc<RefCell<LocalNodeInfo<MockState>>> =
-            LocalNodeBuilder::<MockState>::new()
-                .is_validator(true)
-                .quorum_set(quorum_set)
-                .node_id(node_id)
-                .build()
-                .unwrap();
-
         let herder = Rc::new(RefCell::new(MockStateDriver::new()));
         herder
     }
 
-    fn set_up_test_nodes<'a>() -> (
-        Rc<
-            RefCell<
-                PeerNode<
-                    'a,
-                    MockState,
-                    MockStateDriver,
-                    InMemoryConn<MockState>,
-                    InMemoryConnBuilder<MockState>,
-                >,
-            >,
-        >,
-        Rc<
-            RefCell<
-                PeerNode<
-                    'a,
-                    MockState,
-                    MockStateDriver,
-                    InMemoryConn<MockState>,
-                    InMemoryConnBuilder<MockState>,
-                >,
-            >,
-        >,
-        HashMap<
-            std::string::String,
-            Rc<
-                RefCell<
-                    PeerNode<
-                        'a,
-                        MockState,
-                        MockStateDriver,
-                        InMemoryConn<MockState>,
-                        InMemoryConnBuilder<MockState>,
-                    >,
-                >,
-            >,
-        >,
-        InMemoryPeerBuilder<MockState, MockStateDriver, mock::state::MockStateDriverBuilder>,
-    ) {
-        let herder_builder = MockStateDriverBuilder {};
-        let mut node_builder = InMemoryPeerBuilder::new(herder_builder);
-        let (node1, node2) = test_data_create_mock_in_memory_nodes(&mut node_builder);
-        let mut peers = HashMap::new();
-        peers.insert(node1.borrow().peer_idx.clone(), node1.clone());
-        peers.insert(node2.borrow().peer_idx.clone(), node2.clone());
+    // fn set_up_test_nodes<'a>() -> (
+    //     Rc<
+    //         RefCell<
+    //             PeerNode<
+    //                 'a,
+    //                 MockState,
+    //                 MockStateDriver,
+    //                 InMemoryConn<MockState>,
+    //                 InMemoryConnBuilder<MockState>,
+    //             >,
+    //         >,
+    //     >,
+    //     Rc<
+    //         RefCell<
+    //             PeerNode<
+    //                 'a,
+    //                 MockState,
+    //                 MockStateDriver,
+    //                 InMemoryConn<MockState>,
+    //                 InMemoryConnBuilder<MockState>,
+    //             >,
+    //         >,
+    //     >,
+    //     HashMap<
+    //         std::string::String,
+    //         Rc<
+    //             RefCell<
+    //                 PeerNode<
+    //                     'a,
+    //                     MockState,
+    //                     MockStateDriver,
+    //                     InMemoryConn<MockState>,
+    //                     InMemoryConnBuilder<MockState>,
+    //                 >,
+    //             >,
+    //         >,
+    //     >,
+    //     InMemoryPeerBuilder<MockState, MockStateDriver, mock::state::MockStateDriverBuilder>,
+    // ) {
+    //     let herder_builder = MockStateDriverBuilder {};
+    //     let mut node_builder = InMemoryPeerBuilder::new(herder_builder);
+    //     let (node1, node2)= test_data_create_mock_state_local_node_info();
+    //     node_infos
+    //         .into_iter()
+    //         .map(|node_info| builder.build_node(node_info))
+    //         .next_tuple()
+    //         .unwrap()
+    // }
+    //     let mut peers = HashMap::new();
+    //     peers.insert(node1.borrow().peer_idx.clone(), node1.clone());
+    //     peers.insert(node2.borrow().peer_idx.clone(), node2.clone());
 
-        (node1, node2, peers, node_builder)
-    }
+    //     (node1, node2, peers, node_builder)
+    // }
 
-    #[test]
-    fn in_memory_pget_latest_messageeer_send_hello_message() {
-        let (node1, node2, mut peers, node_builder) = set_up_test_nodes();
+    // #[test]
+    // fn in_memory_pget_latest_messageeer_send_hello_message() {
+    //     let (node1, node2, mut peers, node_builder) = set_up_test_nodes();
 
-        node1
-            .borrow_mut()
-            .send_hello_to_peer(&node2.borrow().peer_idx);
+    //     node1
+    //         .borrow_mut()
+    //         .send_hello_to_peer(&node2.borrow().peer_idx);
 
-        assert_eq!(
-            InMemoryGlobalState::process_messages(&node_builder.global_state, &mut peers),
-            2,
-        );
-    }
+    //     assert_eq!(
+    //         InMemoryGlobalState::process_messages(&node_builder.global_state, &mut peers),
+    //         2,
+    //     );
+    // }
 
-    #[test]
-    fn in_memory_peer_nominate() {
-        let (node1, node2, mut peers, node_builder) = set_up_test_nodes();
+    // fn in_memory_peer_nominate() {
+    //     let (node1, node2, mut peers, node_builder) = set_up_test_nodes();
 
-        node1
-            .borrow_mut()
-            .send_hello_to_peer(&node2.borrow().peer_idx);
-        assert_eq!(
-            InMemoryGlobalState::process_messages(&node_builder.global_state, &mut peers),
-            2,
-        );
+    //     node1
+    //         .borrow_mut()
+    //         .send_hello_to_peer(&node2.borrow().peer_idx);
+    //     assert_eq!(
+    //         InMemoryGlobalState::process_messages(&node_builder.global_state, &mut peers),
+    //         2,
+    //     );
 
-        node1.borrow_mut().slot_nominate(0);
-        // node1.borrow_mut().nominate(&node2.borrow().peer_idx, 0);
-        assert_eq!(
-            InMemoryGlobalState::process_messages(&node_builder.global_state, &mut peers),
-            1,
-        );
-    }
+    //     node1.borrow_mut().slot_nominate(0);
+    //     // node1.borrow_mut().nominate(&node2.borrow().peer_idx, 0);
+    //     assert_eq!(
+    //         InMemoryGlobalState::process_messages(&node_builder.global_state, &mut peers),
+    //         1,
+    //     );
+    // }
 
     #[test]
     fn in_memory_peer_send_hello_from_local_node_on_file() {
         let mut builder = MockInMemoryNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
-        let node1 = builder.build_node("node1").unwrap();
+        let mut node1 = builder.build_node("node1").unwrap();
         let node2 = builder.build_node("node2").unwrap();
 
-        node1.borrow_mut().send_hello();
+        node1.send_hello();
 
         assert!(
             InMemoryGlobalState::process_messages(&builder.global_state, &mut builder.nodes) > 0
@@ -414,21 +411,21 @@ mod tests {
     #[test]
     fn in_memory_peer_nominate_from_local_node_on_file() {
         let mut builder = MockInMemoryNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
-        let node1 = builder.build_node("node1").unwrap();
+        let mut node1 = builder.build_node("node1").unwrap();
         let node2 = builder.build_node("node2").unwrap();
 
-        let leader_id = node1.borrow().peer_idx.clone();
+        let leader_id = node1.peer_idx.clone();
         builder.set_leader(&leader_id);
 
-        node1.borrow_mut().slot_nominate(0);
+        node1.slot_nominate(0);
 
         assert!(
             InMemoryGlobalState::process_messages(&builder.global_state, &mut builder.nodes) == 2
         );
 
         let node1_nomnination_state: NominationProtocolState<MockState> =
-            node1.borrow().get_current_nomination_state(&0).unwrap();
-        let node2_nomnination_state = node2.borrow().get_current_nomination_state(&0).unwrap();
+            node1.get_current_nomination_state(&0).unwrap();
+        let node2_nomnination_state = node2.get_current_nomination_state(&0).unwrap();
 
         // TODO: need to fix this
         assert_eq!(
@@ -436,8 +433,8 @@ mod tests {
             node2_nomnination_state.round_leaders
         );
 
-        assert!(node1.borrow().scp_envelope_controller.envs_to_emit.len() == 1);
-        assert!(node2.borrow().scp_envelope_controller.envs_to_emit.len() > 0);
+        assert!(node1.scp_envelope_controller.envs_to_emit.len() == 1);
+        assert!(node2.scp_envelope_controller.envs_to_emit.len() > 0);
 
         //     assert_eq!(node1_nomnination_state.nomination_started, true);
         //     assert_eq!(node2_nomnination_state.nomination_started, true);

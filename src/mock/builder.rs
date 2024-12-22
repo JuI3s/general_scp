@@ -25,30 +25,18 @@ impl NodeBuilderDir {
     }
 }
 
-pub type MockInMemoryPeerNode<'a> = PeerNode<
-    'a,
-    MockState,
-    MockStateDriver,
-    InMemoryConn<MockState>,
-    InMemoryConnBuilder<MockState>,
->;
+pub type MockInMemoryPeerNode =
+    PeerNode<MockState, MockStateDriver, InMemoryConn<MockState>, InMemoryConnBuilder<MockState>>;
 
-pub type MockTCPPeerNode<'a> =
-    PeerNode<'a, MockState, MockStateDriver, TCPConn<MockState>, TCPConnBuilder<MockState>>;
+pub type MockTCPPeerNode =
+    PeerNode<MockState, MockStateDriver, TCPConn<MockState>, TCPConnBuilder<MockState>>;
 
-pub fn start_tcp_node(node_idx: &str) -> Rc<RefCell<MockTCPPeerNode>> {
-    let mut builder = MockTCPNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
-    let peer = builder.build_node(node_idx).unwrap();
-
-    peer
-}
-
-pub struct MockTCPNodeBuilder<'a> {
-    pub nodes: HashMap<NodeID, Rc<RefCell<MockTCPPeerNode<'a>>>>,
+pub struct MockTCPNodeBuilder {
+    pub nodes: HashMap<NodeID, Rc<RefCell<MockTCPPeerNode>>>,
     local_node_info_builder: LocalNodeInfoBuilderFromFile,
 }
 
-impl<'a> MockTCPNodeBuilder<'a> {
+impl MockTCPNodeBuilder {
     pub fn new(quorum_dir_path: &str) -> Self {
         let local_node_info_builder = LocalNodeInfoBuilderFromFile::new(quorum_dir_path);
 
@@ -58,7 +46,7 @@ impl<'a> MockTCPNodeBuilder<'a> {
         }
     }
 
-    pub fn build_node(&mut self, node_idx: &str) -> Option<Rc<RefCell<MockTCPPeerNode>>> {
+    pub fn build_node(&mut self, node_idx: &str) -> Option<MockTCPPeerNode> {
         let local_node_info = self.local_node_info_builder.build_from_file(node_idx)?;
 
         let conn_builder = TCPConnBuilder::new();
@@ -72,12 +60,13 @@ impl<'a> MockTCPNodeBuilder<'a> {
             local_node_info,
             work_scheduler,
         );
+        Some(peer)
 
-        let peer_handle = Rc::new(RefCell::new(peer));
+        // let peer_handle = Rc::new(RefCell::new(peer));
 
-        self.nodes.insert(node_idx.to_owned(), peer_handle.clone());
+        // self.nodes.insert(node_idx.to_owned(), peer_handle.clone());
 
-        Some(peer_handle)
+        // Some(peer_handle)
     }
 }
 
@@ -99,7 +88,7 @@ impl MockInMemoryNodeBuilder {
         }
     }
 
-    pub fn build_node(&mut self, node_idx: &str) -> Option<Rc<RefCell<MockInMemoryPeerNode>>> {
+    pub fn build_node(&mut self, node_idx: &str) -> Option<MockInMemoryPeerNode> {
         let local_node_info: crate::scp::local_node::LocalNodeInfo<MockState> =
             self.local_node_info_builder.build_from_file(node_idx)?;
 
@@ -116,16 +105,17 @@ impl MockInMemoryNodeBuilder {
         );
 
         let msg_controller = peer.message_controller.clone();
-        let peer_handle = Rc::new(RefCell::new(peer));
+        Some(peer)
+        // let peer_handle = Rc::new(RefCell::new(peer));
 
-        self.nodes.insert(node_idx.to_owned(), peer_handle.clone());
+        // self.nodes.insert(node_idx.to_owned(), peer_handle.clone());
 
-        self.global_state
-            .borrow_mut()
-            .peer_msg_queues
-            .insert(node_idx.to_owned(), msg_controller);
+        // self.global_state
+        //     .borrow_mut()
+        //     .peer_msg_queues
+        //     .insert(node_idx.to_owned(), msg_controller);
 
-        Some(peer_handle)
+        // Some(peer_handle)
     }
 
     pub fn set_leader(&mut self, node_idx: &NodeID) {
