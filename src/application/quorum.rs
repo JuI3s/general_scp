@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeSet},
+    collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
     fs::{self, create_dir},
     hash::{Hash, Hasher},
     io::Write,
@@ -14,7 +14,14 @@ use serde::{Deserialize, Serialize};
 use crate::{
     crypto::types::{Blake2Hash, Blake2Hashable},
     overlay::peer::PeerID,
-    scp::{scp::NodeID, scp_driver::HashValue},
+    scp::{
+        envelope::{SCPEnvelopeController, SCPEnvelopeID},
+        local_node::LocalNodeInfo,
+        nomination_protocol::NominationValue,
+        scp::NodeID,
+        scp_driver::HashValue,
+        statement::SCPStatement,
+    },
     utils::config::test_data_dir,
 };
 
@@ -216,6 +223,86 @@ pub fn is_v_blocking(quorum_set: &QuorumSet, node_set: &Vec<NodeID>) -> bool {
     })
 }
 
+pub fn accept_predicate<N: NominationValue>(value: &N, statement: &SCPStatement<N>) -> bool {
+    statement.as_nomination_statement().accepted.contains(value)
+}
+
+pub fn has_voted_predicate<N: NominationValue>(value: &N, statement: &SCPStatement<N>) -> bool {
+    statement.as_nomination_statement().votes.contains(value)
+        || statement.as_nomination_statement().accepted.contains(value)
+}
+
+pub fn is_quorum(slice: &QuorumSlice, quorum_set: &QuorumSet) -> bool {
+    quorum_set.slices.iter().any(|quorum_slice| {
+        slice
+            .data
+            .iter()
+            .all(|node| quorum_slice.data.contains(node))
+    })
+}
+
+pub fn nodes_fill_quorum_slice(quorum_slice: &QuorumSlice, nodes: &Vec<NodeID>) -> bool {
+    /// Check if the nodes contain the entire quorum slice.
+    quorum_slice
+        .data
+        .iter()
+        .all(|node| nodes.contains(&node.node_id))
+}
+
+pub fn nodes_fill_one_quorum_slice_in_quorum_set(
+    quorum_set: &QuorumSet,
+    nodes: &Vec<NodeID>,
+) -> bool {
+    quorum_set
+        .slices
+        .iter()
+        .any(|slice| nodes_fill_quorum_slice(slice, nodes))
+}
+
+// `is_quorum_with_node_filter` tests if the filtered nodes V form a quorum
+// (meaning for each v \in V there is q \in Q(v)
+// isQuorumincluded in V and we have quorum on V for qSetHash). `qfun` extracts
+// the SCPQuorumSetPtr from the SCPStatement for its associated node in map
+// (required for transitivity)
+pub fn is_quorum_with_node_filter<'a>(
+    local_quorum: Option<(&QuorumSet, &NodeID)>,
+    get_quorum_set: impl Fn(&'a NodeID) -> Option<HQuorumSet>,
+    nodes: &'a Vec<NodeID>,
+) -> bool {
+    // TODO: do not need input from self?
+    // if let Some((_, local_node_id)) = local_quorum {
+    //     nodes.push(local_node_id.to_owned());
+    // }
+    println!("nodes: {:?}", nodes);
+
+    // Definition (quorum). A set of nodes 𝑈 ⊆ 𝐕 in FBAS ⟨𝐕,𝐐⟩ is a quorum iff 𝑈 ≠ ∅
+    // and 𝑈 contains a slice for each member—i.e., ∀𝑣 ∈ 𝑈 , ∃𝑞 ∈ 𝐐(𝑣) such that 𝑞 ⊆
+    // 𝑈 .
+
+    let mut ret = if nodes.is_empty() {
+        false
+    } else {
+        nodes.iter().all(|node| {
+            // let env_id = envelopes.get(node).unwrap();
+            // let env = envelope_controller.get_envelope(env_id).unwrap();
+            // let statement = env.get_statement();
+
+            if let Some(quorum_set) = get_quorum_set(node) {
+                nodes_fill_one_quorum_slice_in_quorum_set(&quorum_set.lock().unwrap(), &nodes)
+            } else {
+                false
+            }
+        })
+    };
+
+    // Check for local node.
+    if let Some((local_quorum_set, _)) = local_quorum {
+        ret = ret && nodes_fill_one_quorum_slice_in_quorum_set(local_quorum_set, &nodes);
+    }
+
+    ret
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -256,6 +343,7 @@ mod tests {
         let quorum_set = QuorumSet::from([quorum_slice1, quorum_slice2]);
         assert_eq!(quorum_set.slices.len(), 2);
     }
+
     #[test]
     fn test_is_v_blocking() {
         let mut builder = LocalNodeInfoBuilderFromFile::new("test");
@@ -282,4 +370,61 @@ mod tests {
             &vec!["node3".to_string()]
         ));
     }
+
+    #[test]
+    fn test_nodes_fill_quorum_slice() {
+        let quorum_slice =
+            QuorumSlice::from([make_quorum_node_for_test(1), make_quorum_node_for_test(2)]);
+        let nodes = vec!["node1".to_string(), "node2".to_string()];
+
+        let is_quorum = nodes_fill_quorum_slice(&quorum_slice, &nodes);
+        assert!(is_quorum);
+
+        let nodes = vec!["node1".to_string()];
+        let is_quorum = nodes_fill_quorum_slice(&quorum_slice, &nodes);
+        assert!(!is_quorum);
+    }
+
+    #[test]
+    fn test_nodes_fill_one_quorum_slice_in_quorum_set() {
+        // [node1, node2]
+        let quorum_slice1 =
+            QuorumSlice::from([make_quorum_node_for_test(1), make_quorum_node_for_test(2)]);
+        // [node1, node3]
+        let quorum_slice2 =
+            QuorumSlice::from([make_quorum_node_for_test(1), make_quorum_node_for_test(3)]);
+        let quorum_set = QuorumSet::from([quorum_slice1, quorum_slice2]);
+
+        let nodes = vec!["node1".to_string(), "node2".to_string()];
+        let is_quorum = nodes_fill_one_quorum_slice_in_quorum_set(&quorum_set, &nodes);
+        assert!(is_quorum);
+
+        let nodes = vec!["node1".to_string(), "node3".to_string()];
+        let is_quorum = nodes_fill_one_quorum_slice_in_quorum_set(&quorum_set, &nodes);
+        assert!(is_quorum);
+
+        // [node1, node2, node3]
+        let nodes = vec![
+            "node1".to_string(),
+            "node2".to_string(),
+            "node3".to_string(),
+        ];
+        let fill_one_quorum_set = nodes_fill_one_quorum_slice_in_quorum_set(&quorum_set, &nodes);
+        assert!(fill_one_quorum_set);
+
+        // [node1]
+        let mut nodes = vec!["node1".to_string()];
+        let fill_one_quorum_set = nodes_fill_one_quorum_slice_in_quorum_set(&quorum_set, &nodes);
+        assert!(!fill_one_quorum_set);
+
+        for node in vec!["node2".to_string(), "node3".to_string()] {
+            nodes.push(node);
+            let fill_one_quorum_set =
+                nodes_fill_one_quorum_slice_in_quorum_set(&quorum_set, &nodes);
+            assert!(fill_one_quorum_set);
+        }
+    }
+
+    #[test]
+    fn test_a_quorum_has_responded() {}
 }

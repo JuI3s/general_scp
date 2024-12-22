@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::{
     application::{
-        quorum::{is_v_blocking, QuorumSet},
+        quorum::{accept_predicate, is_quorum_with_node_filter, is_v_blocking, QuorumSet},
         work_queue::{HClockEvent, WorkScheduler},
     },
     crypto::types::{test_default_blake2, Blake2Hashable},
@@ -244,7 +244,7 @@ where
 
     fn try_accept_value(
         &self,
-        statement: &SCPStatementNominate<N>,
+        value: &N,
         nomination_state: &mut NominationProtocolState<N>,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
@@ -278,7 +278,7 @@ where
 
             if self.federated_accept(
                 |st| st.as_nomination_statement().votes.contains(vote),
-                |st| Self::accept_predicate(vote, st),
+                |st| accept_predicate(vote, st),
                 &nomination_state.latest_nominations,
                 envelope_controller,
             ) {
@@ -373,7 +373,10 @@ where
                 move |st: &SCPStatement<N>| accepted_predicate(st) && voted_predicate(st);
 
             let local_node = self.local_node.borrow();
-            if LocalNodeInfo::is_quorum_with_node_filter(
+
+            let nodes = 
+
+            if is_quorum_with_node_filter(
                 Some((&local_node.quorum_set, &local_node.node_id)),
                 envelopes,
                 |st| self.herder_driver.borrow().get_quorum_set(st),
@@ -396,7 +399,7 @@ where
     ) -> bool {
         let local_node = self.local_node.borrow();
 
-        LocalNodeInfo::is_quorum_with_node_filter(
+        is_quorum_with_node_filter(
             Some((&local_node.quorum_set, &local_node.node_id)),
             envelopes,
             |st| self.herder_driver.borrow().get_quorum_set(st),

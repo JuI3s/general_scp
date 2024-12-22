@@ -13,7 +13,7 @@ use std::{
 use log::debug;
 use serde::Serialize;
 
-use crate::{herder::herder::HerderDriver, overlay::peer::PeerID};
+use crate::{application::quorum::accept_predicate, herder::herder::HerderDriver, overlay::peer::PeerID};
 
 use super::{
     ballot_protocol::BallotProtocolState,
@@ -447,9 +447,7 @@ where
         }
     }
 
-    pub fn accept_predicate(value: &N, statement: &SCPStatement<N>) -> bool {
-        statement.as_nomination_statement().accepted.contains(value)
-    }
+    
 }
 
 impl<N, H> NominationProtocol<N> for SlotDriver<N, H>
@@ -632,7 +630,7 @@ where
             }
 
             if self.federated_ratify(
-                |st| Self::accept_predicate(value, st),
+                |st| accept_predicate(value, st),
                 &nomination_state.latest_nominations,
                 envelope_controller,
             ) {
