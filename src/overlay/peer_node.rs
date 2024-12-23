@@ -3,6 +3,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     fmt::Debug,
     rc::Rc,
+    slice::IterMut,
     sync::Arc,
 };
 
@@ -297,5 +298,16 @@ where
             msg_processed += 1;
         }
         msg_processed
+    }
+
+    pub fn add_leader_for_nodes<'a, I>(nodes: I, node_idx: &NodeID)
+    where
+        I: Iterator<Item = &'a mut Self>,
+        C: 'a,
+        CB: 'a,
+    {
+        for peer in nodes {
+            peer.add_leader(node_idx);
+        }
     }
 }

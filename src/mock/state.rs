@@ -411,21 +411,24 @@ mod tests {
     #[test]
     fn in_memory_peer_nominate_from_local_node_on_file() {
         let mut builder = MockInMemoryNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
-        let mut node1 = builder.build_node("node1").unwrap();
-        let node2 = builder.build_node("node2").unwrap();
+        let mut nodes = BTreeMap::new();
+        nodes.insert("node1", builder.build_node("node1").unwrap());
+        nodes.insert("node2", builder.build_node("node2").unwrap());
 
-        let leader_id = node1.peer_idx.clone();
-        builder.set_leader(&leader_id);
+        PeerNode::add_leader_for_nodes(
+            nodes.iter_mut().map(|(_, node)| node),
+            &"node1".to_string(),
+        );
 
-        node1.slot_nominate(0);
+        nodes.get_mut("node1").unwrap().slot_nominate(0);
 
         assert!(
             InMemoryGlobalState::process_messages(&builder.global_state, &mut builder.nodes) == 2
         );
 
         let node1_nomnination_state: NominationProtocolState<MockState> =
-            node1.get_current_nomination_state(&0).unwrap();
-        let node2_nomnination_state = node2.get_current_nomination_state(&0).unwrap();
+            nodes["node1"].get_current_nomination_state(&0).unwrap();
+        let node2_nomnination_state = nodes["node1"].get_current_nomination_state(&0).unwrap();
 
         // TODO: need to fix this
         assert_eq!(
@@ -433,8 +436,8 @@ mod tests {
             node2_nomnination_state.round_leaders
         );
 
-        assert!(node1.scp_envelope_controller.envs_to_emit.len() == 1);
-        assert!(node2.scp_envelope_controller.envs_to_emit.len() > 0);
+        assert!(nodes["node1"].scp_envelope_controller.envs_to_emit.len() == 1);
+        assert!(nodes["node1"].scp_envelope_controller.envs_to_emit.len() > 0);
 
         //     assert_eq!(node1_nomnination_state.nomination_started, true);
         //     assert_eq!(node2_nomnination_state.nomination_started, true);

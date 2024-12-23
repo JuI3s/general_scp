@@ -464,4 +464,9 @@ mod tests {
         ];
         assert!(nodes_form_quorum(&get_quorum_set, &nodes));
     }
+
+    #[test]
+    fn test_nodes_form_quorum() {
+        todo!("Add more tests");
+    }
 }
