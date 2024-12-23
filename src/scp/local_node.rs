@@ -11,6 +11,7 @@ use std::{
 };
 
 use serde_derive::{Deserialize, Serialize};
+use tracing::debug;
 
 use crate::{
     application::quorum::{
@@ -233,8 +234,8 @@ where
             }
         });
         // TODO: fix this
-        println!(
-            "is_v_blocking_with_predicate nodes: {:?}, quorum_set: {:?}, envelope_map: {:?}",
+        debug!(
+            "V_BLOCKING true nodes: {:?}, quorum_set: {:?}, envelope_map: {:?}",
             nodes, quorum_set, envelope_map,
         );
         is_v_blocking(quorum_set, &nodes)

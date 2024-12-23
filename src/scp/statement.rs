@@ -1,5 +1,6 @@
 use std::{
     collections::HashSet,
+    fmt::Debug,
     sync::{Arc, Mutex},
 };
 
@@ -45,9 +46,7 @@ where
     Nominate(SCPStatementNominate<N>),
 }
 
-
-
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SCPStatementNominate<N>
 where
     N: NominationValue,
@@ -59,6 +58,16 @@ where
     pub accepted: Vec<N>,
 
     pub quorum_set: Option<QuorumSet>,
+}
+
+impl<N: NominationValue> Debug for SCPStatementNominate<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SCPStatementNominate")
+            .field("node_id", &self.node_id)
+            .field("accepted", &self.accepted)
+            .field("votes", &self.votes)
+            .finish()
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -314,11 +323,11 @@ impl<N> SCPStatementNominate<N>
 where
     N: NominationValue,
 {
-    pub fn new(quorum_set: &QuorumSet, votes: Vec<N>) -> Self {
+    pub fn new(quorum_set: &QuorumSet, votes: Vec<N>, accepted: Vec<N>) -> Self {
         SCPStatementNominate {
             quorum_set_hash: quorum_set.hash_value(),
             votes,
-            accepted: Default::default(),
+            accepted,
             quorum_set: Some(quorum_set.clone()),
             node_id: "".into(),
         }

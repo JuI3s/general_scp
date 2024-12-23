@@ -270,7 +270,7 @@ where
     ) -> bool {
         // TODO: Need to check if we need to accept the statement.
         debug!(
-            "state_may_have_changed, node: {:?}, votes: {:?}, accepts: {:?}",
+            "state_may_have_changed, node: {:?}, statement votes: {:?}, statement accepts: {:?}",
             self.node_idx(),
             statement.votes,
             statement.accepted
@@ -279,6 +279,7 @@ where
         let modified = statement.votes.iter().any(|vote| {
             println!("state_may_have_changed cur vote: {:?}", vote);
             if nomination_state.accepted.contains(vote) {
+                println!("state_may_have_changed vote already accepted {:?}", vote);
                 return false;
             }
             println!("Node idx: {:?}", self.node_idx());
@@ -434,6 +435,8 @@ where
         envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
+        // Definition of ratify (under Ratification): https://stellar.org/blog/thought-leadership/on-worldwide-consensus
+
         let nodes = extract_nodes_from_statement_with_filter(
             envelopes,
             envelope_controller,
@@ -460,6 +463,13 @@ where
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> SCPEnvelopeID {
         /// Create an envelope and add it to the queue of envelopes to be emitted.
+
+        debug!(
+            "create_envelope: node {:?} creates envelope with statement: {:?}",
+            self.node_idx(),
+            statement
+        );
+
         let env = SCPEnvelope {
             statement,
             node_id: self.local_node.node_id.clone(),

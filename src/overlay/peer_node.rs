@@ -138,6 +138,7 @@ where
     }
 
     fn flush_all_broadcast_msg(&mut self) {
+        debug!("flush_all_broadcast_msg: node {:?}", self.peer_idx);
         while let Some(env_id) = self.scp_envelope_controller.pop_next_env_to_emit() {
             let scp_env = self
                 .scp_envelope_controller
@@ -149,10 +150,15 @@ where
 
             self.send_broadcast_message(&scp_msg);
         }
+        debug!("finish flush_all_broadcast_msg: node {:?}", self.peer_idx);
     }
 
     fn send_broadcast_message(&mut self, msg: &SCPMessage<N>) {
         for peer in self.local_node_info.quorum_set.nodes().iter() {
+            if peer.node_id == self.peer_idx {
+                continue;
+            }
+
             let conn: &mut C = self
                 .peer_conns
                 .entry(peer.node_id.to_owned())

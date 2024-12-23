@@ -82,7 +82,11 @@ where
     pub round_number: SlotIndex,
     pub votes: SCPNominationValueSet<N>,
     pub accepted: SCPNominationValueSet<N>,
+
+    // https://johnpconley.com/wp-content/uploads/2021/01/stellar-consensus-protocol.pdf (p.19)
+    // Definition (candidate). A node 𝑣 considers a value 𝑥 to be a candidate when 𝑣 has confirmed the statement nominate 𝑥—i.e., 𝑣 has ratified accept (nominate 𝑥).
     pub candidates: SCPNominationValueSet<N>,
+
     pub latest_nominations: BTreeMap<String, SCPEnvelopeID>,
 
     pub latest_envelope: Option<SCPEnvelopeID>,
@@ -400,10 +404,11 @@ where
         );
 
         let votes = nomination_state.get_current_votes();
+        let accepted = Vec::from_iter(nomination_state.accepted.iter().map(|v| v.as_ref().clone()));
 
         // Creating the nomination statement
         let nom_st: SCPStatementNominate<N> =
-            SCPStatementNominate::<N>::new(&self.local_node.quorum_set, votes);
+            SCPStatementNominate::<N>::new(&self.local_node.quorum_set, votes, accepted);
 
         // Creating the envelop
         let st = SCPStatement::Nominate(nom_st);
@@ -627,10 +632,11 @@ where
             self.state_may_have_changed(statement, nomination_state, &envelope_controller);
 
         debug!(
-            "Node {:?} processing nomination envelope {:?} triggers stage change: {:?}",
+            "Node {:?} processing nomination envelope {:?} triggers stage change: {:?}, current candidates: {:?}",
             self.node_idx(),
             pretty_print_scp_env_id(&envelope),
-            modified
+            modified,
+            nomination_state.candidates,
         );
 
         let new_candidates = statement.accepted.iter().any(|value| {
