@@ -14,7 +14,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::{
     application::quorum::{
-        is_quorum_with_node_filter, is_v_blocking, nodes_fill_quorum_slice, HQuorumSet, QuorumNode,
+        nodes_form_quorum, is_v_blocking, nodes_fill_quorum_slice, HQuorumSet, QuorumNode,
         QuorumSet, QuorumSlice,
     },
     mock::state::MockState,
@@ -373,7 +373,7 @@ mod tests {
             let nodes =
                 extract_nodes_from_statement_with_filter(&envelopes, &env_controller, |_| true);
             assert_eq!(
-                is_quorum_with_node_filter(get_quorum_set_predicate, &nodes),
+                nodes_form_quorum(get_quorum_set_predicate, &nodes),
                 true
             );
         }
@@ -394,7 +394,7 @@ mod tests {
             let nodes =
                 extract_nodes_from_statement_with_filter(&envelopes, &env_controller, |_| true);
             assert_eq!(
-                is_quorum_with_node_filter(get_quorum_set_predicate, &nodes),
+                nodes_form_quorum(get_quorum_set_predicate, &nodes),
                 false
             );
         }

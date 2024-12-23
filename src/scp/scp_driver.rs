@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::{
     application::{
-        quorum::{accept_predicate, is_quorum_with_node_filter, is_v_blocking, QuorumSet},
+        quorum::{accept_predicate, nodes_form_quorum, is_v_blocking, QuorumSet},
         work_queue::{HClockEvent, WorkScheduler},
     },
     crypto::types::{test_default_blake2, Blake2Hashable},
@@ -381,7 +381,7 @@ where
                 ratify_filter,
             );
 
-            if is_quorum_with_node_filter(
+            if nodes_form_quorum(
                 |node| {
                     if node == self.local_node.node_id.as_str() {
                         Some(&self.local_node.quorum_set)
@@ -413,7 +413,7 @@ where
             envelope_controller,
             voted_predicate,
         );
-        is_quorum_with_node_filter(
+        nodes_form_quorum(
             |node| {
                 if node == self.local_node.node_id.as_str() {
                     Some(&self.local_node.quorum_set)

@@ -266,24 +266,19 @@ pub fn nodes_fill_one_quorum_slice_in_quorum_set(
 // isQuorumincluded in V and we have quorum on V for qSetHash). `qfun` extracts
 // the SCPQuorumSetPtr from the SCPStatement for its associated node in map
 // (required for transitivity)
-pub fn is_quorum_with_node_filter<'a>(
+pub fn nodes_form_quorum<'a>(
     get_quorum_set: impl Fn(&'a NodeID) -> Option<&QuorumSet>,
     nodes: &'a Vec<NodeID>,
 ) -> bool {
     // Definition (quorum). A set of nodes 𝑈 ⊆ 𝐕 in FBAS ⟨𝐕,𝐐⟩ is a quorum iff 𝑈 ≠ ∅
     // and 𝑈 contains a slice for each member—i.e., ∀𝑣 ∈ 𝑈 , ∃𝑞 ∈ 𝐐(𝑣) such that 𝑞 ⊆
     // 𝑈 .
-
-    println!("nodes: {:?}", nodes);
+    println!("nodes_form_quorum nodes: {:?}", nodes);
 
     let ret = if nodes.is_empty() {
         false
     } else {
         nodes.iter().all(|node| {
-            // let env_id = envelopes.get(node).unwrap();
-            // let env = envelope_controller.get_envelope(env_id).unwrap();
-            // let statement = env.get_statement();
-
             if let Some(quorum_set) = get_quorum_set(node) {
                 nodes_fill_one_quorum_slice_in_quorum_set(&quorum_set, &nodes)
             } else {
@@ -297,6 +292,8 @@ pub fn is_quorum_with_node_filter<'a>(
 
 #[cfg(test)]
 mod tests {
+    use rand_core::le;
+
     use crate::{
         mock::state::MockState,
         scp::local_node::{LocalNodeInfo, LocalNodeInfoBuilderFromFile},
@@ -418,5 +415,53 @@ mod tests {
     }
 
     #[test]
-    fn test_a_quorum_has_responded() {}
+    fn test_nodes_form_quorum_simple_two_nodes() {
+        let mut builder = LocalNodeInfoBuilderFromFile::new("test");
+
+        let node1_str = "node1".to_string();
+        let node2_str = "node2".to_string();
+
+        let node1: LocalNodeInfo<MockState> = builder.build_from_file(&node1_str).unwrap();
+        let node2: LocalNodeInfo<MockState> = builder.build_from_file(&node2_str).unwrap();
+
+        let quorum_set = BTreeSet::from_iter(vec![node1_str.to_string(), node2_str.to_string()]);
+
+        for node in vec![&node1, &node2] {
+            assert_eq!(
+                BTreeSet::from_iter(
+                    node.quorum_set
+                        .nodes()
+                        .iter()
+                        .map(|node| node.node_id.to_string())
+                ),
+                quorum_set,
+            );
+        }
+
+        let get_quorum_set = |node_id: &NodeID| {
+            if node_id == "node1" {
+                Some(&node1.quorum_set)
+            } else if node_id == "node2" {
+                Some(&node2.quorum_set)
+            } else {
+                None
+            }
+        };
+
+        let nodes = vec![node1_str.to_string()];
+        assert!(!nodes_form_quorum(&get_quorum_set, &nodes));
+
+        let nodes = vec![node2_str.to_string()];
+        assert!(!nodes_form_quorum(&get_quorum_set, &nodes));
+
+        let nodes = vec![node1_str.to_string(), node2_str.to_string()];
+        assert!(nodes_form_quorum(&get_quorum_set, &nodes));
+
+        let nodes = vec![
+            node1_str.to_string(),
+            node2_str.to_string(),
+            "node3".to_string(),
+        ];
+        assert!(nodes_form_quorum(&get_quorum_set, &nodes));
+    }
 }

@@ -9,7 +9,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    application::quorum::{is_quorum_with_node_filter, QuorumSet},
+    application::quorum::{nodes_form_quorum, QuorumSet},
     herder::herder::HerderDriver,
     scp::{
         local_node::LocalNodeInfo,
@@ -1230,7 +1230,7 @@ where
                 self.herder_driver.get_quorum_set(st)
             };
 
-            if is_quorum_with_node_filter(get_quorum_set_predicate, &nodes) {
+            if nodes_form_quorum(get_quorum_set_predicate, &nodes) {
                 let old_heard_from_quorum = ballot_state.heard_from_quorum;
                 ballot_state.heard_from_quorum = true;
                 if !old_heard_from_quorum {
