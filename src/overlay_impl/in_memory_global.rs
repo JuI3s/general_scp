@@ -1,7 +1,7 @@
 use std::{
     borrow::BorrowMut,
     cell::RefCell,
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     rc::Rc,
 };
 
@@ -10,7 +10,7 @@ use crate::{
     overlay::{
         message::{MessageController, SCPMessage},
         peer::PeerID,
-},
+    },
     scp::nomination_protocol::NominationValue,
 };
 
@@ -50,7 +50,7 @@ where
 
     pub fn process_messages<H: HerderDriver<N> + 'static>(
         global_state: &Rc<RefCell<Self>>,
-        peers: &mut HashMap<PeerID, Rc<RefCell<InMemoryPeerNode<N, H>>>>,
+        peers: &mut BTreeMap<PeerID, InMemoryPeerNode<N, H>>,
     ) -> usize {
         let mut num_msg_processed = 0;
 
@@ -68,9 +68,8 @@ where
             println!("process msg sent to: {:?}", peer_id);
 
             let processed_new_msg = peers
-                .get(&peer_id)
+                .get_mut(&peer_id)
                 .unwrap()
-                .as_ref()
                 .borrow_mut()
                 .process_one_message();
 

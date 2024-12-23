@@ -277,7 +277,7 @@ where
         let slot_idx: u64 = scp_env.slot_index.clone();
         let env_id = self.scp_envelope_controller.add_envelope(scp_env);
 
-        // let slot = self.get_or_create_slot_and_states(slot_idx);
+        self.maybe_create_slot_and_state(slot_idx);
         let slot = self.slots.get(&slot_idx).unwrap();
         let res = slot.recv_scp_envelvope(
             self.nomination_protocol_states.get_mut(&slot_idx).unwrap(),

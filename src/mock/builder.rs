@@ -105,23 +105,17 @@ impl MockInMemoryNodeBuilder {
         );
 
         let msg_controller = peer.message_controller.clone();
+        self.global_state
+            .borrow_mut()
+            .peer_msg_queues
+            .insert(node_idx.to_owned(), msg_controller);
+
         Some(peer)
         // let peer_handle = Rc::new(RefCell::new(peer));
 
         // self.nodes.insert(node_idx.to_owned(), peer_handle.clone());
 
-        // self.global_state
-        //     .borrow_mut()
-        //     .peer_msg_queues
-        //     .insert(node_idx.to_owned(), msg_controller);
-
         // Some(peer_handle)
-    }
-
-    pub fn set_leader(&mut self, node_idx: &NodeID) {
-        for peer in self.nodes.values() {
-            peer.borrow_mut().add_leader(node_idx);
-        }
     }
 }
 
