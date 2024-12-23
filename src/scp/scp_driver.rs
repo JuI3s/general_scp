@@ -382,12 +382,15 @@ where
             );
 
             if is_quorum_with_node_filter(
-                Some((&self.local_node.quorum_set, &self.local_node.node_id)),
                 |node| {
-                    let env_id = envelopes.get(node).unwrap();
-                    let env = envelope_controller.get_envelope(env_id).unwrap();
-                    let statement = env.get_statement();
-                    self.herder_driver.get_quorum_set(statement)
+                    if node == self.local_node.node_id.as_str() {
+                        Some(&self.local_node.quorum_set)
+                    } else {
+                        let env_id = envelopes.get(node).unwrap();
+                        let env = envelope_controller.get_envelope(env_id).unwrap();
+                        let statement = env.get_statement();
+                        self.herder_driver.get_quorum_set(statement)
+                    }
                 },
                 &nodes,
             ) {
@@ -411,12 +414,15 @@ where
             voted_predicate,
         );
         is_quorum_with_node_filter(
-            Some((&self.local_node.quorum_set, &self.local_node.node_id)),
             |node| {
-                let env_id = envelopes.get(node).unwrap();
-                let env = envelope_controller.get_envelope(env_id).unwrap();
-                let st = env.get_statement();
-                self.herder_driver.get_quorum_set(st)
+                if node == self.local_node.node_id.as_str() {
+                    Some(&self.local_node.quorum_set)
+                } else {
+                    let env_id = envelopes.get(node).unwrap();
+                    let env = envelope_controller.get_envelope(env_id).unwrap();
+                    let st = env.get_statement();
+                    self.herder_driver.get_quorum_set(st)
+                }
             },
             &nodes,
         )

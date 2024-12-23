@@ -1230,11 +1230,7 @@ where
                 self.herder_driver.get_quorum_set(st)
             };
 
-            if is_quorum_with_node_filter(
-                Some((&self.local_node.quorum_set, &self.local_node.node_id)),
-                get_quorum_set_predicate,
-                &nodes,
-            ) {
+            if is_quorum_with_node_filter(get_quorum_set_predicate, &nodes) {
                 let old_heard_from_quorum = ballot_state.heard_from_quorum;
                 ballot_state.heard_from_quorum = true;
                 if !old_heard_from_quorum {

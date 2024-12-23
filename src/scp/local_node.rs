@@ -373,7 +373,7 @@ mod tests {
             let nodes =
                 extract_nodes_from_statement_with_filter(&envelopes, &env_controller, |_| true);
             assert_eq!(
-                is_quorum_with_node_filter(None, get_quorum_set_predicate, &nodes),
+                is_quorum_with_node_filter(get_quorum_set_predicate, &nodes),
                 true
             );
         }
@@ -394,7 +394,7 @@ mod tests {
             let nodes =
                 extract_nodes_from_statement_with_filter(&envelopes, &env_controller, |_| true);
             assert_eq!(
-                is_quorum_with_node_filter(None, get_quorum_set_predicate, &nodes),
+                is_quorum_with_node_filter(get_quorum_set_predicate, &nodes),
                 false
             );
         }

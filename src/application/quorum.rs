@@ -1,5 +1,12 @@
 use std::{
-    cell::RefCell, collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet}, fs::{self, create_dir}, hash::{Hash, Hasher}, io::Write, net::{Ipv4Addr, SocketAddrV4}, rc::Rc, sync::{Arc, Mutex}
+    cell::RefCell,
+    collections::{hash_map::DefaultHasher, BTreeMap, BTreeSet},
+    fs::{self, create_dir},
+    hash::{Hash, Hasher},
+    io::Write,
+    net::{Ipv4Addr, SocketAddrV4},
+    rc::Rc,
+    sync::{Arc, Mutex},
 };
 
 use blake2::Digest;
@@ -260,7 +267,6 @@ pub fn nodes_fill_one_quorum_slice_in_quorum_set(
 // the SCPQuorumSetPtr from the SCPStatement for its associated node in map
 // (required for transitivity)
 pub fn is_quorum_with_node_filter<'a>(
-    local_quorum: Option<(&QuorumSet, &NodeID)>,
     get_quorum_set: impl Fn(&'a NodeID) -> Option<&QuorumSet>,
     nodes: &'a Vec<NodeID>,
 ) -> bool {
@@ -268,13 +274,9 @@ pub fn is_quorum_with_node_filter<'a>(
     // and 𝑈 contains a slice for each member—i.e., ∀𝑣 ∈ 𝑈 , ∃𝑞 ∈ 𝐐(𝑣) such that 𝑞 ⊆
     // 𝑈 .
 
-    // TODO: do not need input from self?
-    // if let Some((_, local_node_id)) = local_quorum {
-    //     nodes.push(local_node_id.to_owned());
-    // }
     println!("nodes: {:?}", nodes);
 
-    let mut ret = if nodes.is_empty() {
+    let ret = if nodes.is_empty() {
         false
     } else {
         nodes.iter().all(|node| {
@@ -289,12 +291,6 @@ pub fn is_quorum_with_node_filter<'a>(
             }
         })
     };
-
-    // TODO: should refactor this outside the function
-    // Check for local node.
-    if let Some((local_quorum_set, _)) = local_quorum {
-        ret = ret && nodes_fill_one_quorum_slice_in_quorum_set(local_quorum_set, &nodes);
-    }
 
     ret
 }
