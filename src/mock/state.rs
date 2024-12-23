@@ -164,6 +164,9 @@ mod tests {
         sync::Arc,
     };
 
+    use test_log::test;
+    use tracing::info;
+
     use crate::{
         application::{clock::VirtualClock, quorum::QuorumSet},
         mock::{
@@ -425,9 +428,10 @@ mod tests {
 
         nodes.get_mut("node1").unwrap().slot_nominate(0);
 
-        // Should process two nomination statements (one one each node) with vote for node1's value.
-        // TODO: need to figure out why this does not trigger sending nomination statements involving the accepted value.
-        assert!(InMemoryGlobalState::process_messages(&builder.global_state, &mut nodes) == 2);
+        assert_eq!(
+            InMemoryGlobalState::process_messages(&builder.global_state, &mut nodes),
+            4,
+        );
 
         let node1_nomnination_state: NominationProtocolState<MockState> =
             nodes["node1"].get_current_nomination_state(&0).unwrap();
@@ -438,18 +442,11 @@ mod tests {
             node2_nomnination_state.round_leaders
         );
 
-        assert!(nodes["node1"].scp_envelope_controller.envs_to_emit.len() == 1);
-        assert!(nodes["node1"].scp_envelope_controller.envs_to_emit.len() > 0);
+        assert_eq!(nodes["node1"].scp_envelope_controller.envs_to_emit.len(), 0);
+        assert_eq!(nodes["node2"].scp_envelope_controller.envs_to_emit.len(), 0);
 
         assert_eq!(node1_nomnination_state.nomination_started, true);
         assert_eq!(node2_nomnination_state.nomination_started, true);
-
-        // assert_eq!(
-        // node1_nomnination_state.latest_nominations.len(),
-        // 2,
-        // "Latest nomination statements from {:?}",
-        // node1_nomnination_state.latest_nominations.keys()
-        // );
 
         assert_eq!(
             node2_nomnination_state.latest_nominations.len(),
@@ -463,6 +460,10 @@ mod tests {
         println!("node2 state: {:?}", node2_nomnination_state);
 
         assert!(builder.global_state.borrow().msg_peer_id_queue.len() == 0);
+        // assert_eq!(
+        //     InMemoryGlobalState::process_messages(&builder.global_state, &mut nodes),
+        //     0
+        // );
     }
 
     //     #[test]

@@ -8,7 +8,7 @@ use std::{
 };
 
 use bincode::de;
-use log::debug;
+use log::{debug, info};
 use pkcs8::der::DerOrd;
 
 use crate::{
@@ -137,28 +137,8 @@ where
         }
     }
 
-    pub fn send_broadcast_message(&mut self, msg: &SCPMessage<N>) {
-        for peer in self.local_node_info.quorum_set.nodes().iter() {
-            let conn = self
-                .peer_conns
-                .entry(peer.node_id.to_owned())
-                .or_insert_with(|| self.conn_builder.build(peer));
-            conn.send_message(msg);
-        }
-    }
-
-    pub fn slot_nominate(&mut self, slot_idx: SlotIndex) {
-        self.maybe_create_slot_and_state(slot_idx);
-
-        let env_id = self.slots.get(&slot_idx).unwrap().nominate(
-            self.nomination_protocol_states.get_mut(&slot_idx).unwrap(),
-            self.ballot_protocol_states.get_mut(&slot_idx).unwrap(),
-            Arc::new(N::default()),
-            &Default::default(),
-            &mut self.scp_envelope_controller,
-        );
-
-        if let Some(env_id) = env_id {
+    fn flush_all_broadcast_msg(&mut self) {
+        while let Some(env_id) = self.scp_envelope_controller.pop_next_env_to_emit() {
             let scp_env = self
                 .scp_envelope_controller
                 .get_envelope(&env_id)
@@ -168,9 +148,36 @@ where
             let scp_msg = SCPMessage::SCP(scp_env);
 
             self.send_broadcast_message(&scp_msg);
-        } else {
-            panic!("No env emitted");
         }
+    }
+
+    fn send_broadcast_message(&mut self, msg: &SCPMessage<N>) {
+        for peer in self.local_node_info.quorum_set.nodes().iter() {
+            let conn: &mut C = self
+                .peer_conns
+                .entry(peer.node_id.to_owned())
+                .or_insert_with(|| self.conn_builder.build(peer));
+            conn.send_message(msg);
+        }
+    }
+
+    pub fn slot_nominate(&mut self, slot_idx: SlotIndex) {
+        log::debug!(
+            "slot_nominate: node {:?} slot_idx {:?}",
+            self.peer_idx,
+            slot_idx
+        );
+        self.maybe_create_slot_and_state(slot_idx);
+
+        self.slots.get(&slot_idx).unwrap().nominate(
+            self.nomination_protocol_states.get_mut(&slot_idx).unwrap(),
+            self.ballot_protocol_states.get_mut(&slot_idx).unwrap(),
+            Arc::new(N::default()),
+            &Default::default(),
+            &mut self.scp_envelope_controller,
+        );
+
+        self.flush_all_broadcast_msg();
     }
 
     pub fn send_hello(&mut self) {
@@ -250,6 +257,10 @@ where
         let insert = !self.slots.contains_key(&slot_idx);
 
         if insert {
+            info!(
+                "Node {:?} creates slot {:?}",
+                self.local_node_info.node_id, slot_idx
+            );
             let val = self.build_slot(slot_idx);
 
             self.slots.insert(slot_idx.clone(), val);
@@ -265,6 +276,10 @@ where
     }
 
     fn on_scp_env(&mut self, scp_env: SCPEnvelope<N>) {
+        println!(
+            "on_scp_env: node {:?} slot_idx {:?}",
+            self.peer_idx, scp_env.slot_index
+        );
         // Do not process it if it is not from the leader.
         if let Some(leader) = self.leaders.front() {
             if leader != &scp_env.node_id {
@@ -279,6 +294,7 @@ where
 
         self.maybe_create_slot_and_state(slot_idx);
         let slot = self.slots.get(&slot_idx).unwrap();
+
         let res = slot.recv_scp_envelvope(
             self.nomination_protocol_states.get_mut(&slot_idx).unwrap(),
             self.ballot_protocol_states.get_mut(&slot_idx).unwrap(),
@@ -287,9 +303,11 @@ where
         );
 
         println!(
-            "Node: {} Slot {} recv env {:?}",
-            self.local_node_info.node_id, slot_idx, res
+            "on_scp_env res: node {:?}, res {:?}",
+            self.local_node_info.node_id, res
         );
+
+        self.flush_all_broadcast_msg();
     }
 
     pub fn process_all_messages(&mut self) -> usize {

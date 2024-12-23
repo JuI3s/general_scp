@@ -8,7 +8,9 @@ use std::{
 // pub type HashValue = Vec<u8>;
 pub type HashValue = [u8; 64];
 
+use log::{debug, info};
 use serde::Serialize;
+use tracing::field::debug;
 
 use crate::{
     application::{
@@ -21,6 +23,7 @@ use crate::{
         local_node::extract_nodes_from_statement_with_filter,
         nomination_protocol::NominationProtocol,
     },
+    utils::test::pretty_print_scp_env_id,
 };
 
 use super::{
@@ -266,8 +269,12 @@ where
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
         // TODO: Need to check if we need to accept the statement.
-
-        println!("state_may_have_changed votes: {:?}", statement.votes);
+        debug!(
+            "state_may_have_changed, node: {:?}, votes: {:?}, accepts: {:?}",
+            self.node_idx(),
+            statement.votes,
+            statement.accepted
+        );
 
         let modified = statement.votes.iter().any(|vote| {
             println!("state_may_have_changed cur vote: {:?}", vote);
@@ -288,6 +295,12 @@ where
             ) {
                 match self.herder_driver.validate_value(vote, true) {
                     ValidationLevel::FullyValidated => {
+                        debug!(
+                            "state_may_have_changed STATE CHANGE: nodes {:?} fully validates value {:?}",
+                            self.node_idx(),
+                            vote
+                        );
+
                         let value = Arc::new(vote.clone());
                         nomination_state.accepted.insert(value.clone());
                         nomination_state.votes.insert(value.clone());
@@ -319,7 +332,11 @@ where
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> EnvelopeState {
         let env = envelope_controller.get_envelope(env_id).unwrap();
-        println!("Received an envelope: {:?}", env_id);
+        info!(
+            "recv_scp_envelvope: node {:?} receives an envelope: {:?}",
+            self.node_idx(),
+            pretty_print_scp_env_id(&env_id)
+        );
         match env.get_statement() {
             SCPStatement::Prepare(_) | SCPStatement::Confirm(_) | SCPStatement::Externalize(_) => {
                 self.process_ballot_envelope(
@@ -452,6 +469,11 @@ where
 
         let env_id = envelope_controller.add_envelope(env);
         envelope_controller.add_env_to_emit(&env_id);
+        debug!(
+            "create_envelope: node {:?} creates cur_env_id: {:?}",
+            self.node_idx(),
+            pretty_print_scp_env_id(&env_id)
+        );
         env_id
     }
 

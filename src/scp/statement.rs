@@ -45,6 +45,8 @@ where
     Nominate(SCPStatementNominate<N>),
 }
 
+
+
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct SCPStatementNominate<N>
 where

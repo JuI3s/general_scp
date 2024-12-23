@@ -10,11 +10,14 @@ use std::{
     time::SystemTime,
 };
 
-use log::debug;
+use bincode::de;
+use log::{debug, info};
 use serde::Serialize;
+use tracing::field::debug;
 
 use crate::{
     application::quorum::accept_predicate, herder::herder::HerderDriver, overlay::peer::PeerID,
+    utils::test::pretty_print_scp_env_id,
 };
 
 use super::{
@@ -322,6 +325,7 @@ where
         env_id: &SCPEnvelopeID,
         envelope_controller: &SCPEnvelopeController<N>,
     ) {
+        debug!("record_envelope {:?}", pretty_print_scp_env_id(env_id));
         let nomination_env = envelope_controller.get_envelope(env_id).unwrap();
         let node_id = &nomination_env.node_id;
 
@@ -387,12 +391,15 @@ where
         // This function creats a nomination statement that contains the current
         // nomination value. The statement is then wrapped in an SCP envelope which is
         // checked for validity before being passed to Herder for broadcasting.
-        println!("Emit nomination");
+
+        info!(
+            "emit_nomination: node {:?}, num accepted: {:?}, num votes: {:?}",
+            self.node_idx(),
+            nomination_state.accepted.len(),
+            nomination_state.votes.len(),
+        );
 
         let votes = nomination_state.get_current_votes();
-
-        println!("accepted: {:?}", nomination_state.accepted);
-        println!("Votes: {:?}", votes.len());
 
         // Creating the nomination statement
         let nom_st: SCPStatementNominate<N> =
@@ -412,28 +419,38 @@ where
 
         match env_state {
             EnvelopeState::Valid => {
-                if nomination_state
-                    .latest_envelope
-                    .as_ref()
-                    .and_then(|env_id| envelope_controller.get_envelope(env_id))
-                    .is_some_and(|env| match &env.statement {
-                        SCPStatement::Nominate(last_st) => envelope_controller
-                            .get_envelope(&cur_env_id)
-                            .unwrap()
-                            .statement
-                            .as_nomination_statement()
-                            .is_older_than(last_st),
+                if let Some(latest_envelope_id) = nomination_state.latest_envelope.as_ref() {
+                    let env = envelope_controller
+                        .get_envelope(latest_envelope_id)
+                        .unwrap();
+                    match &env.statement {
+                        SCPStatement::Nominate(last_st) => {
+                            if envelope_controller
+                                .get_envelope(&cur_env_id)
+                                .unwrap()
+                                .statement
+                                .as_nomination_statement()
+                                .is_older_than(last_st)
+                            {
+                                debug!(
+                                    "emit_nomination: node {:?} skipped statement with votes {:?} and accepts {:?} becauses it has already emitted newer envelope",
+                                    self.node_idx(), last_st.votes, last_st.accepted,
+                                );
+
+                                return None;
+                            }
+                        }
                         _ => {
                             panic!("Nomination state should only contain nomination statements.")
                         }
-                    })
-                {
-                    // Fix this
-
-                    // Do not do anything if we have already emitted a newer evenlope.
-                    return None;
+                    };
                 }
 
+                debug!(
+                    "emit_nomination: node {:?} emitted sets latest envelope {:?}",
+                    self.node_idx(),
+                    pretty_print_scp_env_id(&cur_env_id)
+                );
                 nomination_state.latest_envelope = Some(cur_env_id.clone());
 
                 if self.slot_state.borrow().fully_validated {
@@ -462,6 +479,7 @@ where
         previous_value: &N,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> Option<SCPEnvelopeID> {
+        debug!("NominationProtocol::nominate, node: {:?}", self.node_idx());
         if !state.candidates.is_empty() {
             debug!(
                 "Skip nomination round {}, already have a candidate",
@@ -498,24 +516,27 @@ where
                     envelope_controller,
                 );
 
+            debug!(
+                "NominationProtocol::nominate, updated after gathering votes from round leaders: {:?}, node {:?}",
+                updated,
+                self.node_idx()
+            );
+
             // if we're leader, add our value if we haven't added any votes yet
             if state.round_leaders.contains(&self.local_node.node_id) && state.votes.is_empty() {
                 state.votes.insert(value.clone().into());
-                state.accepted.insert(value.clone().into());
                 updated = true;
                 self.herder_driver
                     .nominating_value(&value, &self.slot_index);
+                debug!(
+                    "NominationProtocol::nominate, node {:?} adds value {:?} as leader",
+                    self.node_idx(),
+                    value
+                );
             }
 
+            // TODO: remove
             // state.add_value_from_leaders(self);
-
-            // if we're leader, add our value if we haven't added any votes yet
-            if state.round_leaders.contains(&self.local_node.node_id) && state.votes.is_empty() {
-                if state.votes.insert(value.clone()) {
-                    updated = true;
-                    self.nominating_value(value.as_ref());
-                }
-            }
         }
 
         {
@@ -536,12 +557,18 @@ where
             self.task_queue.borrow_mut().submit(renominate_job);
         }
 
+        debug!(
+            "NominationProtocol::nominate, updated: {:?}, node {:?}",
+            updated,
+            self.node_idx()
+        );
         if updated {
-            println!("Updated");
-
             self.emit_nomination(state, ballot_state, envelope_controller)
         } else {
-            debug!("NominationProtocol::nominate (SKIPPED)");
+            debug!(
+                "NominationProtocol::nominate (SKIPPED), node {:?}",
+                self.node_idx()
+            );
             None
         }
     }
@@ -565,11 +592,14 @@ where
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
     ) -> EnvelopeState {
-        println!("Process nomination envelope {:?}", envelope);
+        debug!(
+            "process_nomination_envelope: Node {:?} process nomination envelope {:?}",
+            self.node_idx(),
+            pretty_print_scp_env_id(&envelope),
+        );
         let env = envelope_controller.get_envelope(envelope).unwrap();
         let node_id = &env.node_id;
         let statement = env.get_statement().as_nomination_statement();
-        let mut env_id_to_emit = None;
 
         // TODO: this comment seems to be wrong
         // If we've processed the same envelope, we'll process it again
@@ -577,6 +607,11 @@ where
         // (e.g., tx set fetch)
 
         if nomination_state.processed_newer_statement(&node_id, statement, envelope_controller) {
+            debug!(
+                "Node {:?} processed nomination envelope {:?} skipped",
+                self.node_idx(),
+                pretty_print_scp_env_id(&envelope),
+            );
             return EnvelopeState::Invalid;
         }
 
@@ -587,35 +622,15 @@ where
 
         nomination_state.record_envelope(envelope, envelope_controller);
 
-        println!(
-            "node {:?} nomination state {:?}",
-            self.node_idx(),
-            nomination_state
-        );
-
         // Whether we have modified nomination state.
         let modified =
             self.state_may_have_changed(statement, nomination_state, &envelope_controller);
-        println!(
-            "node {:?} process_nomination_envelope modified: {:?}",
-            self.node_idx(),
-            modified
-        );
 
-        println!(
-            "node {:?} statemetn accepts: {:?}",
+        debug!(
+            "Node {:?} processing nomination envelope {:?} triggers stage change: {:?}",
             self.node_idx(),
-            statement.accepted
-        );
-        println!(
-            "node {:?} Nomination state accepts: {:?}",
-            self.node_idx(),
-            nomination_state.accepted
-        );
-        println!(
-            "node {:?} quorum {:?}",
-            self.node_idx(),
-            self.local_node.quorum_set
+            pretty_print_scp_env_id(&envelope),
+            modified
         );
 
         let new_candidates = statement.accepted.iter().any(|value| {
@@ -644,7 +659,7 @@ where
             false
         });
 
-        println!(
+        debug!(
             "node {:?} process_nomination_envelope new_candidates: {:?}",
             self.node_idx(),
             new_candidates
@@ -652,9 +667,11 @@ where
 
         if modified {
             // Somehow is not modified..
-            println!("Node {} emit nomination", self.node_idx());
-            env_id_to_emit =
-                self.emit_nomination(nomination_state, ballot_state, envelope_controller);
+            debug!(
+                "Node {} emit nomination because of state change",
+                self.node_idx()
+            );
+            self.emit_nomination(nomination_state, ballot_state, envelope_controller);
         }
 
         if new_candidates {
