@@ -162,6 +162,7 @@ mod tests {
         collections::{BTreeSet, HashMap},
         f64::consts::E,
         sync::Arc,
+        vec,
     };
 
     use test_log::test;
@@ -173,7 +174,7 @@ mod tests {
             self,
             builder::{MockInMemoryNodeBuilder, NodeBuilderDir},
         },
-        overlay::peer_node::PeerNode,
+        overlay::{node, peer_node::PeerNode},
         overlay_impl::{
             in_memory_conn::{InMemoryConn, InMemoryConnBuilder},
             in_memory_global::InMemoryGlobalState,
@@ -423,6 +424,10 @@ mod tests {
             &"node1".to_string(),
         );
 
+        for node in nodes.values() {
+            assert_eq!(node.leaders, vec!["node1".to_string()]);
+        }
+
         assert!(nodes["node1"].get_current_nomination_state(&0).is_none());
         assert!(nodes["node2"].get_current_nomination_state(&0).is_none());
 
@@ -430,8 +435,12 @@ mod tests {
 
         assert_eq!(
             InMemoryGlobalState::process_messages(&builder.global_state, &mut nodes),
-            4,
+            3,
         );
+
+        for node in nodes.values() {
+            assert_eq!(node.leaders, vec!["node1".to_string()]);
+        }
 
         let node1_nomnination_state: NominationProtocolState<MockState> =
             nodes["node1"].get_current_nomination_state(&0).unwrap();

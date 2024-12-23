@@ -10,6 +10,7 @@ use std::{
 use bincode::de;
 use log::{debug, info};
 use pkcs8::der::DerOrd;
+use tracing::field::debug;
 
 use crate::{
     application::work_queue::WorkScheduler,
@@ -55,7 +56,7 @@ where
     work_scheduler: Rc<RefCell<WorkScheduler>>,
     local_node_info: Arc<LocalNodeInfo<N>>,
 
-    leaders: VecDeque<NodeID>,
+    pub leaders: VecDeque<NodeID>,
 }
 
 impl<N, H, C, CB> Debug for PeerNode<N, H, C, CB>
@@ -282,13 +283,18 @@ where
     }
 
     fn on_scp_env(&mut self, scp_env: SCPEnvelope<N>) {
-        println!(
+        info!(
             "on_scp_env: node {:?} slot_idx {:?}",
             self.peer_idx, scp_env.slot_index
         );
         // Do not process it if it is not from the leader.
         if let Some(leader) = self.leaders.front() {
             if leader != &scp_env.node_id {
+                info!(
+                    "on_scp_env skipped processin because sender {:?} is not leader {:?}",
+                    scp_env.node_id, leader,
+                );
+
                 return;
             }
         } else {

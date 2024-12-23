@@ -102,6 +102,7 @@ where
 
 impl<N: NominationValue> NominationProtocolState<N> {
     pub fn new(leader_id: PeerID) -> Self {
+        // todo!("Do not allow node to set itself as leader");
         println!("NominationProtocolState::new: leader_id: {:?}", leader_id);
         let mut state: NominationProtocolState<N> = Default::default();
         state.round_leaders.insert(leader_id);
@@ -534,9 +535,10 @@ where
                 self.herder_driver
                     .nominating_value(&value, &self.slot_index);
                 debug!(
-                    "NominationProtocol::nominate, node {:?} adds value {:?} as leader",
+                    "NominationProtocol::nominate, node {:?} adds value {:?} as leader, updated: {:?}",
                     self.node_idx(),
-                    value
+                    value,
+                    updated
                 );
             }
 
