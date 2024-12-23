@@ -425,6 +425,8 @@ mod tests {
 
         nodes.get_mut("node1").unwrap().slot_nominate(0);
 
+        // Should process two nomination statements (one one each node) with vote for node1's value.
+        // TODO: need to figure out why this does not trigger sending nomination statements involving the accepted value.
         assert!(InMemoryGlobalState::process_messages(&builder.global_state, &mut nodes) == 2);
 
         let node1_nomnination_state: NominationProtocolState<MockState> =

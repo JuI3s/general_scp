@@ -652,7 +652,6 @@ where
 
         if modified {
             // Somehow is not modified..
-            todo!();
             println!("Node {} emit nomination", self.node_idx());
             env_id_to_emit =
                 self.emit_nomination(nomination_state, ballot_state, envelope_controller);
