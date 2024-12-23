@@ -8,9 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::application::quorum::QuorumSet;
 
 use super::{
-    ballot_protocol::SCPBallot,
-    nomination_protocol::NominationValue,
-    scp::NodeID,
+    ballot_protocol::SCPBallot, nomination_protocol::NominationValue, scp::NodeID,
     scp_driver::HashValue,
 };
 
@@ -161,6 +159,7 @@ where
     }
 
     pub fn get_nomination_values(&self) -> HashSet<N> {
+        // TODO: is this comment right?
         // Called in the ballot protocol phase. Return nomination values in contained in
         // statement which is assumed to be not a nominate statement.
 

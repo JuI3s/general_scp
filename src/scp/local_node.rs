@@ -14,7 +14,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::{
     application::quorum::{
-        nodes_form_quorum, is_v_blocking, nodes_fill_quorum_slice, HQuorumSet, QuorumNode,
+        is_v_blocking, nodes_fill_quorum_slice, nodes_form_quorum, HQuorumSet, QuorumNode,
         QuorumSet, QuorumSlice,
     },
     mock::state::MockState,
@@ -216,15 +216,27 @@ where
         envelope_map.iter().for_each(|entry| {
             let env = envelope_controller.get_envelope(entry.1).unwrap();
             println!(
-                "env st votes: {:?}",
+                "env nomination_values: {:?}",
                 env.get_statement().get_nomination_values()
+            );
+            println!(
+                "env st votes: {:?}",
+                env.get_statement().as_nomination_statement().votes
+            );
+            println!(
+                "env st accepted: {:?}",
+                env.get_statement().as_nomination_statement().accepted
             );
 
             if filter(env.get_statement()) {
                 nodes.push(entry.0.clone());
             }
         });
-        println!("is_v_blocking_with_predicate nodes: {:?}", nodes);
+        // TODO: fix this
+        println!(
+            "is_v_blocking_with_predicate nodes: {:?}, quorum_set: {:?}, envelope_map: {:?}",
+            nodes, quorum_set, envelope_map,
+        );
         is_v_blocking(quorum_set, &nodes)
     }
 }
@@ -372,10 +384,7 @@ mod tests {
 
             let nodes =
                 extract_nodes_from_statement_with_filter(&envelopes, &env_controller, |_| true);
-            assert_eq!(
-                nodes_form_quorum(get_quorum_set_predicate, &nodes),
-                true
-            );
+            assert_eq!(nodes_form_quorum(get_quorum_set_predicate, &nodes), true);
         }
 
         envelopes.remove(&node_id2);
@@ -393,10 +402,7 @@ mod tests {
 
             let nodes =
                 extract_nodes_from_statement_with_filter(&envelopes, &env_controller, |_| true);
-            assert_eq!(
-                nodes_form_quorum(get_quorum_set_predicate, &nodes),
-                false
-            );
+            assert_eq!(nodes_form_quorum(get_quorum_set_predicate, &nodes), false);
         }
     }
 }

@@ -227,11 +227,7 @@ pub fn is_v_blocking(quorum_set: &QuorumSet, node_set: &Vec<NodeID>) -> bool {
 
 pub fn accept_predicate<N: NominationValue>(value: &N, statement: &SCPStatement<N>) -> bool {
     statement.as_nomination_statement().accepted.contains(value)
-}
-
-pub fn has_voted_predicate<N: NominationValue>(value: &N, statement: &SCPStatement<N>) -> bool {
-    statement.as_nomination_statement().votes.contains(value)
-        || statement.as_nomination_statement().accepted.contains(value)
+        || statement.as_nomination_statement().votes.contains(value)
 }
 
 pub fn is_quorum(slice: &QuorumSlice, quorum_set: &QuorumSet) -> bool {

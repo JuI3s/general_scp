@@ -1040,6 +1040,7 @@ where
         counter: u32,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
+        todo!();
         LocalNodeInfo::is_v_blocking_with_predicate(
             &self.local_node.quorum_set,
             envelopes,

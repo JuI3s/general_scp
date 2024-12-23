@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::{
     application::{
-        quorum::{accept_predicate, nodes_form_quorum, is_v_blocking, QuorumSet},
+        quorum::{accept_predicate, is_v_blocking, nodes_form_quorum, QuorumSet},
         work_queue::{HClockEvent, WorkScheduler},
     },
     crypto::types::{test_default_blake2, Blake2Hashable},
@@ -268,6 +268,7 @@ where
         // TODO: Need to check if we need to accept the statement.
 
         println!("state_may_have_changed votes: {:?}", statement.votes);
+
         let modified = statement.votes.iter().any(|vote| {
             println!("state_may_have_changed cur vote: {:?}", vote);
             if nomination_state.accepted.contains(vote) {
@@ -290,13 +291,13 @@ where
                         let value = Arc::new(vote.clone());
                         nomination_state.accepted.insert(value.clone());
                         nomination_state.votes.insert(value.clone());
-                        true;
+                        return true;
                     }
                     _ => {
                         if let Some(value) = self.herder_driver.extract_valid_value(vote) {
                             nomination_state.accepted.insert(Arc::new(value.clone()));
                             nomination_state.votes.insert(Arc::new(value.clone()));
-                            true;
+                            return true;
                         }
                     }
                 }
@@ -363,13 +364,21 @@ where
         envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
-        println!("Federated accept {:?}", envelopes);
+        println!(
+            "federated_accept: local node {:?}, envelopes {:?}",
+            self.node_idx(),
+            envelopes
+        );
         if LocalNodeInfo::<N>::is_v_blocking_with_predicate(
             &self.local_node.quorum_set,
             envelopes,
             &accepted_predicate,
             envelope_controller,
         ) {
+            println!(
+                "federated_accept: node {:?} is_v_blocking_with_predicate returns true",
+                self.local_node.node_id
+            );
             true
         } else {
             let ratify_filter =

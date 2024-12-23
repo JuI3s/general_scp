@@ -596,6 +596,11 @@ where
         // Whether we have modified nomination state.
         let modified =
             self.state_may_have_changed(statement, nomination_state, &envelope_controller);
+        println!(
+            "node {:?} process_nomination_envelope modified: {:?}",
+            self.node_idx(),
+            modified
+        );
 
         println!(
             "node {:?} statemetn accepts: {:?}",
@@ -647,12 +652,14 @@ where
 
         if modified {
             // Somehow is not modified..
+            todo!();
             println!("Node {} emit nomination", self.node_idx());
             env_id_to_emit =
                 self.emit_nomination(nomination_state, ballot_state, envelope_controller);
         }
 
         if new_candidates {
+            todo!();
             // TODO: Is this correct?
 
             if let Some(value) = self
@@ -672,7 +679,6 @@ where
                 .as_ref()
             {
                 Some(val) => {
-                    // todo!();
                     self.bump_state_(
                         val,
                         ballot_state,
@@ -687,7 +693,7 @@ where
             };
         } else {
             //
-            println!("Nomnation candidates: {:?}", nomination_state.candidates);
+            println!("Nomination candidates: {:?}", nomination_state.candidates);
         }
 
         EnvelopeState::Valid

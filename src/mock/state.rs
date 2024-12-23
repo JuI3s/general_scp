@@ -420,6 +420,9 @@ mod tests {
             &"node1".to_string(),
         );
 
+        assert!(nodes["node1"].get_current_nomination_state(&0).is_none());
+        assert!(nodes["node2"].get_current_nomination_state(&0).is_none());
+
         nodes.get_mut("node1").unwrap().slot_nominate(0);
 
         assert!(InMemoryGlobalState::process_messages(&builder.global_state, &mut nodes) == 2);
@@ -428,7 +431,6 @@ mod tests {
             nodes["node1"].get_current_nomination_state(&0).unwrap();
         let node2_nomnination_state = nodes["node1"].get_current_nomination_state(&0).unwrap();
 
-        // TODO: need to fix this
         assert_eq!(
             node1_nomnination_state.round_leaders,
             node2_nomnination_state.round_leaders
@@ -437,11 +439,28 @@ mod tests {
         assert!(nodes["node1"].scp_envelope_controller.envs_to_emit.len() == 1);
         assert!(nodes["node1"].scp_envelope_controller.envs_to_emit.len() > 0);
 
-        //     assert_eq!(node1_nomnination_state.nomination_started, true);
-        //     assert_eq!(node2_nomnination_state.nomination_started, true);
+        assert_eq!(node1_nomnination_state.nomination_started, true);
+        assert_eq!(node2_nomnination_state.nomination_started, true);
 
-        //     println!("node1 state: {:?}", node1_nomnination_state);
-        //     println!("node2 state: {:?}", node2_nomnination_state);
+        // assert_eq!(
+        // node1_nomnination_state.latest_nominations.len(),
+        // 2,
+        // "Latest nomination statements from {:?}",
+        // node1_nomnination_state.latest_nominations.keys()
+        // );
+
+        assert_eq!(
+            node2_nomnination_state.latest_nominations.len(),
+            1,
+            "Latest nomination statements from {:?}",
+            node2_nomnination_state.latest_nominations.keys()
+        );
+        // assert_eq!(node2_nomnination_state.latest_nominations.len(), 2);
+
+        println!("node1 state: {:?}", node1_nomnination_state);
+        println!("node2 state: {:?}", node2_nomnination_state);
+
+        assert!(builder.global_state.borrow().msg_peer_id_queue.len() == 0);
     }
 
     //     #[test]
