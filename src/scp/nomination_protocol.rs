@@ -709,17 +709,15 @@ where
         }
 
         if new_candidates {
-            todo!();
             // TODO: Is this correct?
 
             if let Some(value) = self
                 .herder_driver
                 .combine_candidates(&nomination_state.candidates)
-            {}
-
-            *nomination_state.latest_composite_candidate.lock().unwrap() = self
-                .herder_driver
-                .combine_candidates(&nomination_state.candidates);
+            {
+                debug!("new latest composite candidate: {:?}", value);
+                *nomination_state.latest_composite_candidate.lock().unwrap() = Some(value);
+            }
 
             let _ = match nomination_state
                 .latest_composite_candidate
@@ -729,6 +727,7 @@ where
                 .as_ref()
             {
                 Some(val) => {
+                    info!("Node {:?} bumps state and nominates value {:?}", self.node_idx(), val);
                     self.bump_state_(
                         val,
                         ballot_state,
@@ -742,6 +741,8 @@ where
                     todo!();
                 }
             };
+
+            todo!();
         } else {
             //
             println!("Nomination candidates: {:?}", nomination_state.candidates);

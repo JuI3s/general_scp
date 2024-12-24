@@ -373,7 +373,6 @@ where
         envelope_controller: &SCPEnvelopeController<N>,
         quorum_manager: &QuorumManager,
     ) -> bool {
-        println!("Bumping state");
         self.bump_state(
             ballot_state,
             nomination_state,

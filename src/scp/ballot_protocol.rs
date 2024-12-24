@@ -6,6 +6,7 @@ use std::{
     time::SystemTime,
 };
 
+use log::debug;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -1117,6 +1118,7 @@ where
         quorum_manager: &QuorumManager,
     ) -> bool {
         if !force && state.current_ballot.lock().unwrap().is_none() {
+            debug!("BumpState called with no state");
             false
         } else {
             let n = if let Some(current_ballot) = state.current_ballot.lock().unwrap().as_ref() {
