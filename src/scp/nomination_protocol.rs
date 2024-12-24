@@ -16,7 +16,9 @@ use serde::Serialize;
 use tracing::field::debug;
 
 use crate::{
-    application::quorum::accept_predicate, herder::herder::HerderDriver, overlay::peer::PeerID,
+    application::quorum::accept_predicate,
+    herder::herder::HerderDriver,
+    overlay::{node, peer::PeerID},
     utils::test::pretty_print_scp_env_id,
 };
 
@@ -330,9 +332,14 @@ where
         env_id: &SCPEnvelopeID,
         envelope_controller: &SCPEnvelopeController<N>,
     ) {
-        debug!("record_envelope {:?}", pretty_print_scp_env_id(env_id));
         let nomination_env = envelope_controller.get_envelope(env_id).unwrap();
         let node_id = &nomination_env.node_id;
+
+        debug!(
+            "node record_envelope {:?} from node {:?}, updating latest nomination",
+            pretty_print_scp_env_id(env_id),
+            node_id.to_string()
+        );
 
         self.latest_nominations
             .insert(node_id.to_string(), env_id.clone());

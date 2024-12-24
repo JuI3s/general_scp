@@ -250,12 +250,15 @@ where
     }
 
     fn build_slot(&self, slot_idx: SlotIndex) -> SlotDriver<N, H> {
+        // TODO: what is multiple leaders?
+        let leader = self.leaders.front().unwrap().to_owned();
+
         SlotDriverBuilder::<N, H>::new()
             .slot_index(slot_idx)
             .herder_driver(self.herder.clone())
             .timer(self.work_scheduler.clone())
             .local_node(self.local_node_info.clone())
-            .nomination_protocol_state(NominationProtocolState::new(self.peer_idx.clone()))
+            .nomination_protocol_state(NominationProtocolState::new(leader))
             .build()
             .unwrap()
     }
@@ -265,12 +268,16 @@ where
 
         if insert {
             info!(
-                "Node {:?} creates slot {:?}",
-                self.local_node_info.node_id, slot_idx
+                "Node {:?} creates slot {:?}, leader: {:?}",
+                self.local_node_info.node_id, slot_idx, self.leaders
             );
             let val = self.build_slot(slot_idx);
 
             self.slots.insert(slot_idx.clone(), val);
+            info!(
+                "bk1 Node {:?} creates slot {:?}, leader: {:?}",
+                self.local_node_info.node_id, slot_idx, self.leaders
+            );
 
             self.nomination_protocol_states.insert(
                 slot_idx.clone(),
@@ -287,19 +294,26 @@ where
             "on_scp_env: node {:?} slot_idx {:?}",
             self.peer_idx, scp_env.slot_index
         );
-        // Do not process it if it is not from the leader.
-        if let Some(leader) = self.leaders.front() {
-            if leader != &scp_env.node_id {
-                info!(
-                    "on_scp_env skipped processin because sender {:?} is not leader {:?}",
-                    scp_env.node_id, leader,
-                );
 
-                return;
-            }
-        } else {
-            return;
-        }
+        // TODO: when should we reject msgs from non-leaders?
+
+        // // Do not process it if it is not from the leader.
+        // if let Some(leader) = self.leaders.front() {
+        //     if leader != &scp_env.node_id {
+        //         info!(
+        //             "on_scp_env: node {:?} skipped processing because sender {:?} is not leader {:?}",
+        //             self.peer_idx, scp_env.node_id, leader,
+        //         );
+
+        //         return;
+        //     }
+        // } else {
+        //     info!(
+        //         "on_scp_env: node {:?} skipped processing because it currently does not recognize a leader.", self.peer_idx
+        //     );
+
+        //     return;
+        // }
 
         let slot_idx: u64 = scp_env.slot_index.clone();
         let env_id = self.scp_envelope_controller.add_envelope(scp_env);
@@ -314,8 +328,8 @@ where
             &mut self.scp_envelope_controller,
         );
 
-        println!(
-            "on_scp_env res: node {:?}, res {:?}",
+        debug!(
+            "on_scp_env res: node {:?} processed an env with response {:?}",
             self.local_node_info.node_id, res
         );
 

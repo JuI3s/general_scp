@@ -69,6 +69,7 @@ impl NominationValue for MockState {}
 
 #[derive(Clone)]
 pub struct MockStateDriver {
+    // TODO:
     quorum_set_map: BTreeMap<HashValue, QuorumSet>,
 }
 
@@ -98,6 +99,10 @@ impl Into<Rc<RefCell<MockStateDriver>>> for MockStateDriver {
     fn into(self) -> Rc<RefCell<MockStateDriver>> {
         RefCell::new(self).into()
     }
+}
+
+impl MockStateDriver {
+
 }
 
 impl HerderDriver<MockState> for MockStateDriver {
@@ -459,9 +464,15 @@ mod tests {
 
         assert_eq!(
             node2_nomnination_state.latest_nominations.len(),
-            1,
+            2,
             "Latest nomination statements from {:?}",
             node2_nomnination_state.latest_nominations.keys()
+        );
+        assert_eq!(
+            node1_nomnination_state.latest_nominations.len(),
+            2,
+            "Latest nomination statements from {:?}",
+            node1_nomnination_state.latest_nominations.keys()
         );
         // assert_eq!(node2_nomnination_state.latest_nominations.len(), 2);
 

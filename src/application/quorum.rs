@@ -11,6 +11,7 @@ use std::{
 
 use blake2::Digest;
 
+use log::debug;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -269,19 +270,22 @@ pub fn nodes_form_quorum<'a>(
     // Definition (quorum). A set of nodes 𝑈 ⊆ 𝐕 in FBAS ⟨𝐕,𝐐⟩ is a quorum iff 𝑈 ≠ ∅
     // and 𝑈 contains a slice for each member—i.e., ∀𝑣 ∈ 𝑈 , ∃𝑞 ∈ 𝐐(𝑣) such that 𝑞 ⊆
     // 𝑈 .
-    println!("nodes_form_quorum nodes: {:?}", nodes);
 
     let ret = if nodes.is_empty() {
         false
     } else {
         nodes.iter().all(|node| {
             if let Some(quorum_set) = get_quorum_set(node) {
+                println!("quorum_set {:?} for {:?}", quorum_set, node);
                 nodes_fill_one_quorum_slice_in_quorum_set(&quorum_set, &nodes)
             } else {
+                println!("no quorum set for {:?}", node);
                 false
             }
         })
     };
+
+    debug!("nodes {:?} form a quorum: {:?}", nodes, ret);
 
     ret
 }

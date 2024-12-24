@@ -442,6 +442,14 @@ where
             envelope_controller,
             voted_predicate,
         );
+
+        debug!(
+            "node {:?} federated_ratify nodes: {:?}, local_quorum_set: {:?}",
+            self.node_idx(),
+            nodes,
+            self.local_node.quorum_set
+        );
+
         nodes_form_quorum(
             |node| {
                 if node == self.local_node.node_id.as_str() {
