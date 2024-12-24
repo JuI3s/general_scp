@@ -1256,7 +1256,7 @@ where
                 let env_id = ballot_state.latest_envelopes.get(node_id).clone().unwrap();
                 let env = envelope_controller.get_envelope(env_id).unwrap();
                 let st = env.get_statement();
-                self.herder_driver.get_quorum_set(st)
+                quorum_manager.get_quorum_set(st)
             };
 
             if nodes_form_quorum(get_quorum_set_predicate, &nodes) {

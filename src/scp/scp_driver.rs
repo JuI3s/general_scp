@@ -426,7 +426,7 @@ where
                         let env_id = envelopes.get(node).unwrap();
                         let env = envelope_controller.get_envelope(env_id).unwrap();
                         let statement = env.get_statement();
-                        self.herder_driver.get_quorum_set(statement)
+                        quorum_manager.get_quorum_set(statement)
                     }
                 },
                 &nodes,
@@ -469,7 +469,7 @@ where
                     let env_id = envelopes.get(node).unwrap();
                     let env = envelope_controller.get_envelope(env_id).unwrap();
                     let st = env.get_statement();
-                    self.herder_driver.get_quorum_set(st)
+                    quorum_manager.get_quorum_set(st)
                 }
             },
             &nodes,

@@ -5,6 +5,8 @@ use std::{
 
 use serde_derive::{Deserialize, Serialize};
 
+use crate::application::quorum::QuorumSet;
+
 use super::{
     nomination_protocol::NominationValue, scp::NodeID, scp_driver::HashValue, slot::SlotIndex,
     statement::SCPStatement,
@@ -28,6 +30,22 @@ where
 
     #[serde(with = "serde_bytes")]
     pub signature: HashValue,
+}
+
+impl<N: NominationValue> SCPEnvelope<N> {
+    pub fn get_quorum_set(&self) -> Option<&QuorumSet> {
+        // TODO: should really refactor quorum set out into the scpenvelope struct.
+        match &self.statement {
+            SCPStatement::Prepare(scpstatement_prepare) => scpstatement_prepare.quorum_set.as_ref(),
+            SCPStatement::Confirm(scpstatement_confirm) => scpstatement_confirm.quorum_set.as_ref(),
+            SCPStatement::Externalize(scpstatement_externalize) => {
+                scpstatement_externalize.commit_quorum_set.as_ref()
+            }
+            SCPStatement::Nominate(scpstatement_nominate) => {
+                scpstatement_nominate.quorum_set.as_ref()
+            }
+        }
+    }
 }
 
 pub type SCPEnvelopeID = SystemTime;

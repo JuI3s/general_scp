@@ -319,6 +319,11 @@ where
         // }
 
         let slot_idx: u64 = scp_env.slot_index.clone();
+
+        if let Some(quorum_set) = scp_env.get_quorum_set() {
+            self.quorum_manager.add_quorum_set(quorum_set);
+        }
+
         let env_id = self.scp_envelope_controller.add_envelope(scp_env);
 
         self.maybe_create_slot_and_state(slot_idx);
