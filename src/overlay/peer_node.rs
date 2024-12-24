@@ -13,7 +13,7 @@ use pkcs8::der::DerOrd;
 use tracing::field::debug;
 
 use crate::{
-    application::work_queue::WorkScheduler,
+    application::{quorum_manager::QuorumManager, work_queue::WorkScheduler},
     herder::herder::HerderDriver,
     scp::{
         self,
@@ -57,6 +57,7 @@ where
     local_node_info: Arc<LocalNodeInfo<N>>,
 
     pub leaders: VecDeque<NodeID>,
+    pub quorum_manager: QuorumManager,
 }
 
 impl<N, H, C, CB> Debug for PeerNode<N, H, C, CB>
@@ -107,6 +108,7 @@ where
             nomination_protocol_states: Default::default(),
             ballot_protocol_states: Default::default(),
             leaders: Default::default(),
+            quorum_manager: Default::default(),
         }
     }
 
@@ -182,6 +184,7 @@ where
             Arc::new(N::default()),
             &Default::default(),
             &mut self.scp_envelope_controller,
+            &mut self.quorum_manager,
         );
 
         self.flush_all_broadcast_msg();
@@ -326,6 +329,7 @@ where
             self.ballot_protocol_states.get_mut(&slot_idx).unwrap(),
             &env_id,
             &mut self.scp_envelope_controller,
+            &mut self.quorum_manager,
         );
 
         debug!(

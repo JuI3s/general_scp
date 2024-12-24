@@ -101,9 +101,7 @@ impl Into<Rc<RefCell<MockStateDriver>>> for MockStateDriver {
     }
 }
 
-impl MockStateDriver {
-
-}
+impl MockStateDriver {}
 
 impl HerderDriver<MockState> for MockStateDriver {
     fn combine_candidates(
@@ -170,11 +168,12 @@ mod tests {
         vec,
     };
 
+    use syn::token::Default;
     use test_log::test;
     use tracing::info;
 
     use crate::{
-        application::{clock::VirtualClock, quorum::QuorumSet},
+        application::{clock::VirtualClock, quorum::QuorumSet, quorum_manager::QuorumManager},
         mock::{
             self,
             builder::{MockInMemoryNodeBuilder, NodeBuilderDir},
@@ -263,6 +262,7 @@ mod tests {
 
         let mut nomination_state = NominationProtocolState::new(node_id.clone());
         let mut ballot_state = BallotProtocolState::default();
+        let mut quorum_manager = QuorumManager::default();
 
         slot_driver.nominate(
             &mut nomination_state,
@@ -270,6 +270,7 @@ mod tests {
             value,
             &prev_value,
             &mut envelope_controller,
+            &mut quorum_manager,
         );
     }
 

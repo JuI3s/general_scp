@@ -15,6 +15,7 @@ use tracing::field::debug;
 use crate::{
     application::{
         quorum::{accept_predicate, is_v_blocking, nodes_form_quorum, QuorumSet},
+        quorum_manager::{self, QuorumManager},
         work_queue::{HClockEvent, WorkScheduler},
     },
     crypto::types::{test_default_blake2, Blake2Hashable},
@@ -267,6 +268,7 @@ where
         statement: &SCPStatementNominate<N>,
         nomination_state: &mut NominationProtocolState<N>,
         envelope_controller: &SCPEnvelopeController<N>,
+        quorum_manager: &QuorumManager,
     ) -> bool {
         // TODO: Need to check if we need to accept the statement.
         debug!(
@@ -293,6 +295,7 @@ where
                 |st| accept_predicate(vote, st),
                 &nomination_state.latest_nominations,
                 envelope_controller,
+                quorum_manager
             ) {
                 match self.herder_driver.validate_value(vote, true) {
                     ValidationLevel::FullyValidated => {
@@ -331,6 +334,7 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         env_id: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
+        quorum_manager: &mut QuorumManager,
     ) -> EnvelopeState {
         let env = envelope_controller.get_envelope(env_id).unwrap();
         info!(
@@ -338,6 +342,7 @@ where
             self.node_idx(),
             pretty_print_scp_env_id(&env_id)
         );
+
         match env.get_statement() {
             SCPStatement::Prepare(_) | SCPStatement::Confirm(_) | SCPStatement::Externalize(_) => {
                 self.process_ballot_envelope(
@@ -346,6 +351,7 @@ where
                     env,
                     true,
                     envelope_controller,
+                    &quorum_manager,
                 )
             }
             SCPStatement::Nominate(st) => self.process_nomination_envelope(
@@ -353,6 +359,7 @@ where
                 ballot_state,
                 &env_id,
                 envelope_controller,
+                quorum_manager,
             ),
         }
     }
@@ -364,6 +371,7 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         force: bool,
         envelope_controller: &SCPEnvelopeController<N>,
+        quorum_manager: &QuorumManager,
     ) -> bool {
         println!("Bumping state");
         self.bump_state(
@@ -372,6 +380,7 @@ where
             nomination_value,
             force,
             envelope_controller,
+            quorum_manager,
         )
     }
 
@@ -381,6 +390,7 @@ where
         accepted_predicate: impl Fn(&SCPStatement<N>) -> bool,
         envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
         envelope_controller: &SCPEnvelopeController<N>,
+        quorum_manager: &QuorumManager,
     ) -> bool {
         println!(
             "federated_accept: local node {:?}, envelopes {:?}",
@@ -434,6 +444,7 @@ where
         voted_predicate: impl Fn(&SCPStatement<N>) -> bool,
         envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
         envelope_controller: &SCPEnvelopeController<N>,
+        quorum_manager: &QuorumManager,
     ) -> bool {
         // Definition of ratify (under Ratification): https://stellar.org/blog/thought-leadership/on-worldwide-consensus
 

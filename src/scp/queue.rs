@@ -5,7 +5,10 @@ use std::{
     time::SystemTime,
 };
 
-use crate::herder::herder::HerderDriver;
+use crate::{
+    application::quorum_manager::{self, QuorumManager},
+    herder::herder::HerderDriver,
+};
 
 use super::{
     ballot_protocol::BallotProtocolState,
@@ -48,6 +51,7 @@ where
         nomination_states: &mut BTreeMap<SlotIndex, NominationProtocolState<N>>,
         ballot_states: &mut BTreeMap<SlotIndex, BallotProtocolState<N>>,
         envelope_controller: &mut SCPEnvelopeController<N>,
+        quorum_manager: &mut QuorumManager,
     ) {
         if let Some(job) = self.jobs.pop_front() {
             if let Some(slot_driver) = slots.get(&job.id) {
@@ -63,12 +67,14 @@ where
                         nomination_state,
                         ballot_state,
                         envelope_controller,
+                        quorum_manager,
                     ),
                     SlotTask::AbandonBallot(arg) => arg.execute(
                         slot_driver,
                         nomination_state,
                         ballot_state,
                         envelope_controller,
+                        quorum_manager,
                     ),
                 }
             }
@@ -113,6 +119,7 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         ballot_state: &mut BallotProtocolState<N>,
         envelope_controller: &mut SCPEnvelopeController<N>,
+        quorum_manager: &mut QuorumManager,
     ) {
         let value = self.value;
         let prev_value = self.previous_value;
@@ -124,6 +131,7 @@ where
             value,
             &prev_value,
             envelope_controller,
+            quorum_manager,
         );
     }
 }
@@ -155,7 +163,14 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         ballot_state: &mut BallotProtocolState<N>,
         envelope_controller: &SCPEnvelopeController<N>,
+        quorum_manager: &QuorumManager,
     ) {
-        slot_driver.abandon_ballot(ballot_state, nomination_state, self.n, envelope_controller);
+        slot_driver.abandon_ballot(
+            ballot_state,
+            nomination_state,
+            self.n,
+            envelope_controller,
+            quorum_manager,
+        );
     }
 }

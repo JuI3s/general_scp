@@ -16,7 +16,10 @@ use serde::Serialize;
 use tracing::field::debug;
 
 use crate::{
-    application::quorum::accept_predicate,
+    application::{
+        quorum::accept_predicate,
+        quorum_manager::{self, QuorumManager},
+    },
     herder::herder::HerderDriver,
     overlay::{node, peer::PeerID},
     utils::test::pretty_print_scp_env_id,
@@ -43,6 +46,7 @@ where
         value: HSCPNominationValue<N>,
         previous_value: &N,
         envelope_controller: &mut SCPEnvelopeController<N>,
+        quorum_manager: &mut QuorumManager,
     ) -> Option<SCPEnvelopeID>;
     fn stop_nomination(&self, state: &mut NominationProtocolState<N>);
 
@@ -54,6 +58,7 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
+        quorum_manager: &mut QuorumManager,
     ) -> EnvelopeState;
 }
 
@@ -399,6 +404,7 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         ballot_state: &mut BallotProtocolState<N>,
         envelope_controller: &mut SCPEnvelopeController<N>,
+        quorum_manager: &mut QuorumManager,
     ) -> Option<SCPEnvelopeID> {
         // This function creats a nomination statement that contains the current
         // nomination value. The statement is then wrapped in an SCP envelope which is
@@ -428,6 +434,7 @@ where
             ballot_state,
             &cur_env_id,
             envelope_controller,
+            quorum_manager,
         );
 
         match env_state {
@@ -491,6 +498,7 @@ where
         value: HSCPNominationValue<N>,
         previous_value: &N,
         envelope_controller: &mut SCPEnvelopeController<N>,
+        quorum_manager: &mut QuorumManager,
     ) -> Option<SCPEnvelopeID> {
         debug!("NominationProtocol::nominate, node: {:?}", self.node_idx());
         if !state.candidates.is_empty() {
@@ -577,7 +585,7 @@ where
             self.node_idx()
         );
         if updated {
-            self.emit_nomination(state, ballot_state, envelope_controller)
+            self.emit_nomination(state, ballot_state, envelope_controller, quorum_manager)
         } else {
             debug!(
                 "NominationProtocol::nominate (SKIPPED), node {:?}",
@@ -605,6 +613,7 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
+        quorum_manager: &mut QuorumManager,
     ) -> EnvelopeState {
         debug!(
             "process_nomination_envelope: Node {:?} process nomination envelope {:?}",
@@ -637,8 +646,12 @@ where
         nomination_state.record_envelope(envelope, envelope_controller);
 
         // Whether we have modified nomination state.
-        let modified =
-            self.state_may_have_changed(statement, nomination_state, &envelope_controller);
+        let modified = self.state_may_have_changed(
+            statement,
+            nomination_state,
+            &envelope_controller,
+            &quorum_manager,
+        );
 
         debug!(
             "Node {:?} processing nomination envelope {:?} triggers stage change: {:?}, current candidates: {:?}",
@@ -657,6 +670,7 @@ where
                 |st| accept_predicate(value, st),
                 &nomination_state.latest_nominations,
                 envelope_controller,
+                quorum_manager,
             ) {
                 nomination_state.candidates.insert(Arc::new(value.clone()));
 
@@ -686,7 +700,12 @@ where
                 "Node {} emit nomination because of state change",
                 self.node_idx()
             );
-            self.emit_nomination(nomination_state, ballot_state, envelope_controller);
+            self.emit_nomination(
+                nomination_state,
+                ballot_state,
+                envelope_controller,
+                quorum_manager,
+            );
         }
 
         if new_candidates {
@@ -716,6 +735,7 @@ where
                         nomination_state,
                         false,
                         envelope_controller,
+                        &quorum_manager,
                     );
                 }
                 None => {
