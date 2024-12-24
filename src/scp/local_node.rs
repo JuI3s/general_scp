@@ -286,7 +286,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::{
-        arch::aarch64::veor3q_s16,
         net::{Ipv4Addr, SocketAddrV4},
         sync::{Arc, Mutex},
     };

@@ -1,4 +1,3 @@
-use core::str;
 use std::{
     cell::RefCell,
     collections::BTreeMap,
@@ -49,8 +48,10 @@ impl Debug for MockState {
         f.write_str(
             &self
                 .0
-                .as_flattened()
+                .as_slice()
+                // .as_flattened()
                 .iter()
+                .flatten()
                 .enumerate()
                 .take_while(|(idx, __)| *idx < max_hex_to_display)
                 .map(|(_, b)| format!("{:02X}", b))
