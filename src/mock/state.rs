@@ -123,7 +123,7 @@ impl HerderDriver<MockState> for MockStateDriver {
     fn emit_envelope(&self, envelope: &SCPEnvelope<MockState>) {
         // Emit broadcast envelope to all connected peers.
 
-        todo!("emit_envelope");
+        // todo!("emit_envelope");
     }
 
     fn extract_valid_value(&self, value: &MockState) -> Option<MockState> {

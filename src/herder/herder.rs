@@ -45,7 +45,7 @@ where
     }
 
     fn combine_candidates(&self, candidates: &BTreeSet<Arc<N>>) -> Option<N>;
-    fn emit_envelope(&self, envelope: &SCPEnvelope<N>);
+    fn emit_envelope(&self, envelope: &SCPEnvelope<N>) {}
 
     fn nominating_value(&self, value: &N, slot_index: &SlotIndex) {}
 
