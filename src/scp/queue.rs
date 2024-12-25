@@ -162,7 +162,7 @@ where
         slot_driver: &Arc<SlotDriver<N, H>>,
         nomination_state: &mut NominationProtocolState<N>,
         ballot_state: &mut BallotProtocolState<N>,
-        envelope_controller: &SCPEnvelopeController<N>,
+        envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &QuorumManager,
     ) {
         slot_driver.abandon_ballot(

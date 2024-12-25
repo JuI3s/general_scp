@@ -54,7 +54,7 @@ where
     N: NominationValue,
 {
     pub envs_to_emit: VecDeque<SCPEnvelopeID>,
-    envelopes: BTreeMap<SCPEnvelopeID, SCPEnvelope<N>>,
+    pub envelopes: BTreeMap<SCPEnvelopeID, SCPEnvelope<N>>,
     // envelopes:
 }
 

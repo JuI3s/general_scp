@@ -336,31 +336,40 @@ where
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
     ) -> EnvelopeState {
-        let env = envelope_controller.get_envelope(env_id).unwrap();
-        info!(
-            "recv_scp_envelvope: node {:?} receives an envelope: {:?}",
-            self.node_idx(),
-            pretty_print_scp_env_id(&env_id)
-        );
+        let is_ballot = {
+            let env = envelope_controller.get_envelope(env_id).unwrap();
+            info!(
+                "recv_scp_envelvope: node {:?} receives an envelope: {:?}",
+                self.node_idx(),
+                pretty_print_scp_env_id(&env_id)
+            );
 
-        match env.get_statement() {
-            SCPStatement::Prepare(_) | SCPStatement::Confirm(_) | SCPStatement::Externalize(_) => {
-                self.process_ballot_envelope(
-                    ballot_state,
-                    nomination_state,
-                    env,
-                    true,
-                    envelope_controller,
-                    &quorum_manager,
-                )
-            }
-            SCPStatement::Nominate(st) => self.process_nomination_envelope(
+            let is_ballot = match env.get_statement() {
+                SCPStatement::Prepare(_)
+                | SCPStatement::Confirm(_)
+                | SCPStatement::Externalize(_) => true,
+                SCPStatement::Nominate(st) => false,
+            };
+            is_ballot
+        };
+
+        if is_ballot {
+            self.process_ballot_envelope(
+                ballot_state,
+                nomination_state,
+                env_id,
+                true,
+                envelope_controller,
+                &quorum_manager,
+            )
+        } else {
+            self.process_nomination_envelope(
                 nomination_state,
                 ballot_state,
                 &env_id,
                 envelope_controller,
                 quorum_manager,
-            ),
+            )
         }
     }
 
