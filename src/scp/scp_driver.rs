@@ -364,25 +364,6 @@ where
         }
     }
 
-    pub fn bump_state_(
-        &self,
-        nomination_value: &N,
-        ballot_state: &mut BallotProtocolState<N>,
-        nomination_state: &mut NominationProtocolState<N>,
-        force: bool,
-        envelope_controller: &SCPEnvelopeController<N>,
-        quorum_manager: &QuorumManager,
-    ) -> bool {
-        self.bump_state(
-            ballot_state,
-            nomination_state,
-            nomination_value,
-            force,
-            envelope_controller,
-            quorum_manager,
-        )
-    }
-
     pub fn federated_accept(
         &self,
         voted_predicate: impl Fn(&SCPStatement<N>) -> bool,

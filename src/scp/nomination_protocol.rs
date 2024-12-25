@@ -727,22 +727,25 @@ where
                 .as_ref()
             {
                 Some(val) => {
-                    info!("Node {:?} bumps state and nominates value {:?}", self.node_idx(), val);
-                    self.bump_state_(
-                        val,
+                    info!(
+                        "Node {:?} bumps state and nominates value {:?}",
+                        self.node_idx(),
+                        val
+                    );
+
+                    self.bump_state(
                         ballot_state,
                         nomination_state,
-                        false,
+                        val,
+                        true,
                         envelope_controller,
-                        &quorum_manager,
+                        quorum_manager,
                     );
                 }
                 None => {
                     todo!();
                 }
             };
-
-            todo!();
         } else {
             //
             println!("Nomination candidates: {:?}", nomination_state.candidates);

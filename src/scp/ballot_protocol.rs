@@ -8,6 +8,7 @@ use std::{
 
 use log::debug;
 use serde::{Deserialize, Serialize};
+use tracing::field::debug;
 
 use crate::{
     application::{
@@ -364,10 +365,15 @@ where
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
         let Some(latest_env_id) = self.latest_envelopes.get(node_id) else {
+            debug!(
+                "is_newer_statement_for_node: no latest_envelope found for node {:?}",
+                node_id
+            );
             return false;
         };
 
         let Some(env) = envelope_controller.get_envelope(latest_env_id) else {
+            debug!("is_newer_statement_for_node: no evenlope found for latest envelope id");
             return false;
         };
 
@@ -954,12 +960,20 @@ where
         true
     }
 
-    fn is_statement_sane(&self, st: &SCPStatement<N>, from_self: bool) -> bool {
-        if !self
-            .herder_driver
+    fn is_statement_sane(
+        &self,
+        st: &SCPStatement<N>,
+        from_self: bool,
+        quorum_manager: &QuorumManager,
+    ) -> bool {
+        if !quorum_manager
             .get_quorum_set(st)
             .is_some_and(|qs| self.is_quorum_set_sane(qs))
         {
+            debug!(
+                "is_statement_sane: quorum set is not sane, node: {:?}, st: {:?}",
+                self.local_node.node_id, st
+            );
             return false;
         }
 
@@ -996,12 +1010,25 @@ where
         env_controller: &SCPEnvelopeController<N>,
         quorum_manager: &QuorumManager,
     ) {
+        debug!(
+            "emit_current_state_statement: node {:?} emits current state statement",
+            self.local_node.node_id
+        );
         if !state.current_ballot.lock().unwrap().is_some() {
+            debug!(
+                "emit_current_state_statement: current ballot is None, node: {:?}",
+                self.local_node.node_id
+            );
             return;
         }
 
         let statement: SCPStatement<N> =
             state.create_statement(self.local_node.quorum_set.hash_value());
+        debug!(
+            "emit_current_state_statement: node {:?} emits statement: {:?}",
+            self.local_node.node_id, statement
+        );
+
         let local_node_id = self.local_node.node_id.clone();
         // TODO:
         let envelope = SCPEnvelope::<N>::new(
@@ -1010,6 +1037,8 @@ where
             self.slot_index,
             [0; 64],
         );
+
+        debug!("latest envelopes: {:?}", state.latest_envelopes);
 
         // if we generate the same envelope, don't process it again
         // this can occur when updating h in PREPARE phase
@@ -1024,6 +1053,11 @@ where
             // emit, then return.
             if last_envelope.eq(&envelope) {
                 // If the envelope is the same as the last emitted envelope, then return.
+                debug!(
+                    "emit_current_state_statement: node {:?} skips emitting envelope because it is the same as the last emitted envelope",
+                    self.local_node.node_id
+                );
+
                 return;
             }
 
@@ -1031,24 +1065,33 @@ where
                 .get_statement()
                 .is_newer_than(last_envelope.get_statement())
             {
+                debug!(
+                    "emit_current_state_statement: node {:?} skips emitting envelope because it is older than the last emitted envelope",
+                    self.local_node.node_id
+                );
                 return;
             }
-
-            if self.process_ballot_envelope(
-                state,
-                nomination_state,
-                &envelope,
-                true,
-                env_controller,
-                quorum_manager,
-            ) == EnvelopeState::Invalid
-            {
-                panic!("Bad state");
-            };
-
-            state.last_envelope = Some(envelope.into());
-            self.maybe_send_latest_envelope(state);
         }
+
+        if self.process_ballot_envelope(
+            state,
+            nomination_state,
+            &envelope,
+            true,
+            env_controller,
+            quorum_manager,
+        ) == EnvelopeState::Invalid
+        {
+            panic!("Bad state");
+        };
+
+        state.last_envelope = Some(envelope.into());
+
+        debug!(
+            "emit_current_state_statement: node {:?} emits envelope",
+            self.local_node.node_id
+        );
+        self.maybe_send_latest_envelope(state);
     }
 
     fn has_v_blocking_subset_strictly_ahead_of(
@@ -1057,7 +1100,6 @@ where
         counter: u32,
         envelope_controller: &SCPEnvelopeController<N>,
     ) -> bool {
-        todo!();
         LocalNodeInfo::is_v_blocking_with_predicate(
             &self.local_node.quorum_set,
             envelopes,
@@ -1117,8 +1159,12 @@ where
         envelope_controller: &SCPEnvelopeController<N>,
         quorum_manager: &QuorumManager,
     ) -> bool {
+        debug!("node {:?} bumps state", self.local_node.node_id);
         if !force && state.current_ballot.lock().unwrap().is_none() {
-            debug!("BumpState called with no state");
+            debug!(
+                "node {:?} bumps state skipped because the force parameter is set to false and there is no current ballbt",
+                self.local_node.node_id,
+            );
             false
         } else {
             let n = if let Some(current_ballot) = state.current_ballot.lock().unwrap().as_ref() {
@@ -1146,6 +1192,11 @@ where
         envelope_controller: &SCPEnvelopeController<N>,
         quorum_manager: &QuorumManager,
     ) -> bool {
+        debug!(
+            "node {:?} bumps state with counter {:?}",
+            self.local_node.node_id, n
+        );
+
         if state.phase == SCPPhase::PhaseExternalize {
             return false;
         }
@@ -1182,6 +1233,10 @@ where
         state: &mut BallotProtocolState<N>,
         ballot: &SCPBallot<N>,
     ) -> bool {
+        debug!(
+            "node {:?} trying to update current value",
+            self.local_node.node_id
+        );
         if state.phase == SCPPhase::PhaseExternalize {
             return false;
         }
@@ -1221,6 +1276,11 @@ where
 
         state.check_invariants();
 
+        debug!(
+            "node {:?} after updating current value, updated: {:?}",
+            self.local_node.node_id, updated
+        );
+
         updated
     }
 
@@ -1230,6 +1290,11 @@ where
         envelope_controller: &SCPEnvelopeController<N>,
         quorum_manager: &QuorumManager,
     ) {
+        debug!(
+            "node {:?} checks heard from quorum",
+            self.local_node.node_id
+        );
+
         // this method is safe to call regardless of the transitions of the
         // other nodes on the network: we guarantee that other nodes can only
         // transition to higher counters (messages are ignored upstream)
@@ -1248,7 +1313,7 @@ where
             let nodes = extract_nodes_from_statement_with_filter(
                 &ballot_state.latest_envelopes,
                 &envelope_controller,
-                |_| true,
+                heard_predicate,
             );
 
             let get_quorum_set_predicate = |node_id: &NodeID| {
@@ -1345,22 +1410,29 @@ where
         envelope_controller: &SCPEnvelopeController<N>,
         quorum_manager: &QuorumManager,
     ) -> EnvelopeState {
+        debug!(
+            "node {:?} processes ballot envelope",
+            self.local_node.node_id
+        );
         assert!(envelope.slot_index == self.slot_index);
 
         let st = envelope.get_statement();
         let node_ide = st.node_id();
 
-        if !self.is_statement_sane(st, from_self) {
+        if !self.is_statement_sane(st, from_self, quorum_manager) {
+            debug!("node {:?} statement is not sane", self.local_node.node_id);
             return EnvelopeState::Invalid;
         }
 
-        if !ballot_state.is_newer_statement_for_node(node_ide, st, envelope_controller) {
+        if ballot_state.is_newer_statement_for_node(node_ide, st, envelope_controller) {
+            debug!("node {:?} statement is not newer", self.local_node.node_id);
             return EnvelopeState::Invalid;
         }
 
         let validation_level = self.validate_values(st);
 
         if validation_level == ValidationLevel::Invalid {
+            debug!("node {:?} statement is invalid", self.local_node.node_id);
             return EnvelopeState::Invalid;
         }
 
@@ -1383,11 +1455,18 @@ where
         let commit = ballot_state.commit.lock().unwrap();
         debug_assert!(commit.is_some());
 
-        if commit.as_ref().unwrap().value == st.working_ballot().value {
+        let ret = if commit.as_ref().unwrap().value == st.working_ballot().value {
             EnvelopeState::Valid
         } else {
             EnvelopeState::Invalid
-        }
+        };
+
+        debug!(
+            "node {:?} returns envelope state: {:?}",
+            self.local_node.node_id, ret
+        );
+
+        ret
     }
 
     fn attempt_accept_prepared(
@@ -2032,7 +2111,8 @@ where
         envelope_controller: &SCPEnvelopeController<N>,
         quorum_manager: &QuorumManager,
     ) {
-        ballot_state.message_level -= 1;
+        debug!("node {:?} advances slot", self.local_node.node_id);
+        ballot_state.message_level += 1;
         if ballot_state.message_level >= SlotDriver::<N, H>::MAXIMUM_ADVANCE_SLOT_RECURSION {
             panic!("maximum number of transitions reached in advance_slot");
         }

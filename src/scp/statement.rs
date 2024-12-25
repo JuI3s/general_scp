@@ -70,7 +70,7 @@ impl<N: NominationValue> Debug for SCPStatementNominate<N> {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SCPStatementPrepare<N>
 where
     N: NominationValue,
@@ -86,6 +86,22 @@ where
 
     pub quorum_set: Option<QuorumSet>,
 }
+
+impl<N: NominationValue> Debug for SCPStatementPrepare<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SCPStatementPrepare")
+            .field("node_id", &self.node_id)
+            // .field("quorum_set_hash", &self.quorum_set_hash)
+            .field("ballot", &self.ballot)
+            .field("prepared", &self.prepared)
+            .field("prepared_prime", &self.prepared_prime)
+            .field("num_commit", &self.num_commit)
+            .field("num_high", &self.num_high)
+            .field("quorum_set", &self.quorum_set)
+            .finish()
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct SCPStatementConfirm<N>
 where
