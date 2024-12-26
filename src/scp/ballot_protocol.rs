@@ -238,7 +238,7 @@ where
 
     // step 1 and 5 from the SCP paper
     fn attempt_accept_prepared(
-        self: &Arc<Self>,
+        &self,
         state_handle: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
@@ -1484,7 +1484,7 @@ where
     }
 
     fn attempt_accept_prepared(
-        self: &Arc<Self>,
+        &self,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
@@ -2143,7 +2143,11 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) {
-        debug!("node {:?} advances slot", self.local_node.node_id);
+        debug!(
+            "node {:?} advances slot, statement: {:?}",
+            self.local_node.node_id, hint
+        );
+
         ballot_state.message_level += 1;
         if ballot_state.message_level >= SlotDriver::<N, H>::MAXIMUM_ADVANCE_SLOT_RECURSION {
             panic!("maximum number of transitions reached in advance_slot");
@@ -2151,7 +2155,7 @@ where
 
         let mut did_work = false;
 
-        did_work = self.attempt_accept_commit(
+        did_work = self.attempt_accept_prepared(
             ballot_state,
             nomination_state,
             hint,
@@ -2159,6 +2163,11 @@ where
             env_map,
             quorum_manager,
         ) || did_work;
+        debug!(
+            "node {:?} did_work after attempt_accept_prepared: {:?}",
+            self.local_node.node_id, did_work
+        );
+
         did_work = self.attempt_confirm_prepared(
             ballot_state,
             nomination_state,
@@ -2167,6 +2176,11 @@ where
             envs_to_emit,
             quorum_manager,
         ) || did_work;
+        debug!(
+            "node {:?} did_work after attempt_confirm_prepared: {:?}",
+            self.local_node.node_id, did_work
+        );
+
         did_work = self.attempt_accept_commit(
             ballot_state,
             nomination_state,
@@ -2175,6 +2189,11 @@ where
             env_map,
             quorum_manager,
         ) || did_work;
+        debug!(
+            "node {:?} did_work after attempt_accept_commit: {:?}",
+            self.local_node.node_id, did_work
+        );
+
         did_work = self.attempt_confirm_commit(
             ballot_state,
             nomination_state,
@@ -2183,6 +2202,10 @@ where
             envs_to_emit,
             quorum_manager,
         ) || did_work;
+        debug!(
+            "node {:?} did_work after attempt_confirm_commit: {:?}",
+            self.local_node.node_id, did_work
+        );
 
         // only bump after we're done with everything else
         if ballot_state.message_level == 1 {
