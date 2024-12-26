@@ -988,6 +988,7 @@ where
     fn maybe_send_latest_envelope(
         &self,
         state: &mut BallotProtocolState<N>,
+        env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
     ) {
         if state.current_message_level != 0 {
@@ -1007,8 +1008,14 @@ where
                 return;
             }
             state.last_envelope_emitted = state.last_envelope.to_owned();
+
+            // TODO: currently this does nothing
             self.herder_driver
-                .emit_envelope(&last_envelope.lock().unwrap())
+                .emit_envelope(&last_envelope.lock().unwrap());
+
+            // TODO: no rewason to use Arc<Mutex> here
+            let env_id = env_map.add_envelope(last_envelope.lock().unwrap().clone());
+            envs_to_emit.push_back(env_id);
         }
     }
 
@@ -1103,7 +1110,7 @@ where
             "emit_current_state_statement: node {:?} emits envelope",
             self.local_node.node_id
         );
-        self.maybe_send_latest_envelope(state, envs_to_emit);
+        self.maybe_send_latest_envelope(state, env_map, envs_to_emit);
     }
 
     fn has_v_blocking_subset_strictly_ahead_of(
@@ -2198,7 +2205,7 @@ where
         ballot_state.message_level -= 1;
 
         if did_work {
-            self.maybe_send_latest_envelope(ballot_state, envs_to_emit);
+            self.maybe_send_latest_envelope(ballot_state, env_map, envs_to_emit);
         }
     }
 }

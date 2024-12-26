@@ -18,7 +18,7 @@ use crate::{
     scp::{
         self,
         ballot_protocol::BallotProtocolState,
-        envelope::{SCPEnvelope, SCPEnvelopeController},
+        envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
         local_node::LocalNodeInfo,
         nomination_protocol::{NominationProtocol, NominationProtocolState, NominationValue},
         scp::NodeID,
@@ -142,7 +142,15 @@ where
 
     fn flush_all_broadcast_msg(&mut self) {
         debug!("flush_all_broadcast_msg: node {:?}", self.peer_idx);
+
+        // Enforce here that we do not send redundant messages.
+        let mut envs_sent: BTreeSet<SCPEnvelopeID> = BTreeSet::new();
+
         while let Some(env_id) = self.scp_envelope_controller.pop_next_env_to_emit() {
+            if envs_sent.contains(&env_id) {
+                continue;
+            }
+
             let scp_env = self
                 .scp_envelope_controller
                 .get_envelope(&env_id)
@@ -152,8 +160,13 @@ where
             let scp_msg = SCPMessage::SCP(scp_env);
 
             self.send_broadcast_message(&scp_msg);
+            envs_sent.insert(env_id);
         }
-        debug!("finish flush_all_broadcast_msg: node {:?}", self.peer_idx);
+
+        debug!(
+            "finish flush_all_broadcast_msg: node {:?}, msgs sent: {:?}",
+            self.peer_idx, envs_sent
+        );
     }
 
     fn send_broadcast_message(&mut self, msg: &SCPMessage<N>) {

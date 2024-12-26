@@ -733,6 +733,12 @@ where
                         val
                     );
 
+                    debug!(
+                        "Node {:?} envs_to_emit before bumping state {:?}",
+                        self.node_idx(),
+                        envelope_controller.envs_to_emit
+                    );
+
                     self.bump_state(
                         ballot_state,
                         nomination_state,
@@ -741,6 +747,13 @@ where
                         &mut envelope_controller.envelopes,
                         &mut envelope_controller.envs_to_emit,
                         quorum_manager,
+                    );
+
+                    debug!("Node {:?} bumped state", self.node_idx());
+                    debug!(
+                        "Node {:?} envs_to_emit after bumping state {:?}",
+                        self.node_idx(),
+                        envelope_controller.envs_to_emit
                     );
                 }
                 None => {

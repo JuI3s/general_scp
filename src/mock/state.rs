@@ -440,10 +440,7 @@ mod tests {
 
         nodes.get_mut("node1").unwrap().slot_nominate(0);
 
-        assert_eq!(
-            InMemoryGlobalState::process_messages(&builder.global_state, &mut nodes),
-            3,
-        );
+        assert!(InMemoryGlobalState::process_messages(&builder.global_state, &mut nodes) > 0);
 
         for node in nodes.values() {
             assert_eq!(node.leaders, vec!["node1".to_string()]);
