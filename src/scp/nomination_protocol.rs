@@ -728,7 +728,7 @@ where
             {
                 Some(val) => {
                     info!(
-                        "Node {:?} bumps state and nominates value {:?}",
+                        "Node {:?} bumps state with nomination value {:?}",
                         self.node_idx(),
                         val
                     );

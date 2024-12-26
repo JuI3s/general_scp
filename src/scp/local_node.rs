@@ -216,18 +216,6 @@ where
         let mut nodes: Vec<NodeID> = vec![];
         envelope_map.iter().for_each(|entry| {
             let env = env_map.0.get(entry.1).unwrap();
-            println!(
-                "env nomination_values: {:?}",
-                env.get_statement().get_nomination_values()
-            );
-            println!(
-                "env st votes: {:?}",
-                env.get_statement().as_nomination_statement().votes
-            );
-            println!(
-                "env st accepted: {:?}",
-                env.get_statement().as_nomination_statement().accepted
-            );
 
             if filter(env.get_statement()) {
                 nodes.push(entry.0.clone());
@@ -238,7 +226,10 @@ where
             "V_BLOCKING true nodes: {:?}, quorum_set: {:?}, envelope_map: {:?}",
             nodes, quorum_set, envelope_map,
         );
-        is_v_blocking(quorum_set, &nodes)
+        let ret = is_v_blocking(quorum_set, &nodes);
+
+        debug!("V_BLOCKING true ret: {:?}", ret);
+        ret
     }
 }
 

@@ -387,23 +387,33 @@ where
             self.node_idx(),
             envelopes
         );
+        let ratify_filter =
+        move |st: &SCPStatement<N>| accepted_predicate(st) || voted_predicate(st);
+
         if LocalNodeInfo::<N>::is_v_blocking_with_predicate(
             &self.local_node.quorum_set,
             envelopes,
-            &accepted_predicate,
+            &ratify_filter,
             env_map,
         ) {
             println!(
                 "federated_accept: node {:?} is_v_blocking_with_predicate returns true",
                 self.local_node.node_id
             );
+        
+
             true
         } else {
-            let ratify_filter =
-                move |st: &SCPStatement<N>| accepted_predicate(st) && voted_predicate(st);
+            println!(
+                "federated_accept: node {:?} is_v_blocking_with_predicate returns false",
+                self.local_node.node_id
+            );
+
 
             let nodes =
                 extract_nodes_from_statement_with_filter(envelopes, &env_map, ratify_filter);
+
+            println!("nodes in federated accept: {:?}", nodes); 
 
             if nodes_form_quorum(
                 |node| {

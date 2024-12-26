@@ -1433,13 +1433,13 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> EnvelopeState {
-        debug!(
-            "node {:?} processes ballot envelope",
-            self.local_node.node_id
-        );
-
         let envelope = env_map.0.get(env_id).unwrap();
         assert!(envelope.slot_index == self.slot_index);
+
+        debug!(
+            "node {:?} processes ballot envelope from {:?}",
+            self.local_node.node_id, envelope.node_id,
+        );
 
         // TODO: should avoid cloning?
         let st = envelope.get_statement().clone();
@@ -1568,17 +1568,20 @@ where
                 continue;
             }
 
+            debug!("attempt_accept_prepared candidate: {:?}", candidate);
+            let ballot = &candidate;
+
+            debug!("attempt federated_accept for ballot {:?}", ballot);
+            println!("latest envelopes: {:?}", state.latest_envelopes);
+
             // There is a chance it increases p'
             if self.federated_accept(
-                |st| {
-                    let ballot = &candidate;
-                    match st {
-                        SCPStatement::Prepare(st) => ballot.less_and_compatible(&st.ballot),
-                        SCPStatement::Confirm(st) => ballot.less_and_compatible(&st.ballot),
-                        SCPStatement::Externalize(st) => ballot.compatible(&st.commit),
-                        SCPStatement::Nominate(_) => {
-                            panic!("Nomination statement encountered in ballot protocol.")
-                        }
+                |st| match st {
+                    SCPStatement::Prepare(st) => ballot.less_and_compatible(&st.ballot),
+                    SCPStatement::Confirm(st) => ballot.less_and_compatible(&st.ballot),
+                    SCPStatement::Externalize(st) => ballot.compatible(&st.commit),
+                    SCPStatement::Nominate(_) => {
+                        panic!("Nomination statement encountered in ballot protocol.")
                     }
                 },
                 |st| BallotProtocolUtils::has_prepared_ballot(&candidate, st),
@@ -1586,6 +1589,7 @@ where
                 env_map,
                 quorum_manager,
             ) {
+                debug!("break");
                 return self.set_accept_prepared(
                     state,
                     nomination_state,
@@ -1594,6 +1598,9 @@ where
                     envs_to_emit,
                     quorum_manager,
                 );
+            } else {
+                debug!("federated voting for accept failed, ");
+                panic!()
             }
         }
         false
@@ -1608,6 +1615,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool {
+        debug!("node {:?} sets accept prepared", self.local_node.node_id);
         let mut did_work = state.set_prepared(ballot);
 
         if state.commit.lock().unwrap().is_some() && state.high_ballot.lock().unwrap().is_some() {
