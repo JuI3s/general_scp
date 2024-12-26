@@ -155,6 +155,13 @@ where
 }
 
 impl<N: NominationValue> SCPBallot<N> {
+    ///
+    /// References: https://johnpconley.com/wp-content/uploads/2021/01/stellar-consensus-protocol.pdf (p.22)
+    ///
+    /// Definition (compatible). Two ballots 𝑏1 and 𝑏2 are compatible, written 𝑏1 ∼ 𝑏2, iff 𝑏1.𝑥 = 𝑏2.𝑥 and incompatible, written 𝑏1 ≁ 𝑏2, iff 𝑏1.𝑥 ≠ 𝑏2.𝑥. We also write 𝑏1 ≲ 𝑏2 or 𝑏2 ≳ 𝑏1 iff 𝑏1 ≤ 𝑏2 (or equivalently 𝑏2 ≥ 𝑏1) and 𝑏1 ∼ 𝑏2. Similarly, 𝑏1 ⋦ 𝑏2 or 𝑏2 ⋧ 𝑏1 means 𝑏1 ≤ 𝑏2 (or equivalently 𝑏2 ≥ 𝑏1) and 𝑏1 ≁ 𝑏2.
+    ///
+    /// Definition (prepared). A ballot 𝑏 is prepared iff every statement in the following set is true: { abort 𝑏_{old} ∣ 𝑏_{old} ⋦𝑏 }.
+
     pub fn new(counter: u32, value: N) -> Self {
         Self {
             counter: counter,
@@ -268,6 +275,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool;
+
     // newC, newH : low/high bounds prepared confirmed
     fn set_confirm_prepared(
         &self,
@@ -482,17 +490,17 @@ where
         ret
     }
 
-    // This function gives a set of ballots containing candidate values that we can
-    // accept based on current state and the hint SCP statement.
+    /// This function gives a set of ballots containing candidate values that we can accept based on current state and the hint SCP statement.
     fn get_prepare_candidates(
         &self,
         hint: &SCPStatement<N>,
         env_map: &EnvMap<N>,
     ) -> BTreeSet<SCPBallot<N>> {
+        debug!("get_prepare_candidates: hint: {:?}", hint);
         let mut hint_ballots = BTreeSet::new();
 
         // Get ballots
-        let _ = match hint {
+        match hint {
             SCPStatement::Prepare(st) => {
                 hint_ballots.insert(st.ballot.clone());
 
@@ -524,6 +532,11 @@ where
                 panic!("Nomination statement encountered in ballot protocol.")
             }
         };
+
+        debug!(
+            "get_prepare_candidates: hint_ballots: {:?}, latest_envelopes: {:?}",
+            hint_ballots, self.latest_envelopes
+        );
 
         let mut candidates = BTreeSet::new();
 
@@ -1430,17 +1443,21 @@ where
 
         // TODO: should avoid cloning?
         let st = envelope.get_statement().clone();
-        let node_ide = st.node_id();
+        let node_id = st.node_id();
 
         if !self.is_statement_sane(&st, from_self, quorum_manager) {
             debug!("node {:?} statement is not sane", self.local_node.node_id);
             return EnvelopeState::Invalid;
         }
 
-        if ballot_state.is_newer_statement_for_node(node_ide, &st, &env_map) {
+        if ballot_state.is_newer_statement_for_node(node_id, &st, &env_map) {
             debug!("node {:?} statement is not newer", self.local_node.node_id);
             return EnvelopeState::Invalid;
         }
+
+        ballot_state
+            .latest_envelopes
+            .insert(envelope.node_id.to_owned(), env_id.to_owned());
 
         let validation_level = self.validate_values(&st);
 
@@ -1492,13 +1509,25 @@ where
         env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
     ) -> bool {
+        debug!(
+            "node {:?} attempts to accept prepared",
+            self.local_node.node_id
+        );
         if state.phase != SCPPhase::PhasePrepare && state.phase != SCPPhase::PhaseConfirm {
+            debug!(
+                "attempt_accept_prepared returns because node {:?} phase is not PhasePrepare or PhaseConfirm, node phase: {:?}",
+                self.local_node.node_id,
+                state.phase
+            );
             return false;
         }
 
         let candidates = state.get_prepare_candidates(hint, env_map);
 
+        debug!("attempt_accept_prepared candidates: {:?}", candidates);
+
         // see if we can accept any of the candidates, starting with the highest
+        // TODO: we do we need to loop through all candidates?
         for candidate in &candidates {
             if state.phase == SCPPhase::PhaseConfirm {
                 match state.prepared.lock().unwrap().as_ref() {
@@ -1516,6 +1545,7 @@ where
             // if we already prepared this ballot, don't bother checking again
 
             // if ballot <= p' ballot is neither a candidate for p nor p'
+            // TODO: why do we need this?
             if state
                 .prepared_prime
                 .lock()
@@ -1614,12 +1644,19 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool {
+        debug!(
+            "node {:?} attempts to confirm prepared",
+            self.local_node.node_id
+        );
+
         if state.phase != SCPPhase::PhasePrepare {
             return false;
         }
 
         // TODO: can we avoid copying?
         let prepared_ballot_opt = state.prepared.lock().unwrap().clone();
+
+        debug!("prepared_ballot_opt: {:?}", prepared_ballot_opt);
 
         if let Some(prepared_ballot) = prepared_ballot_opt.as_ref() {
             let candidates = state.get_prepare_candidates(hint, env_map);
