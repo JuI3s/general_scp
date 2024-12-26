@@ -169,7 +169,8 @@ where
             ballot_state,
             nomination_state,
             self.n,
-            envelope_controller,
+            &mut envelope_controller.envelopes,
+            &mut envelope_controller.envs_to_emit,
             quorum_manager,
         );
     }

@@ -23,7 +23,7 @@ use crate::{
 };
 
 use super::{
-    envelope::{SCPEnvelopeController, SCPEnvelopeID},
+    envelope::{EnvMap, SCPEnvelopeController, SCPEnvelopeID},
     nomination_protocol::NominationValue,
     scp::NodeID,
     statement::SCPStatement,
@@ -211,11 +211,11 @@ where
         quorum_set: &QuorumSet,
         envelope_map: &BTreeMap<NodeID, SCPEnvelopeID>,
         filter: &impl Fn(&SCPStatement<N>) -> bool,
-        envelope_controller: &SCPEnvelopeController<N>,
+        env_map: &EnvMap<N>,
     ) -> bool {
         let mut nodes: Vec<NodeID> = vec![];
         envelope_map.iter().for_each(|entry| {
-            let env = envelope_controller.get_envelope(entry.1).unwrap();
+            let env = env_map.0.get(entry.1).unwrap();
             println!(
                 "env nomination_values: {:?}",
                 env.get_statement().get_nomination_values()
@@ -244,7 +244,7 @@ where
 
 pub fn extract_nodes_from_statement_with_filter<N: NominationValue>(
     envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
-    envelope_controller: &SCPEnvelopeController<N>,
+    env_map: &EnvMap<N>,
     node_filter: impl Fn(&SCPStatement<N>) -> bool,
 ) -> Vec<NodeID> {
     println!(
@@ -255,7 +255,7 @@ pub fn extract_nodes_from_statement_with_filter<N: NominationValue>(
     let nodes: Vec<NodeID> = envelopes
         .iter()
         .map(|entry| {
-            let envelope = envelope_controller.get_envelope(entry.1).unwrap();
+            let envelope = env_map.0.get(entry.1).unwrap();
 
             if node_filter(&envelope.statement) {
                 Some(entry.0.to_owned())
@@ -382,8 +382,11 @@ mod tests {
                 quorum_map.get(&st.quorum_set_hash_value())
             };
 
-            let nodes =
-                extract_nodes_from_statement_with_filter(&envelopes, &env_controller, |_| true);
+            let nodes = extract_nodes_from_statement_with_filter(
+                &envelopes,
+                &env_controller.envelopes,
+                |_| true,
+            );
             assert_eq!(nodes_form_quorum(get_quorum_set_predicate, &nodes), true);
         }
 
@@ -400,8 +403,11 @@ mod tests {
                 quorum_map.get(&st.quorum_set_hash_value())
             };
 
-            let nodes =
-                extract_nodes_from_statement_with_filter(&envelopes, &env_controller, |_| true);
+            let nodes = extract_nodes_from_statement_with_filter(
+                &envelopes,
+                &env_controller.envelopes,
+                |_| true,
+            );
             assert_eq!(nodes_form_quorum(get_quorum_set_predicate, &nodes), false);
         }
     }

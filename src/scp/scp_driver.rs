@@ -29,7 +29,7 @@ use crate::{
 
 use super::{
     ballot_protocol::{BallotProtocol, BallotProtocolState, SCPBallot},
-    envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
+    envelope::{EnvMap, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
     local_node::{HLocalNode, LocalNodeInfo},
     nomination_protocol::{NominationProtocolState, NominationValue},
     queue::SlotJobQueue,
@@ -294,7 +294,7 @@ where
                 |st| st.as_nomination_statement().votes.contains(vote),
                 |st| accept_predicate(vote, st),
                 &nomination_state.latest_nominations,
-                envelope_controller,
+                &envelope_controller.envelopes,
                 quorum_manager
             ) {
                 match self.herder_driver.validate_value(vote, true) {
@@ -359,7 +359,8 @@ where
                 nomination_state,
                 env_id,
                 true,
-                envelope_controller,
+                &mut envelope_controller.envelopes,
+                &mut envelope_controller.envs_to_emit,
                 &quorum_manager,
             )
         } else {
@@ -378,7 +379,7 @@ where
         voted_predicate: impl Fn(&SCPStatement<N>) -> bool,
         accepted_predicate: impl Fn(&SCPStatement<N>) -> bool,
         envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
-        envelope_controller: &SCPEnvelopeController<N>,
+        env_map: &EnvMap<N>,
         quorum_manager: &QuorumManager,
     ) -> bool {
         println!(
@@ -390,7 +391,7 @@ where
             &self.local_node.quorum_set,
             envelopes,
             &accepted_predicate,
-            envelope_controller,
+            env_map,
         ) {
             println!(
                 "federated_accept: node {:?} is_v_blocking_with_predicate returns true",
@@ -401,11 +402,8 @@ where
             let ratify_filter =
                 move |st: &SCPStatement<N>| accepted_predicate(st) && voted_predicate(st);
 
-            let nodes = extract_nodes_from_statement_with_filter(
-                envelopes,
-                envelope_controller,
-                ratify_filter,
-            );
+            let nodes =
+                extract_nodes_from_statement_with_filter(envelopes, &env_map, ratify_filter);
 
             if nodes_form_quorum(
                 |node| {
@@ -413,7 +411,7 @@ where
                         Some(&self.local_node.quorum_set)
                     } else {
                         let env_id = envelopes.get(node).unwrap();
-                        let env = envelope_controller.get_envelope(env_id).unwrap();
+                        let env = env_map.0.get(env_id).unwrap();
                         let statement = env.get_statement();
                         quorum_manager.get_quorum_set(statement)
                     }
@@ -432,16 +430,12 @@ where
         &self,
         voted_predicate: impl Fn(&SCPStatement<N>) -> bool,
         envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
-        envelope_controller: &SCPEnvelopeController<N>,
+        env_map: &EnvMap<N>,
         quorum_manager: &QuorumManager,
     ) -> bool {
         // Definition of ratify (under Ratification): https://stellar.org/blog/thought-leadership/on-worldwide-consensus
 
-        let nodes = extract_nodes_from_statement_with_filter(
-            envelopes,
-            envelope_controller,
-            voted_predicate,
-        );
+        let nodes = extract_nodes_from_statement_with_filter(envelopes, &env_map, voted_predicate);
 
         debug!(
             "node {:?} federated_ratify nodes: {:?}, local_quorum_set: {:?}",
@@ -456,7 +450,7 @@ where
                     Some(&self.local_node.quorum_set)
                 } else {
                     let env_id = envelopes.get(node).unwrap();
-                    let env = envelope_controller.get_envelope(env_id).unwrap();
+                    let env = env_map.0.get(env_id).unwrap();
                     let st = env.get_statement();
                     quorum_manager.get_quorum_set(st)
                 }

@@ -48,13 +48,29 @@ impl<N: NominationValue> SCPEnvelope<N> {
     }
 }
 
+pub struct EnvMap<N: NominationValue>(pub BTreeMap<SCPEnvelopeID, SCPEnvelope<N>>);
+impl<N: NominationValue> Default for EnvMap<N> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+
+impl<N: NominationValue> EnvMap<N> {
+    pub fn add_envelope(&mut self, envelope: SCPEnvelope<N>) -> SCPEnvelopeID {
+        let timestamp = SystemTime::now();
+        self.0.insert(timestamp, envelope.clone());
+        timestamp
+    }
+}
+
 pub type SCPEnvelopeID = SystemTime;
+
 pub struct SCPEnvelopeController<N>
 where
     N: NominationValue,
 {
     pub envs_to_emit: VecDeque<SCPEnvelopeID>,
-    pub envelopes: BTreeMap<SCPEnvelopeID, SCPEnvelope<N>>,
+    pub envelopes: EnvMap<N>,
     // envelopes:
 }
 
@@ -79,11 +95,11 @@ where
 
     pub fn add_envelope(&mut self, envelope: SCPEnvelope<N>) -> SCPEnvelopeID {
         let timestamp = SystemTime::now();
-        self.envelopes.insert(timestamp, envelope.clone());
+        self.envelopes.0.insert(timestamp, envelope.clone());
         timestamp
     }
 
     pub fn get_envelope(&self, env_id: &SCPEnvelopeID) -> Option<&SCPEnvelope<N>> {
-        self.envelopes.get(env_id)
+        self.envelopes.0.get(env_id)
     }
 }

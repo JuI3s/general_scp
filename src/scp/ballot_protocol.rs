@@ -25,7 +25,7 @@ use crate::{
 };
 
 use super::{
-    envelope::{SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
+    envelope::{EnvMap, SCPEnvelope, SCPEnvelopeController, SCPEnvelopeID},
     local_node::extract_nodes_from_statement_with_filter,
     nomination_protocol::{NominationProtocolState, NominationValue},
     queue::{AbandonBallotArg, SlotJob, SlotTask},
@@ -208,7 +208,8 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         env_id: &SCPEnvelopeID,
         from_self: bool,
-        envelope_controller: &mut SCPEnvelopeController<N>,
+        env_map: &mut EnvMap<N>,
+        envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> EnvelopeState;
 
@@ -217,6 +218,7 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
+        env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     );
@@ -241,6 +243,7 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
+        env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
     ) -> bool;
     // prepared: ballot that should be prepared
@@ -249,8 +252,8 @@ where
         state_handle: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         ballot: &SCPBallot<N>,
+        env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
-
         quorum_manager: &QuorumManager,
     ) -> bool;
 
@@ -261,8 +264,8 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
+        env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
-
         quorum_manager: &QuorumManager,
     ) -> bool;
     // newC, newH : low/high bounds prepared confirmed
@@ -273,7 +276,7 @@ where
         newC: &SCPBallot<N>,
         newH: &SCPBallot<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
-
+        env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
     ) -> bool;
 
@@ -284,7 +287,7 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
-
+        env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
     ) -> bool;
     // new values for c and h
@@ -294,8 +297,8 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         c: &SCPBallot<N>,
         h: &SCPBallot<N>,
+        env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
-
         quorum_manager: &QuorumManager,
     ) -> bool;
 
@@ -305,16 +308,18 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
+        env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
-
         quorum_manager: &QuorumManager,
     ) -> bool;
+
     fn set_confirm_commit(
         &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         acceptCommitLow: &SCPBallot<N>,
         acceptCommitHigh: &SCPBallot<N>,
+        env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool;
@@ -324,8 +329,8 @@ where
         &self,
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
+        env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
-
         quorum_manager: &QuorumManager,
     ) -> bool;
 }
@@ -370,7 +375,7 @@ where
         &self,
         node_id: &NodeID,
         st: &SCPStatement<N>,
-        envelope_controller: &SCPEnvelopeController<N>,
+        env_map: &EnvMap<N>,
     ) -> bool {
         let Some(latest_env_id) = self.latest_envelopes.get(node_id) else {
             debug!(
@@ -380,7 +385,7 @@ where
             return false;
         };
 
-        let Some(env) = envelope_controller.get_envelope(latest_env_id) else {
+        let Some(env) = env_map.0.get(latest_env_id) else {
             debug!("is_newer_statement_for_node: no evenlope found for latest envelope id");
             return false;
         };
@@ -440,18 +445,14 @@ where
     fn get_commit_boundaries_from_statements(
         &self,
         ballot: &SCPBallot<N>,
-        envelope_controller: &SCPEnvelopeController<N>,
+        env_map: &EnvMap<N>,
     ) -> BTreeSet<u32> {
         let mut ret = BTreeSet::new();
         self.latest_envelopes
             .values()
             .into_iter()
-            .for_each(|envelope| {
-                match envelope_controller
-                    .get_envelope(envelope)
-                    .unwrap()
-                    .get_statement()
-                {
+            .for_each(
+                |envelope| match env_map.0.get(envelope).unwrap().get_statement() {
                     SCPStatement::Prepare(st) => {
                         if ballot.compatible(&st.ballot) {
                             if st.num_commit > 0 {
@@ -476,8 +477,8 @@ where
                     SCPStatement::Nominate(_) => {
                         panic!("Nomination statement encountered in ballot protocol.")
                     }
-                }
-            });
+                },
+            );
         ret
     }
 
@@ -486,7 +487,7 @@ where
     fn get_prepare_candidates(
         &self,
         hint: &SCPStatement<N>,
-        envelope_controller: &SCPEnvelopeController<N>,
+        env_map: &EnvMap<N>,
     ) -> BTreeSet<SCPBallot<N>> {
         let mut hint_ballots = BTreeSet::new();
 
@@ -533,12 +534,8 @@ where
             self.latest_envelopes
                 .values()
                 .into_iter()
-                .for_each(|env_id| {
-                    match envelope_controller
-                        .get_envelope(env_id)
-                        .unwrap()
-                        .get_statement()
-                    {
+                .for_each(
+                    |env_id| match env_map.0.get(env_id).unwrap().get_statement() {
                         SCPStatement::Prepare(st) => {
                             if st.ballot.less_and_compatible(top_vote) {
                                 candidates.insert(st.ballot.clone());
@@ -574,8 +571,8 @@ where
                         SCPStatement::Nominate(_) => {
                             panic!("Nomination statement encountered in ballot protocol.")
                         }
-                    }
-                });
+                    },
+                );
         });
 
         candidates
@@ -991,7 +988,7 @@ where
     fn maybe_send_latest_envelope(
         &self,
         state: &mut BallotProtocolState<N>,
-        env_controller: &mut VecDeque<SCPEnvelopeID>,
+        envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
     ) {
         if state.current_message_level != 0 {
             return;
@@ -1019,7 +1016,8 @@ where
         &self,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
-        env_controller: &mut SCPEnvelopeController<N>,
+        env_map: &mut EnvMap<N>,
+        envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) {
         debug!(
@@ -1049,7 +1047,7 @@ where
             self.slot_index,
             [0; 64],
         );
-        let env_id = env_controller.add_envelope(envelope.clone());
+        let env_id = env_map.add_envelope(envelope.clone());
 
         debug!("latest envelopes: {:?}", state.latest_envelopes);
 
@@ -1059,7 +1057,7 @@ where
         if let Some(last_envelope) = state
             .latest_envelopes
             .values()
-            .map(|env_id| env_controller.get_envelope(env_id).unwrap())
+            .map(|env_id| env_map.0.get(env_id).unwrap())
             .find(|env| env.node_id == local_node_id)
         {
             // If last emitted envelope is newer than the envelope to
@@ -1091,7 +1089,8 @@ where
             nomination_state,
             &env_id,
             true,
-            env_controller,
+            env_map,
+            envs_to_emit,
             quorum_manager,
         ) == EnvelopeState::Invalid
         {
@@ -1104,20 +1103,20 @@ where
             "emit_current_state_statement: node {:?} emits envelope",
             self.local_node.node_id
         );
-        self.maybe_send_latest_envelope(state, &mut env_controller.envs_to_emit);
+        self.maybe_send_latest_envelope(state, envs_to_emit);
     }
 
     fn has_v_blocking_subset_strictly_ahead_of(
         &self,
         envelopes: &BTreeMap<NodeID, SCPEnvelopeID>,
         counter: u32,
-        envelope_controller: &SCPEnvelopeController<N>,
+        env_map: &EnvMap<N>,
     ) -> bool {
         LocalNodeInfo::is_v_blocking_with_predicate(
             &self.local_node.quorum_set,
             envelopes,
             &|st| st.ballot_counter() > counter,
-            envelope_controller,
+            env_map,
         )
     }
 
@@ -1128,7 +1127,8 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         n: u32,
-        envelope_controller: &mut SCPEnvelopeController<N>,
+        env_map: &mut EnvMap<N>,
+        envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool {
         match nomination_state
@@ -1145,7 +1145,8 @@ where
                         nomination_state,
                         value,
                         true,
-                        envelope_controller,
+                        env_map,
+                        envs_to_emit,
                         quorum_manager,
                     )
                 } else {
@@ -1154,7 +1155,8 @@ where
                         nomination_state,
                         value,
                         n,
-                        envelope_controller,
+                        env_map,
+                        envs_to_emit,
                         quorum_manager,
                     )
                 }
@@ -1169,7 +1171,8 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         nomination_value: &N,
         force: bool,
-        envelope_controller: &mut SCPEnvelopeController<N>,
+        env_map: &mut EnvMap<N>,
+        envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool {
         debug!("node {:?} bumps state", self.local_node.node_id);
@@ -1190,7 +1193,8 @@ where
                 nomination_state,
                 nomination_value,
                 n,
-                envelope_controller,
+                env_map,
+                envs_to_emit,
                 quorum_manager,
             )
         }
@@ -1202,7 +1206,8 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         nomination_value: &N,
         n: u32,
-        envelope_controller: &mut SCPEnvelopeController<N>,
+        env_map: &mut EnvMap<N>,
+        envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool {
         debug!(
@@ -1230,10 +1235,11 @@ where
             self.emit_current_state_statement(
                 state,
                 nomination_state,
-                envelope_controller,
+                env_map,
+                envs_to_emit,
                 quorum_manager,
             );
-            self.check_heard_from_quorum(state, envelope_controller, quorum_manager);
+            self.check_heard_from_quorum(state, env_map, quorum_manager);
         }
 
         updated
@@ -1300,7 +1306,7 @@ where
     fn check_heard_from_quorum(
         &self,
         ballot_state: &mut BallotProtocolState<N>,
-        envelope_controller: &SCPEnvelopeController<N>,
+        env_map: &EnvMap<N>,
         quorum_manager: &QuorumManager,
     ) {
         debug!(
@@ -1325,7 +1331,7 @@ where
 
             let nodes = extract_nodes_from_statement_with_filter(
                 &ballot_state.latest_envelopes,
-                &envelope_controller,
+                &env_map,
                 heard_predicate,
             );
 
@@ -1334,7 +1340,7 @@ where
                     return Some(&self.local_node.quorum_set);
                 }
                 let env_id = ballot_state.latest_envelopes.get(node_id).clone().unwrap();
-                let env = envelope_controller.get_envelope(env_id).unwrap();
+                let env = env_map.0.get(env_id).unwrap();
                 let st = env.get_statement();
                 quorum_manager.get_quorum_set(st)
             };
@@ -1357,23 +1363,6 @@ where
                 self.stop_ballot_protocol_timer(&ballot_state)
             }
         }
-    }
-
-    fn ballot_protocol_expired(
-        self: &Arc<Self>,
-        ballot_state: &mut BallotProtocolState<N>,
-        nomination_state: &mut NominationProtocolState<N>,
-        env_controller: &mut SCPEnvelopeController<N>,
-        quorum_manager: &QuorumManager,
-    ) {
-        // TODO: this does not cause deadlock issues?
-        self.abandon_ballot(
-            ballot_state,
-            nomination_state,
-            0,
-            env_controller,
-            quorum_manager,
-        );
     }
 
     fn start_ballot_protocol_timer(&self, ballot_state: &BallotProtocolState<N>) {
@@ -1420,7 +1409,8 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         env_id: &SCPEnvelopeID,
         from_self: bool,
-        envelope_controller: &mut SCPEnvelopeController<N>,
+        env_map: &mut EnvMap<N>,
+        envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> EnvelopeState {
         debug!(
@@ -1428,23 +1418,24 @@ where
             self.local_node.node_id
         );
 
-        let envelope = envelope_controller.envelopes.get(env_id).unwrap();
+        let envelope = env_map.0.get(env_id).unwrap();
         assert!(envelope.slot_index == self.slot_index);
 
-        let st = envelope.get_statement();
+        // TODO: should avoid cloning?
+        let st = envelope.get_statement().clone();
         let node_ide = st.node_id();
 
-        if !self.is_statement_sane(st, from_self, quorum_manager) {
+        if !self.is_statement_sane(&st, from_self, quorum_manager) {
             debug!("node {:?} statement is not sane", self.local_node.node_id);
             return EnvelopeState::Invalid;
         }
 
-        if ballot_state.is_newer_statement_for_node(node_ide, st, envelope_controller) {
+        if ballot_state.is_newer_statement_for_node(node_ide, &st, &env_map) {
             debug!("node {:?} statement is not newer", self.local_node.node_id);
             return EnvelopeState::Invalid;
         }
 
-        let validation_level = self.validate_values(st);
+        let validation_level = self.validate_values(&st);
 
         if validation_level == ValidationLevel::Invalid {
             debug!("node {:?} statement is invalid", self.local_node.node_id);
@@ -1458,8 +1449,9 @@ where
             self.advance_slot(
                 ballot_state,
                 nomination_state,
-                st,
-                &mut envelope_controller.envs_to_emit,
+                &st,
+                env_map,
+                envs_to_emit,
                 quorum_manager,
             );
             return EnvelopeState::Valid;
@@ -1490,14 +1482,14 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
-
+        env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
     ) -> bool {
         if state.phase != SCPPhase::PhasePrepare && state.phase != SCPPhase::PhaseConfirm {
             return false;
         }
 
-        let candidates = state.get_prepare_candidates(hint, envelope_controller);
+        let candidates = state.get_prepare_candidates(hint, env_map);
 
         // see if we can accept any of the candidates, starting with the highest
         for candidate in &candidates {
@@ -1554,13 +1546,14 @@ where
                 },
                 |st| BallotProtocolUtils::has_prepared_ballot(&candidate, st),
                 &state.latest_envelopes,
-                envs_to_emit,
+                env_map,
                 quorum_manager,
             ) {
                 return self.set_accept_prepared(
                     state,
                     nomination_state,
                     &candidate,
+                    env_map,
                     envs_to_emit,
                     quorum_manager,
                 );
@@ -1574,8 +1567,8 @@ where
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         ballot: &SCPBallot<N>,
+        env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
-
         quorum_manager: &QuorumManager,
     ) -> bool {
         let mut did_work = state.set_prepared(ballot);
@@ -1597,6 +1590,7 @@ where
             self.emit_current_state_statement(
                 state,
                 nomination_state,
+                env_map,
                 envs_to_emit,
                 quorum_manager,
             );
@@ -1609,6 +1603,7 @@ where
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
+        env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool {
@@ -1620,7 +1615,7 @@ where
         let prepared_ballot_opt = state.prepared.lock().unwrap().clone();
 
         if let Some(prepared_ballot) = prepared_ballot_opt.as_ref() {
-            let candidates = state.get_prepare_candidates(hint, envelope_controller);
+            let candidates = state.get_prepare_candidates(hint, env_map);
 
             if let Some(new_high) = candidates.iter().find(|&candidate| {
                 if state
@@ -1638,9 +1633,7 @@ where
                     self.federated_ratify(
                         ratified,
                         &state.latest_envelopes,
-                        
-                        
-                        envelope_controller,
+                        env_map,
                         quorum_manager,
                     )
                 }
@@ -1681,7 +1674,7 @@ where
                         if self.federated_ratify(
                             voted_predicate,
                             &state.latest_envelopes,
-                            envelope_controller,
+                            env_map,
                             quorum_manager,
                         ) {
                             new_commit = candidate.clone();
@@ -1695,7 +1688,8 @@ where
                     nomination_state,
                     &new_commit,
                     new_high,
-                    envelope_controller,
+                    envs_to_emit,
+                    env_map,
                     quorum_manager,
                 );
             }
@@ -1711,7 +1705,8 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         new_commit: &SCPBallot<N>,
         new_high: &SCPBallot<N>,
-        envelope_controller: &mut SCPEnvelopeController<N>,
+        envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
+        env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
     ) -> bool {
         *state.value_override.lock().unwrap() = Some(new_high.value.clone());
@@ -1747,7 +1742,8 @@ where
             self.emit_current_state_statement(
                 state,
                 nomination_state,
-                envelope_controller,
+                env_map,
+                envs_to_emit,
                 quorum_manager,
             );
         }
@@ -1761,7 +1757,7 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
-
+        env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
     ) -> bool {
         if state.phase != SCPPhase::PhasePrepare && state.phase != SCPPhase::PhaseConfirm {
@@ -1824,12 +1820,12 @@ where
                 },
                 |st| BallotProtocolUtils::commit_predicate(&ballot, cur, st),
                 &state.latest_envelopes,
-                envelope_controller,
+                env_map,
                 quorum_manager,
             )
         };
 
-        let boundaries = state.get_commit_boundaries_from_statements(&ballot, envelope_controller);
+        let boundaries = state.get_commit_boundaries_from_statements(&ballot, env_map);
         if boundaries.is_empty() {
             return false;
         }
@@ -1863,7 +1859,8 @@ where
                     nomination_state,
                     &commit_ballot,
                     &high_ballot,
-                    envelope_controller,
+                    env_map,
+                    envs_to_emit,
                     quorum_manager,
                 )
             } else {
@@ -1880,7 +1877,8 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         commit: &SCPBallot<N>,
         high: &SCPBallot<N>,
-        envelope_controller: &mut SCPEnvelopeController<N>,
+        env_map: &mut EnvMap<N>,
+        envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool {
         let mut did_work = false;
@@ -1928,7 +1926,8 @@ where
             self.emit_current_state_statement(
                 state,
                 nomination_state,
-                envelope_controller,
+                env_map,
+                envs_to_emit,
                 quorum_manager,
             );
         }
@@ -1941,7 +1940,8 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
-        envelope_controller: &mut SCPEnvelopeController<N>,
+        env_map: &mut EnvMap<N>,
+        envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool {
         if ballot_state.phase != SCPPhase::PhaseConfirm {
@@ -1976,14 +1976,13 @@ where
             return false;
         }
 
-        let boundaries =
-            ballot_state.get_commit_boundaries_from_statements(&ballot, envelope_controller);
+        let boundaries = ballot_state.get_commit_boundaries_from_statements(&ballot, env_map);
         let candidate: Interval = (0, 0);
         let predicate = |cur: &Interval| {
             self.federated_ratify(
                 |statement| BallotProtocolUtils::commit_predicate(&ballot, cur, statement),
                 &ballot_state.latest_envelopes,
-                envelope_controller,
+                env_map,
                 quorum_manager,
             )
         };
@@ -2002,7 +2001,8 @@ where
                 nomination_state,
                 &commit_ballot,
                 &high_ballot,
-                envelope_controller,
+                env_map,
+                envs_to_emit,
                 quorum_manager,
             )
         } else {
@@ -2016,7 +2016,8 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         accept_commit_low: &SCPBallot<N>,
         accept_commit_high: &SCPBallot<N>,
-        envelope_controller: &mut SCPEnvelopeController<N>,
+        env_map: &mut EnvMap<N>,
+        envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool {
         *state.commit.lock().unwrap() = Some(accept_commit_low.clone());
@@ -2028,7 +2029,8 @@ where
         self.emit_current_state_statement(
             state,
             nomination_state,
-            envelope_controller,
+            env_map,
+            envs_to_emit,
             quorum_manager,
         );
 
@@ -2062,7 +2064,8 @@ where
         &self,
         state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
-        envelope_controller: &mut SCPEnvelopeController<N>,
+        env_map: &mut EnvMap<N>,
+        envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool {
         if state.phase == SCPPhase::PhasePrepare || state.phase == SCPPhase::PhaseConfirm {
@@ -2077,7 +2080,7 @@ where
             if !self.has_v_blocking_subset_strictly_ahead_of(
                 &state.latest_envelopes,
                 local_counter,
-                envelope_controller,
+                env_map,
             ) {
                 return false;
             }
@@ -2088,7 +2091,7 @@ where
                 .latest_envelopes
                 .iter()
                 .map(|entry| entry.1)
-                .map(|env_id| envelope_controller.get_envelope(env_id).unwrap())
+                .map(|env_id| env_map.0.get(env_id).unwrap())
             {
                 let counter = st.get_statement().ballot_counter();
                 if counter > local_counter {
@@ -2104,13 +2107,14 @@ where
                 if !self.has_v_blocking_subset_strictly_ahead_of(
                     &state.latest_envelopes,
                     counter,
-                    envelope_controller,
+                    env_map,
                 ) {
                     return self.abandon_ballot(
                         state,
                         nomination_state,
                         counter,
-                        envelope_controller,
+                        env_map,
+                        envs_to_emit,
                         quorum_manager,
                     );
                 }
@@ -2128,6 +2132,7 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
+        env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) {
@@ -2144,12 +2149,14 @@ where
             nomination_state,
             hint,
             envs_to_emit,
+            env_map,
             quorum_manager,
         ) || did_work;
         did_work = self.attempt_confirm_prepared(
             ballot_state,
             nomination_state,
             hint,
+            env_map,
             envs_to_emit,
             quorum_manager,
         ) || did_work;
@@ -2158,12 +2165,14 @@ where
             nomination_state,
             hint,
             envs_to_emit,
+            env_map,
             quorum_manager,
         ) || did_work;
         did_work = self.attempt_confirm_commit(
             ballot_state,
             nomination_state,
             hint,
+            env_map,
             envs_to_emit,
             quorum_manager,
         ) || did_work;
@@ -2172,8 +2181,13 @@ where
         if ballot_state.message_level == 1 {
             let mut did_bump = false;
             loop {
-                did_bump =
-                    self.attempt_bump(ballot_state, nomination_state, envs_to_emit, quorum_manager);
+                did_bump = self.attempt_bump(
+                    ballot_state,
+                    nomination_state,
+                    env_map,
+                    envs_to_emit,
+                    quorum_manager,
+                );
                 did_work = did_bump || did_work;
                 if !did_bump {
                     break;

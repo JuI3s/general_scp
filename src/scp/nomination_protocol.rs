@@ -669,7 +669,7 @@ where
             if self.federated_ratify(
                 |st| accept_predicate(value, st),
                 &nomination_state.latest_nominations,
-                envelope_controller,
+                &envelope_controller.envelopes,
                 quorum_manager,
             ) {
                 nomination_state.candidates.insert(Arc::new(value.clone()));
@@ -738,7 +738,8 @@ where
                         nomination_state,
                         val,
                         true,
-                        envelope_controller,
+                        &mut envelope_controller.envelopes,
+                        &mut envelope_controller.envs_to_emit,
                         quorum_manager,
                     );
                 }
