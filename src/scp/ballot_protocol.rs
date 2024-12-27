@@ -9,7 +9,6 @@ use std::{
 
 use log::debug;
 use serde::{Deserialize, Serialize};
-use tracing::field::debug;
 
 use crate::{
     application::{
@@ -573,7 +572,8 @@ where
         debug!("set_prepared to ballot: {:?}", ballot);
         let mut did_work = false;
 
-        // TODO: add invariant check for prepared and prepared_prime
+        self.check_invariants();
+        debug!("set_prepared check invariants before updating.");
 
         // This step updates prepared_prime.
 
@@ -584,6 +584,7 @@ where
                     if !prepared_ballot.compatible(ballot) {
                         self.prepared_prime = Some(prepared_ballot.clone());
                     }
+                    self.prepared = Some(ballot.clone());
 
                     did_work = true;
                 } else if *prepared_ballot > ballot {
@@ -602,18 +603,21 @@ where
                             < ballot
                             && !prepared_ballot.compatible(ballot))
                     {
-                        *self.prepared_prime.as_ref().as_mut().expect("") = ballot;
+                        self.prepared_prime = Some(ballot.clone());
 
                         did_work = true;
                     }
                 }
             }
             None => {
+                self.prepared = Some(ballot.clone());
                 did_work = true;
             }
         };
 
-        self.prepared = Some(ballot.clone());
+        self.check_invariants();
+        debug!("set_prepared checked invariants after updating.");
+
         did_work
     }
 
@@ -636,7 +640,13 @@ where
 
             if let Some(prepared) = self.prepared.as_ref() {
                 if let Some(prepared_prime) = self.prepared_prime.as_ref() {
-                    assert!(prepared_prime.less_and_compatible(prepared));
+                    // 𝑝′, 𝑝 The two highest ballots accepted as prepared such that 𝑝′ ⋦𝑝, where 𝑝′ = 𝟎 or 𝑝 = 𝑝′ = 𝟎 if there are no such ballots
+                    assert!(
+                        prepared_prime < prepared && !prepared_prime.compatible(prepared),
+                        "prepared_prime: {:?}, prepared: {:?}",
+                        prepared_prime,
+                        prepared
+                    );
                 }
             }
 
