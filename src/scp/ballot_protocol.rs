@@ -355,7 +355,7 @@ where
     pub prepared: Option<SCPBallot<N>>,
     pub prepared_prime: Option<SCPBallot<N>>,
     pub high_ballot: HBallot<N>,
-    pub commit: HBallot<N>,
+    pub commit: Option<SCPBallot<N>>,
 
     pub latest_envelopes: BTreeMap<NodeID, SCPEnvelopeID>,
     pub phase: SCPPhase,
@@ -629,7 +629,7 @@ where
                 // Confirm or Externalize phases
                 assert!(self.current_ballot.lock().unwrap().is_some());
                 assert!(self.prepared.is_some());
-                assert!(self.commit.lock().unwrap().is_some());
+                assert!(self.commit.is_some());
                 assert!(self.high_ballot.lock().unwrap().is_some());
             }
         }
@@ -660,7 +660,7 @@ where
             ));
         }
 
-        if let Some(commit) = self.commit.lock().unwrap().as_ref() {
+        if let Some(commit) = self.commit.as_ref() {
             assert!(self.current_ballot.lock().unwrap().is_some());
             assert!(commit.less_and_compatible(
                 self.high_ballot
@@ -736,7 +736,7 @@ where
             .is_some_and(|high_ballot| !high_ballot.compatible(ballot))
         {
             *self.high_ballot.lock().unwrap() = None;
-            *self.commit.lock().unwrap() = None;
+            self.commit = None;
         }
 
         if got_bumped {
@@ -749,12 +749,12 @@ where
 
         match self.phase {
             SCPPhase::PhasePrepare => {
-                let num_commit = if let Some(val) = self.commit.lock().unwrap().as_ref() {
+                let num_commit = if let Some(val) = self.commit.as_ref() {
                     val.counter.clone()
                 } else {
                     0
                 };
-                let num_high = if let Some(val) = self.commit.lock().unwrap().as_ref() {
+                let num_high = if let Some(val) = self.commit.as_ref() {
                     val.counter.clone()
                 } else {
                     0
@@ -801,13 +801,7 @@ where
             }),
             SCPPhase::PhaseExternalize => SCPStatement::Externalize(SCPStatementExternalize {
                 commit_quorum_set_hash: local_quorum_set_hash,
-                commit: self
-                    .commit
-                    .lock()
-                    .unwrap()
-                    .as_ref()
-                    .expect("Commit")
-                    .clone(),
+                commit: self.commit.as_ref().expect("Commit").clone(),
                 num_high: self
                     .high_ballot
                     .lock()
@@ -1268,8 +1262,6 @@ where
                 // Canonot update if the ballot is incompatible with current commit.
                 if state
                     .commit
-                    .lock()
-                    .unwrap()
                     .as_ref()
                     .is_some_and(|commit| !commit.compatible(ballot))
                 {
@@ -1462,10 +1454,9 @@ where
 
         debug_assert_eq!(ballot_state.phase, SCPPhase::PhaseExternalize);
 
-        let commit = ballot_state.commit.lock().unwrap();
-        debug_assert!(commit.is_some());
+        debug_assert!(ballot_state.commit.is_some());
 
-        let ret = if commit.as_ref().unwrap().value == st.working_ballot().value {
+        let ret = if ballot_state.commit.as_ref().unwrap().value == st.working_ballot().value {
             EnvelopeState::Valid
         } else {
             EnvelopeState::Invalid
@@ -1592,7 +1583,7 @@ where
         debug!("node {:?} sets accept prepared", self.local_node.node_id);
         let mut did_work = state.set_prepared(ballot);
 
-        if state.commit.lock().unwrap().is_some() && state.high_ballot.lock().unwrap().is_some() {
+        if state.commit.is_some() && state.high_ballot.lock().unwrap().is_some() {
             if state.prepared.as_ref().is_some_and(|prepared_ballot| {
                     state.high_ballot.lock().unwrap().as_ref().expect("").less_and_incompatible(prepared_ballot)
                 }
@@ -1600,7 +1591,7 @@ where
                     state.high_ballot.lock().unwrap().as_ref().expect("").less_and_incompatible(prepared_prime_ballot)
                 })
                 ) {
-                    state.commit = Arc::new(Mutex::new(None));
+                    state.commit = None;
                     did_work = true
                 }
         }
@@ -1675,11 +1666,13 @@ where
                 let mut new_commit = SCPBallot::default();
 
                 // TODO: fix this
-                if state.commit.lock().unwrap().is_none()
+                if state.commit.is_none()
                     && !state
                         .prepared
                         .as_ref()
-                        .is_some_and(|prepared: &SCPBallot<N>| new_high.less_and_incompatible(prepared))
+                        .is_some_and(|prepared: &SCPBallot<N>| {
+                            new_high.less_and_incompatible(prepared)
+                        })
                     && !state.prepared_prime.as_ref().is_some_and(|prepared_prime| {
                         new_high.less_and_incompatible(prepared_prime)
                     })
@@ -1753,7 +1746,7 @@ where
             }
 
             if new_commit.counter != 0 {
-                *state.commit.lock().unwrap() = Some(SCPBallot::make_ballot(new_commit));
+                state.commit = Some(SCPBallot::make_ballot(new_commit));
                 did_work = true;
             }
 
@@ -1920,12 +1913,10 @@ where
             .is_some_and(|high_ballot| high_ballot == high)
             || !state
                 .commit
-                .lock()
-                .unwrap()
                 .as_ref()
                 .is_some_and(|commit_ballot| commit_ballot == commit)
         {
-            *state.commit.lock().unwrap() = Some(commit.clone());
+            state.commit = Some(commit.clone());
             *state.high_ballot.lock().unwrap() = Some(high.clone());
             did_work = true;
         }
@@ -1975,9 +1966,7 @@ where
             return false;
         }
 
-        if ballot_state.high_ballot.lock().unwrap().is_none()
-            || ballot_state.commit.lock().unwrap().is_none()
-        {
+        if ballot_state.high_ballot.lock().unwrap().is_none() || ballot_state.commit.is_none() {
             return false;
         }
 
@@ -1994,8 +1983,6 @@ where
 
         if !ballot_state
             .commit
-            .lock()
-            .unwrap()
             .as_ref()
             .expect("Commit ballot")
             .compatible(&ballot)
@@ -2047,7 +2034,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool {
-        *state.commit.lock().unwrap() = Some(accept_commit_low.clone());
+        state.commit = Some(accept_commit_low.clone());
         *state.high_ballot.lock().unwrap() = Some(accept_commit_high.clone());
         state.update_current_if_needed(accept_commit_high);
 
@@ -2063,10 +2050,7 @@ where
 
         self.stop_nomination(nomination_state);
 
-        self.value_externalized(
-            self.slot_index,
-            &state.commit.lock().unwrap().as_ref().expect("").value,
-        );
+        self.value_externalized(self.slot_index, &state.commit.as_ref().expect("").value);
 
         true
     }
