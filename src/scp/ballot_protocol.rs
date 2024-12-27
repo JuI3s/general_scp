@@ -622,67 +622,66 @@ where
     }
 
     fn check_invariants(&self) {
-        {
-            match self.phase {
-                SCPPhase::PhasePrepare => {}
-                _ => {
-                    // Confirm or Externalize phases
-                    assert!(self.current_ballot.lock().unwrap().is_some());
-                    assert!(self.prepared.is_some());
-                    assert!(self.commit.lock().unwrap().is_some());
-                    assert!(self.high_ballot.lock().unwrap().is_some());
-                }
+        // https://johnpconley.com/wp-content/uploads/2021/01/stellar-consensus-protocol.pdf (p.23)
+        match self.phase {
+            SCPPhase::PhasePrepare => {}
+            _ => {
+                // Confirm or Externalize phases
+                assert!(self.current_ballot.lock().unwrap().is_some());
+                assert!(self.prepared.is_some());
+                assert!(self.commit.lock().unwrap().is_some());
+                assert!(self.high_ballot.lock().unwrap().is_some());
             }
+        }
 
-            if let Some(current_ballot) = self.current_ballot.lock().unwrap().as_ref() {
-                assert!(current_ballot.counter != 0);
+        if let Some(current_ballot) = self.current_ballot.lock().unwrap().as_ref() {
+            assert!(current_ballot.counter != 0);
+        }
+
+        if let Some(prepared) = self.prepared.as_ref() {
+            if let Some(prepared_prime) = self.prepared_prime.as_ref() {
+                // 𝑝′, 𝑝 The two highest ballots accepted as prepared such that 𝑝′ ⋦𝑝, where 𝑝′ = 𝟎 or 𝑝 = 𝑝′ = 𝟎 if there are no such ballots
+                assert!(
+                    prepared_prime < prepared && !prepared_prime.compatible(prepared),
+                    "prepared_prime: {:?}, prepared: {:?}",
+                    prepared_prime,
+                    prepared
+                );
             }
+        }
 
-            if let Some(prepared) = self.prepared.as_ref() {
-                if let Some(prepared_prime) = self.prepared_prime.as_ref() {
-                    // 𝑝′, 𝑝 The two highest ballots accepted as prepared such that 𝑝′ ⋦𝑝, where 𝑝′ = 𝟎 or 𝑝 = 𝑝′ = 𝟎 if there are no such ballots
-                    assert!(
-                        prepared_prime < prepared && !prepared_prime.compatible(prepared),
-                        "prepared_prime: {:?}, prepared: {:?}",
-                        prepared_prime,
-                        prepared
-                    );
-                }
-            }
+        if let Some(high_ballot) = self.high_ballot.lock().unwrap().as_ref() {
+            assert!(high_ballot.less_and_compatible(
+                self.current_ballot
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .expect("Current ballot is not None")
+            ));
+        }
 
-            if let Some(high_ballot) = self.high_ballot.lock().unwrap().as_ref() {
-                assert!(high_ballot.less_and_compatible(
+        if let Some(commit) = self.commit.lock().unwrap().as_ref() {
+            assert!(self.current_ballot.lock().unwrap().is_some());
+            assert!(commit.less_and_compatible(
+                self.high_ballot
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .expect("High ballot is not None")
+            ));
+            assert!(self
+                .high_ballot
+                .lock()
+                .unwrap()
+                .as_ref()
+                .expect("High ballot is not None")
+                .less_and_compatible(
                     self.current_ballot
                         .lock()
                         .unwrap()
                         .as_ref()
                         .expect("Current ballot is not None")
                 ));
-            }
-
-            if let Some(commit) = self.commit.lock().unwrap().as_ref() {
-                assert!(self.current_ballot.lock().unwrap().is_some());
-                assert!(commit.less_and_compatible(
-                    self.high_ballot
-                        .lock()
-                        .unwrap()
-                        .as_ref()
-                        .expect("High ballot is not None")
-                ));
-                assert!(self
-                    .high_ballot
-                    .lock()
-                    .unwrap()
-                    .as_ref()
-                    .expect("High ballot is not None")
-                    .less_and_compatible(
-                        self.current_ballot
-                            .lock()
-                            .unwrap()
-                            .as_ref()
-                            .expect("Current ballot is not None")
-                    ));
-            }
         }
     }
 
@@ -1643,9 +1642,6 @@ where
         // TODO: can we avoid copying?
         let prepared_ballot_opt = state.prepared.clone();
 
-        // TODO: need to set prepared
-        debug!("prepared_ballot_opt: {:?}", prepared_ballot_opt);
-
         if let Some(prepared_ballot) = prepared_ballot_opt.as_ref() {
             let candidates = state.get_prepare_candidates(hint, env_map);
 
@@ -1678,11 +1674,12 @@ where
                 // now, look for newC (left as 0 if no update) step (3) from the paper.
                 let mut new_commit = SCPBallot::default();
 
+                // TODO: fix this
                 if state.commit.lock().unwrap().is_none()
                     && !state
                         .prepared
                         .as_ref()
-                        .is_some_and(|prepared| new_high.less_and_incompatible(prepared))
+                        .is_some_and(|prepared: &SCPBallot<N>| new_high.less_and_incompatible(prepared))
                     && !state.prepared_prime.as_ref().is_some_and(|prepared_prime| {
                         new_high.less_and_incompatible(prepared_prime)
                     })
