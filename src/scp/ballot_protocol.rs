@@ -2143,7 +2143,7 @@ where
             // Unreachable
             false
         } else {
-            true
+            false
         }
     }
 
@@ -2228,6 +2228,7 @@ where
         // only bump after we're done with everything else
         if ballot_state.message_level == 1 {
             let mut did_bump = false;
+
             loop {
                 println!("attempt bump in loop");
                 did_bump = self.attempt_bump(
@@ -2237,6 +2238,7 @@ where
                     envs_to_emit,
                     quorum_manager,
                 );
+
                 did_work = did_bump || did_work;
                 if !did_bump {
                     break;

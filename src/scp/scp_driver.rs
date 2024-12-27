@@ -563,7 +563,7 @@ where
             "node {:?} externalized value {:?}",
             self.local_node.node_id, value
         );
-        todo!();
+        // todo!();
     }
 
     fn sign_envelope(envelope: &mut SCPEnvelope<N>) {

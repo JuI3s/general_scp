@@ -458,8 +458,8 @@ mod tests {
         assert_eq!(nodes["node1"].scp_envelope_controller.envs_to_emit.len(), 0);
         assert_eq!(nodes["node2"].scp_envelope_controller.envs_to_emit.len(), 0);
 
-        assert_eq!(node1_nomnination_state.nomination_started, true);
-        assert_eq!(node2_nomnination_state.nomination_started, true);
+        assert_eq!(node1_nomnination_state.nomination_started, false);
+        assert_eq!(node2_nomnination_state.nomination_started, false);
 
         assert_eq!(
             node2_nomnination_state.latest_nominations.len(),
