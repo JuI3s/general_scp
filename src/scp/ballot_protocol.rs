@@ -789,7 +789,6 @@ where
                     num_commit: num_commit,
                     num_high: num_high,
                     quorum_set: None,
-                    node_id: "".into(),
                 })
             }
             SCPPhase::PhaseConfirm => SCPStatement::Confirm(SCPStatementConfirm {
@@ -810,7 +809,6 @@ where
                     .counter
                     .clone(),
                 quorum_set: None,
-                node_id: "".into(),
             }),
             SCPPhase::PhaseExternalize => SCPStatement::Externalize(SCPStatementExternalize {
                 commit_quorum_set_hash: local_quorum_set_hash,
@@ -822,7 +820,6 @@ where
                     .counter
                     .clone(),
                 commit_quorum_set: None,
-                node_id: "".into(),
             }),
         }
     }
@@ -1419,14 +1416,13 @@ where
 
         // TODO: should avoid cloning?
         let st = envelope.get_statement().clone();
-        let node_id = st.node_id();
 
         if !self.is_statement_sane(&st, from_self, quorum_manager) {
             debug!("node {:?} statement is not sane", self.local_node.node_id);
             return EnvelopeState::Invalid;
         }
 
-        if ballot_state.is_newer_statement_for_node(node_id, &st, &env_map) {
+        if ballot_state.is_newer_statement_for_node(&envelope.node_id, &st, &env_map) {
             debug!("node {:?} statement is not newer", self.local_node.node_id);
             return EnvelopeState::Invalid;
         }

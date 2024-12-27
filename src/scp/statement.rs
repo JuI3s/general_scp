@@ -75,7 +75,6 @@ pub struct SCPStatementPrepare<N>
 where
     N: NominationValue,
 {
-    pub node_id: NodeID,
     #[serde(with = "serde_bytes")]
     pub quorum_set_hash: HashValue,
     pub ballot: SCPBallot<N>,
@@ -90,7 +89,6 @@ where
 impl<N: NominationValue> Debug for SCPStatementPrepare<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SCPStatementPrepare")
-            .field("node_id", &self.node_id)
             // .field("quorum_set_hash", &self.quorum_set_hash)
             .field("ballot", &self.ballot)
             .field("prepared", &self.prepared)
@@ -107,7 +105,6 @@ pub struct SCPStatementConfirm<N>
 where
     N: NominationValue,
 {
-    pub node_id: NodeID,
     #[serde(with = "serde_bytes")]
     pub quorum_set_hash: HashValue,
     pub ballot: SCPBallot<N>,
@@ -123,7 +120,6 @@ pub struct SCPStatementExternalize<N>
 where
     N: NominationValue,
 {
-    pub node_id: NodeID,
     #[serde(with = "serde_bytes")]
     pub commit_quorum_set_hash: HashValue,
     pub commit: SCPBallot<N>,
@@ -153,15 +149,6 @@ impl<N> SCPStatement<N>
 where
     N: NominationValue,
 {
-    pub fn node_id(&self) -> &NodeID {
-        match self {
-            SCPStatement::Prepare(st) => &st.node_id,
-            SCPStatement::Confirm(st) => &st.node_id,
-            SCPStatement::Externalize(st) => &st.node_id,
-            SCPStatement::Nominate(st) => &st.node_id,
-        }
-    }
-
     pub fn statement_type(&self) -> SCPStatementType {
         match self {
             SCPStatement::Nominate(_) => SCPStatementType::Nominate,
