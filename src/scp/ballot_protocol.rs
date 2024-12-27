@@ -378,6 +378,30 @@ impl<N> BallotProtocolState<N>
 where
     N: NominationValue,
 {
+    fn set_commit(&mut self, ballot: &SCPBallot<N>) {
+        self.commit = Some(ballot.clone());
+
+        // https://johnpconley.com/wp-content/uploads/2021/01/stellar-consensus-protocol.pdf (p.23)
+        // 𝑐, ℎ
+        // In PREPARE: ℎ is the highest ballot confirmed as prepared, or 𝟎 if none; if 𝑐 ≠ 𝟎, then 𝑐 is lowest and ℎ the highest ballot for which 𝑣 has voted commit and not accepted abort.
+        // In CONFIRM: lowest, highest ballot for which 𝑣 accepted commit
+        // In EXTERNALIZE: lowest, highest ballot for which 𝑣 confirmed commit
+        // Invariant: if 𝑐 ≠ 𝟎, then 𝑐 ≲ ℎ ≲ 𝑏.
+
+        self.commit = Some(ballot.clone());
+
+        match &mut self.high_ballot {
+            Some(h) => {
+                if !(ballot.less_and_compatible(h)) {
+                    *h = ballot.clone();
+                }
+            }
+            None => {
+                self.high_ballot = Some(ballot.clone());
+            }
+        }
+    }
+
     fn is_newer_statement_for_node(
         &self,
         node_id: &NodeID,
@@ -1270,13 +1294,7 @@ where
         if updated {
             state.bump_to_ballot(true, ballot);
         }
-
         state.check_invariants();
-
-        debug!(
-            "node {:?} after updating current value, updated: {:?}",
-            self.local_node.node_id, updated
-        );
 
         updated
     }
@@ -1482,8 +1500,6 @@ where
 
         let candidates = state.get_prepare_candidates(hint, env_map);
 
-        debug!("attempt_accept_prepared candidates: {:?}", candidates);
-
         // see if we can accept any of the candidates, starting with the highest
         // TODO: we do we need to loop through all candidates?
         for candidate in &candidates {
@@ -1522,11 +1538,7 @@ where
                 continue;
             }
 
-            debug!("attempt_accept_prepared candidate: {:?}", candidate);
             let ballot = &candidate;
-
-            debug!("attempt federated_accept for ballot {:?}", ballot);
-            println!("latest envelopes: {:?}", state.latest_envelopes);
 
             // There is a chance it increases p'
             if self.federated_accept(
@@ -1727,7 +1739,8 @@ where
             }
 
             if new_commit.counter != 0 {
-                state.commit = Some(SCPBallot::make_ballot(new_commit));
+                state.set_commit(new_commit);
+                // state.commit = Some(SCPBallot::make_ballot(new_commit));
                 did_work = true;
             }
 
@@ -2144,8 +2157,8 @@ where
             quorum_manager,
         );
         debug!(
-            "node {:?} did work during attempt_accept_prepared: {:?}",
-            self.local_node.node_id, attempted_accept_prepared
+            "node {:?} did work during attempt_accept_prepared: {:?}, message level: {:?}",
+            self.local_node.node_id, attempted_accept_prepared, ballot_state.message_level
         );
 
         let attempted_confirm_prepared = self.attempt_confirm_prepared(
@@ -2157,8 +2170,8 @@ where
             quorum_manager,
         );
         debug!(
-            "node {:?} did work during attempt_confirm_prepared: {:?}",
-            self.local_node.node_id, attempted_confirm_prepared
+            "node {:?} did work during attempt_confirm_prepared: {:?}, message level: {:?}",
+            self.local_node.node_id, attempted_confirm_prepared, ballot_state.message_level
         );
 
         let attempted_accept_commit = self.attempt_accept_commit(
@@ -2170,8 +2183,8 @@ where
             quorum_manager,
         );
         debug!(
-            "node {:?} did work during attempt_accept_commit: {:?}",
-            self.local_node.node_id, attempted_accept_commit
+            "node {:?} did work during attempt_accept_commit: {:?}, message level: {:?}",
+            self.local_node.node_id, attempted_accept_commit, ballot_state.message_level
         );
 
         let attempted_confirm_commit = self.attempt_confirm_commit(
@@ -2183,8 +2196,8 @@ where
             quorum_manager,
         );
         debug!(
-            "node {:?} did work during attempt_confirm_commit: {:?}",
-            self.local_node.node_id, attempted_confirm_commit
+            "node {:?} did work during attempt_confirm_commit: {:?}, message level: {:?}",
+            self.local_node.node_id, attempted_confirm_commit, ballot_state.message_level
         );
 
         did_work = attempted_accept_prepared
