@@ -401,28 +401,6 @@ where
         env.get_statement().is_newer_than(st)
     }
 
-    pub fn send_latest_message(
-        &mut self,
-        slot_fully_validated: bool,
-        callback: impl FnOnce(&SCPEnvelope<N>),
-    ) {
-        if let Some(last_envelope) = self.last_envelope.as_ref() {
-            if self.current_message_level == 0 && slot_fully_validated {
-                if self.last_envelope_emitted.as_ref().is_some_and(|env| {
-                    env.lock()
-                        .unwrap()
-                        .eq(std::borrow::Borrow::borrow(&last_envelope.lock().unwrap()))
-                }) {
-                    return;
-                }
-                self.last_envelope_emitted = self.last_envelope.clone();
-                callback(std::borrow::Borrow::borrow(
-                    &self.last_envelope_emitted.as_ref().unwrap().lock().unwrap(),
-                ))
-            }
-        }
-    }
-
     // TODO: needs to figure out how it works....
     fn find_extended_interval(
         boundaries: &BTreeSet<u32>,
@@ -1019,11 +997,11 @@ where
 
         if let Some(last_envelope) = &state.last_envelope {
             println!("bk1");
-            if state.last_envelope_emitted.as_ref().is_some_and(|env| {
-                env.lock()
-                    .unwrap()
-                    .eq(std::borrow::Borrow::borrow(&last_envelope.lock().unwrap()))
-            }) {
+            if state
+                .last_envelope_emitted
+                .as_ref()
+                .is_some_and(|env| env.eq(last_envelope))
+            {
                 println!("bk2");
                 return;
             }
@@ -1031,11 +1009,10 @@ where
             state.last_envelope_emitted = state.last_envelope.to_owned();
 
             // TODO: currently this does nothing
-            self.herder_driver
-                .emit_envelope(&last_envelope.lock().unwrap());
+            self.herder_driver.emit_envelope(&last_envelope);
 
             // TODO: no rewason to use Arc<Mutex> here
-            let env_id = env_map.add_envelope(last_envelope.lock().unwrap().clone());
+            let env_id = env_map.add_envelope(last_envelope.as_ref().clone());
             envs_to_emit.push_back(env_id);
         }
     }

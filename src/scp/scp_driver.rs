@@ -110,7 +110,7 @@ where
     }
 }
 
-pub type HSCPEnvelope<N> = Arc<Mutex<SCPEnvelope<N>>>;
+pub type HSCPEnvelope<N> = Arc<SCPEnvelope<N>>;
 
 impl<N> Blake2Hashable for SCPEnvelope<N> where N: NominationValue + Serialize {}
 
@@ -190,10 +190,6 @@ where
             signature: test_default_blake2(),
         };
         envelope_controller.add_envelope(env)
-    }
-
-    pub fn test_make_scp_envelope_handle(node_id: NodeID) -> HSCPEnvelope<N> {
-        Arc::new(Mutex::new(SCPEnvelope::test_make_scp_envelope(node_id)))
     }
 }
 
@@ -388,7 +384,7 @@ where
             envelopes
         );
         let ratify_filter =
-        move |st: &SCPStatement<N>| accepted_predicate(st) || voted_predicate(st);
+            move |st: &SCPStatement<N>| accepted_predicate(st) || voted_predicate(st);
 
         if LocalNodeInfo::<N>::is_v_blocking_with_predicate(
             &self.local_node.quorum_set,
@@ -400,7 +396,6 @@ where
                 "federated_accept: node {:?} is_v_blocking_with_predicate returns true",
                 self.local_node.node_id
             );
-        
 
             true
         } else {
@@ -409,11 +404,10 @@ where
                 self.local_node.node_id
             );
 
-
             let nodes =
                 extract_nodes_from_statement_with_filter(envelopes, &env_map, ratify_filter);
 
-            println!("nodes in federated accept: {:?}", nodes); 
+            println!("nodes in federated accept: {:?}", nodes);
 
             if nodes_form_quorum(
                 |node| {
