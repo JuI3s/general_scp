@@ -1004,6 +1004,11 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
     ) {
+        debug!(
+            "maybe_send_latest_envelope: node {:?} emits latest envelope",
+            self.local_node.node_id
+        );
+
         if state.current_message_level != 0 {
             return;
         }
@@ -1013,13 +1018,16 @@ where
         }
 
         if let Some(last_envelope) = &state.last_envelope {
+            println!("bk1");
             if state.last_envelope_emitted.as_ref().is_some_and(|env| {
                 env.lock()
                     .unwrap()
                     .eq(std::borrow::Borrow::borrow(&last_envelope.lock().unwrap()))
             }) {
+                println!("bk2");
                 return;
             }
+            println!("bk3");
             state.last_envelope_emitted = state.last_envelope.to_owned();
 
             // TODO: currently this does nothing
@@ -2120,11 +2128,14 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool {
+        debug!("node {:?} attempts to bump", self.local_node.node_id);
         if state.phase == SCPPhase::PhasePrepare || state.phase == SCPPhase::PhaseConfirm {
             let local_counter = match state.current_ballot.lock().unwrap().as_ref() {
                 Some(local_ballot) => local_ballot.counter,
                 None => 0,
             };
+
+            debug!("bk1");
 
             // First check to see if this condition applies at all. If there
             // is no v-blocking set ahead of the local node, there's nothing
@@ -2134,8 +2145,10 @@ where
                 local_counter,
                 env_map,
             ) {
+                debug!("bk2");
                 return false;
             }
+            debug!("bk3");
 
             let mut all_counters = BTreeSet::new();
 
@@ -2155,6 +2168,7 @@ where
             // with counters above the local counter; we just need to find a
             // minimal n at which that's no longer true. So check them in
             // order, starting from the smallest.
+
             for counter in all_counters {
                 if !self.has_v_blocking_subset_strictly_ahead_of(
                     &state.latest_envelopes,
@@ -2256,6 +2270,7 @@ where
         if ballot_state.message_level == 1 {
             let mut did_bump = false;
             loop {
+                println!("attempt bump in loop");
                 did_bump = self.attempt_bump(
                     ballot_state,
                     nomination_state,
@@ -2269,6 +2284,7 @@ where
                 }
             }
         }
+        debug!("finished bumping");
 
         ballot_state.message_level -= 1;
 
