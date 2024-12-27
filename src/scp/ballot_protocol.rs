@@ -246,7 +246,7 @@ where
     // step 1 and 5 from the SCP paper
     fn attempt_accept_prepared(
         &self,
-        state_handle: &mut BallotProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         hint: &SCPStatement<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
@@ -256,7 +256,7 @@ where
     // prepared: ballot that should be prepared
     fn set_accept_prepared(
         &self,
-        state_handle: &mut BallotProtocolState<N>,
+        ballot_state: &mut BallotProtocolState<N>,
         nomination_state: &mut NominationProtocolState<N>,
         ballot: &SCPBallot<N>,
         env_map: &mut EnvMap<N>,
@@ -353,8 +353,8 @@ where
     pub heard_from_quorum: bool,
 
     pub current_ballot: HBallot<N>,
-    pub prepared: HBallot<N>,
-    pub prepared_prime: HBallot<N>,
+    pub prepared: SCPBallot<N>,
+    pub prepared_prime: SCPBallot<N>,
     pub high_ballot: HBallot<N>,
     pub commit: HBallot<N>,
 
@@ -570,8 +570,12 @@ where
     }
 
     fn set_prepared(&mut self, ballot: &SCPBallot<N>) -> bool {
+        debug!("set_prepared to ballot: {:?}", ballot);
         let mut did_work = false;
 
+        // TODO: add invariant check for prepared and prepared_prime
+
+        // This step updates prepared_prime.
         match self.prepared.lock().unwrap().as_ref() {
             Some(ref mut prepared_ballot) => {
                 if *prepared_ballot < ballot {
@@ -579,7 +583,7 @@ where
                     if !prepared_ballot.compatible(ballot) {
                         self.prepared_prime = Arc::new(Mutex::new(Some(prepared_ballot.clone())));
                     }
-                    *prepared_ballot = ballot;
+
                     did_work = true;
                 } else if *prepared_ballot > ballot {
                     // check if we should update only p', this happens
@@ -590,14 +594,14 @@ where
                     // not called with a value that would not allow us to make progress
 
                     if self.prepared_prime.lock().unwrap().is_none()
-                        || (self.prepared_prime.lock().unwrap().as_ref().expect("") < ballot
-                            && !self
-                                .prepared
-                                .lock()
-                                .unwrap()
-                                .as_ref()
-                                .expect("")
-                                .compatible(ballot))
+                        || (self
+                            .prepared_prime
+                            .lock()
+                            .unwrap()
+                            .as_ref()
+                            .expect("prepared_prime does not exist")
+                            < ballot
+                            && !prepared_ballot.compatible(ballot))
                     {
                         *self
                             .prepared_prime
@@ -606,15 +610,17 @@ where
                             .as_ref()
                             .as_mut()
                             .expect("") = ballot;
+
                         did_work = true;
                     }
                 }
             }
             None => {
-                self.prepared_prime = Arc::new(Mutex::new(None));
                 did_work = true;
             }
         };
+
+        self.prepared = Arc::new(Mutex::new(Some(ballot.clone())));
         did_work
     }
 
@@ -1498,6 +1504,7 @@ where
             "node {:?} attempts to accept prepared",
             self.local_node.node_id
         );
+
         if state.phase != SCPPhase::PhasePrepare && state.phase != SCPPhase::PhaseConfirm {
             debug!(
                 "attempt_accept_prepared returns because node {:?} phase is not PhasePrepare or PhaseConfirm, node phase: {:?}",
@@ -1574,7 +1581,6 @@ where
                 env_map,
                 quorum_manager,
             ) {
-                debug!("break");
                 return self.set_accept_prepared(
                     state,
                     nomination_state,
@@ -1585,7 +1591,6 @@ where
                 );
             } else {
                 debug!("federated voting for accept failed, ");
-                panic!()
             }
         }
         false
@@ -1615,8 +1620,11 @@ where
                     did_work = true
                 }
         }
+
         if did_work {
+            // TODO: currently this method does nothing
             self.accepted_ballot_prepared(&self.slot_index, ballot);
+
             self.emit_current_state_statement(
                 state,
                 nomination_state,
@@ -1643,12 +1651,14 @@ where
         );
 
         if state.phase != SCPPhase::PhasePrepare {
+            debug!("attempt_confirm_prepared returns because node {:?} phase is not PhasePrepare, node phase: {:?}", self.local_node.node_id, state.phase);
             return false;
         }
 
         // TODO: can we avoid copying?
         let prepared_ballot_opt = state.prepared.lock().unwrap().clone();
 
+        // TODO: need to set prepared
         debug!("prepared_ballot_opt: {:?}", prepared_ballot_opt);
 
         if let Some(prepared_ballot) = prepared_ballot_opt.as_ref() {
@@ -2191,57 +2201,62 @@ where
 
         let mut did_work = false;
 
-        did_work = self.attempt_accept_prepared(
+        let attempted_accept_prepared = self.attempt_accept_prepared(
             ballot_state,
             nomination_state,
             hint,
             envs_to_emit,
             env_map,
             quorum_manager,
-        ) || did_work;
+        );
         debug!(
-            "node {:?} did_work after attempt_accept_prepared: {:?}",
-            self.local_node.node_id, did_work
+            "node {:?} did work during attempt_accept_prepared: {:?}",
+            self.local_node.node_id, attempted_accept_prepared
         );
 
-        did_work = self.attempt_confirm_prepared(
+        let attempted_confirm_prepared = self.attempt_confirm_prepared(
             ballot_state,
             nomination_state,
             hint,
             env_map,
             envs_to_emit,
             quorum_manager,
-        ) || did_work;
+        );
         debug!(
-            "node {:?} did_work after attempt_confirm_prepared: {:?}",
-            self.local_node.node_id, did_work
+            "node {:?} did work during attempt_confirm_prepared: {:?}",
+            self.local_node.node_id, attempted_confirm_prepared
         );
 
-        did_work = self.attempt_accept_commit(
+        let attempted_accept_commit = self.attempt_accept_commit(
             ballot_state,
             nomination_state,
             hint,
             envs_to_emit,
             env_map,
             quorum_manager,
-        ) || did_work;
+        );
         debug!(
-            "node {:?} did_work after attempt_accept_commit: {:?}",
-            self.local_node.node_id, did_work
+            "node {:?} did work during attempt_accept_commit: {:?}",
+            self.local_node.node_id, attempted_accept_commit
         );
 
-        did_work = self.attempt_confirm_commit(
+        let attempted_confirm_commit = self.attempt_confirm_commit(
             ballot_state,
             nomination_state,
             hint,
             env_map,
             envs_to_emit,
             quorum_manager,
-        ) || did_work;
-        debug!(
-            "node {:?} did_work after attempt_confirm_commit: {:?}",
-            self.local_node.node_id, did_work
         );
+        debug!(
+            "node {:?} did work during attempt_confirm_commit: {:?}",
+            self.local_node.node_id, attempted_confirm_commit
+        );
+
+        did_work = attempted_accept_prepared
+            || attempted_confirm_prepared
+            || attempted_accept_commit
+            || attempted_confirm_commit;
 
         // only bump after we're done with everything else
         if ballot_state.message_level == 1 {
