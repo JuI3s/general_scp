@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     time::SystemTime,
 };
 
@@ -52,6 +52,18 @@ pub struct EnvMap<N: NominationValue>(pub BTreeMap<SCPEnvelopeID, SCPEnvelope<N>
 impl<N: NominationValue> Default for EnvMap<N> {
     fn default() -> Self {
         Self(Default::default())
+    }
+}
+
+impl<N: NominationValue> EnvMap<N> {
+    pub fn display_for_env_ids<'a, I>(&self, env_ids: I)
+    where
+        I: IntoIterator<Item = &'a SCPEnvelopeID>,
+    {
+        for env_id in env_ids {
+            let env = self.0.get(env_id).unwrap();
+            println!("env_id: {:?}, env: {:?}", env_id, env);
+        }
     }
 }
 

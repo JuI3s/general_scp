@@ -9,6 +9,7 @@ use std::{
 
 use log::debug;
 use serde::{Deserialize, Serialize};
+use tracing::field::debug;
 
 use crate::{
     application::{
@@ -429,7 +430,7 @@ where
         boundaries: &BTreeSet<u32>,
         candidate: &mut Interval,
         predicate: impl Fn(&Interval) -> bool,
-    ) {
+    ) -> bool {
         for b in boundaries.iter().rev() {
             let mut cur: Interval = (0, 0);
             if candidate.0 == 0 {
@@ -445,10 +446,13 @@ where
 
             if predicate(&cur) {
                 *candidate = cur;
+                return true;
             } else if candidate.0 != 0 {
                 break;
             }
         }
+
+        false
     }
 
     fn get_commit_boundaries_from_statements(
@@ -1842,6 +1846,7 @@ where
 
         BallotProtocolState::<N>::find_extended_interval(&boundaries, &mut candidate, predicate);
 
+        println!("Debug candidate: {:?}", candidate);
         // TODO: I didn't quite follow this part.
         if candidate.0 != 0 {
             if state.phase != SCPPhase::PhaseConfirm
@@ -1941,11 +1946,20 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
     ) -> bool {
+        // TODO: to fix
         if ballot_state.phase != SCPPhase::PhaseConfirm {
+            debug!(
+                "attempt_confirm_commit returns because node {:?} phase is not PhaseConfirm, node phase: {:?}",
+                self.local_node.node_id,
+                ballot_state.phase
+            );
             return false;
         }
 
+        debug!("trying to attempt confirm commit");
+
         if ballot_state.high_ballot.is_none() || ballot_state.commit.is_none() {
+            debug!("high ballot or commit is None");
             return false;
         }
 
@@ -1970,7 +1984,8 @@ where
         }
 
         let boundaries = ballot_state.get_commit_boundaries_from_statements(&ballot, env_map);
-        let candidate: Interval = (0, 0);
+        let mut candidate: Interval = (0, 0);
+
         let predicate = |cur: &Interval| {
             self.federated_ratify(
                 |statement| BallotProtocolUtils::commit_predicate(&ballot, cur, statement),
@@ -1979,6 +1994,12 @@ where
                 quorum_manager,
             )
         };
+
+        debug!("before extended interval");
+        BallotProtocolState::<N>::find_extended_interval(&boundaries, &mut candidate, predicate);
+
+        debug!("boundary: {:?}", boundaries);
+        debug!("candidate is not empty: {:?}", candidate);
 
         if candidate.0 != 0 {
             let commit_ballot = SCPBallot {
@@ -2029,7 +2050,10 @@ where
 
         self.stop_nomination(nomination_state);
 
-        self.value_externalized(self.slot_index, &state.commit.as_ref().expect("").value);
+        self.value_externalized(
+            self.slot_index,
+            &state.commit.as_ref().expect("No commit ballot found").value,
+        );
 
         true
     }

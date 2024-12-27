@@ -437,10 +437,13 @@ where
     ) -> bool {
         // Definition of ratify (under Ratification): https://stellar.org/blog/thought-leadership/on-worldwide-consensus
 
+        println!("envelopes before: {:?}", envelopes);
+        env_map.display_for_env_ids(envelopes.values().into_iter());
+
         let nodes = extract_nodes_from_statement_with_filter(envelopes, &env_map, voted_predicate);
 
         debug!(
-            "node {:?} federated_ratify nodes: {:?}, local_quorum_set: {:?}",
+            "node {:?} tries to federated_ratify nodes: {:?}, local_quorum_set: {:?}",
             self.node_idx(),
             nodes,
             self.local_node.quorum_set
@@ -556,7 +559,11 @@ where
     }
 
     fn value_externalized(&self, slot_index: u64, value: &N) {
-        todo!()
+        debug!(
+            "node {:?} externalized value {:?}",
+            self.local_node.node_id, value
+        );
+        todo!();
     }
 
     fn sign_envelope(envelope: &mut SCPEnvelope<N>) {
