@@ -353,8 +353,8 @@ where
     pub heard_from_quorum: bool,
 
     pub current_ballot: HBallot<N>,
-    pub prepared: SCPBallot<N>,
-    pub prepared_prime: SCPBallot<N>,
+    pub prepared: Option<SCPBallot<N>>,
+    pub prepared_prime: Option<SCPBallot<N>>,
     pub high_ballot: HBallot<N>,
     pub commit: HBallot<N>,
 
@@ -576,12 +576,13 @@ where
         // TODO: add invariant check for prepared and prepared_prime
 
         // This step updates prepared_prime.
-        match self.prepared.lock().unwrap().as_ref() {
+
+        match self.prepared.as_ref() {
             Some(ref mut prepared_ballot) => {
                 if *prepared_ballot < ballot {
                     // as we're replacing p, we see if we should also replace p'
                     if !prepared_ballot.compatible(ballot) {
-                        self.prepared_prime = Arc::new(Mutex::new(Some(prepared_ballot.clone())));
+                        self.prepared_prime = Some(prepared_ballot.clone());
                     }
 
                     did_work = true;
@@ -593,23 +594,15 @@ where
                     // note, the later check is here out of paranoia as this function is
                     // not called with a value that would not allow us to make progress
 
-                    if self.prepared_prime.lock().unwrap().is_none()
+                    if self.prepared_prime.is_none()
                         || (self
                             .prepared_prime
-                            .lock()
-                            .unwrap()
                             .as_ref()
                             .expect("prepared_prime does not exist")
                             < ballot
                             && !prepared_ballot.compatible(ballot))
                     {
-                        *self
-                            .prepared_prime
-                            .lock()
-                            .unwrap()
-                            .as_ref()
-                            .as_mut()
-                            .expect("") = ballot;
+                        *self.prepared_prime.as_ref().as_mut().expect("") = ballot;
 
                         did_work = true;
                     }
@@ -620,7 +613,7 @@ where
             }
         };
 
-        self.prepared = Arc::new(Mutex::new(Some(ballot.clone())));
+        self.prepared = Some(ballot.clone());
         did_work
     }
 
@@ -631,7 +624,7 @@ where
                 _ => {
                     // Confirm or Externalize phases
                     assert!(self.current_ballot.lock().unwrap().is_some());
-                    assert!(self.prepared.lock().unwrap().is_some());
+                    assert!(self.prepared.is_some());
                     assert!(self.commit.lock().unwrap().is_some());
                     assert!(self.high_ballot.lock().unwrap().is_some());
                 }
@@ -641,8 +634,8 @@ where
                 assert!(current_ballot.counter != 0);
             }
 
-            if let Some(prepared) = self.prepared.lock().unwrap().as_ref() {
-                if let Some(prepared_prime) = self.prepared_prime.lock().unwrap().as_ref() {
+            if let Some(prepared) = self.prepared.as_ref() {
+                if let Some(prepared_prime) = self.prepared_prime.as_ref() {
                     assert!(prepared_prime.less_and_compatible(prepared));
                 }
             }
@@ -767,8 +760,8 @@ where
                         .as_ref()
                         .expect("Current ballot")
                         .clone(),
-                    prepared: self.prepared.lock().unwrap().clone(),
-                    prepared_prime: self.prepared_prime.lock().unwrap().clone(),
+                    prepared: self.prepared.clone(),
+                    prepared_prime: self.prepared_prime.clone(),
                     num_commit: num_commit,
                     num_high: num_high,
                     quorum_set: None,
@@ -784,22 +777,8 @@ where
                     .as_ref()
                     .expect("Current ballot")
                     .clone(),
-                num_prepared: self
-                    .prepared
-                    .lock()
-                    .unwrap()
-                    .as_ref()
-                    .expect("Prepared")
-                    .counter
-                    .clone(),
-                num_commit: self
-                    .prepared
-                    .lock()
-                    .unwrap()
-                    .as_ref()
-                    .expect("Commit")
-                    .counter
-                    .clone(),
+                num_prepared: self.prepared.as_ref().expect("Prepared").counter.clone(),
+                num_commit: self.prepared.as_ref().expect("Commit").counter.clone(),
                 num_high: self
                     .high_ballot
                     .lock()
@@ -1522,7 +1501,7 @@ where
         // TODO: we do we need to loop through all candidates?
         for candidate in &candidates {
             if state.phase == SCPPhase::PhaseConfirm {
-                match state.prepared.lock().unwrap().as_ref() {
+                match state.prepared.as_ref() {
                     Some(prepared_ballot) => {
                         if prepared_ballot.less_and_compatible(&candidate) {
                             continue;
@@ -1540,8 +1519,6 @@ where
             // TODO: why do we need this?
             if state
                 .prepared_prime
-                .lock()
-                .unwrap()
                 .as_ref()
                 .is_some_and(|prepared_prime_ballot| {
                     candidate.less_and_compatible(prepared_prime_ballot)
@@ -1552,8 +1529,6 @@ where
 
             if state
                 .prepared
-                .lock()
-                .unwrap()
                 .as_ref()
                 .is_some_and(|prepared_ballot| candidate.less_and_compatible(prepared_ballot))
             {
@@ -1609,10 +1584,10 @@ where
         let mut did_work = state.set_prepared(ballot);
 
         if state.commit.lock().unwrap().is_some() && state.high_ballot.lock().unwrap().is_some() {
-            if state.prepared.lock().unwrap().as_ref().is_some_and(|prepared_ballot| {
+            if state.prepared.as_ref().is_some_and(|prepared_ballot| {
                     state.high_ballot.lock().unwrap().as_ref().expect("").less_and_incompatible(prepared_ballot)
                 }
-                || state.prepared_prime.lock().unwrap().as_ref().is_some_and(|prepared_prime_ballot|{
+                || state.prepared_prime.as_ref().is_some_and(|prepared_prime_ballot|{
                     state.high_ballot.lock().unwrap().as_ref().expect("").less_and_incompatible(prepared_prime_ballot)
                 })
                 ) {
@@ -1656,7 +1631,7 @@ where
         }
 
         // TODO: can we avoid copying?
-        let prepared_ballot_opt = state.prepared.lock().unwrap().clone();
+        let prepared_ballot_opt = state.prepared.clone();
 
         // TODO: need to set prepared
         debug!("prepared_ballot_opt: {:?}", prepared_ballot_opt);
@@ -1696,13 +1671,11 @@ where
                 if state.commit.lock().unwrap().is_none()
                     && !state
                         .prepared
-                        .lock()
-                        .unwrap()
                         .as_ref()
                         .is_some_and(|prepared| new_high.less_and_incompatible(prepared))
-                    && !state.prepared_prime.lock().unwrap().as_ref().is_some_and(
-                        |prepared_prime| new_high.less_and_incompatible(prepared_prime),
-                    )
+                    && !state.prepared_prime.as_ref().is_some_and(|prepared_prime| {
+                        new_high.less_and_incompatible(prepared_prime)
+                    })
                 {
                     // TODO: maybe rewrite this logic in a more functional programming way...
                     for candidate in &candidates {
@@ -1963,7 +1936,7 @@ where
                 state.bump_to_ballot(false, high);
             }
 
-            *state.prepared_prime.lock().unwrap() = None;
+            state.prepared_prime = None;
             did_work = true;
         }
 
