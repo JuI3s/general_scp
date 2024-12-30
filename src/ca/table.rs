@@ -263,7 +263,7 @@ impl Table {
             .borrow()
             .value_entries
             .iter()
-            .find(|e| e.borrow().cell.equals_prefix(key))
+            .find(|e| e.borrow().equals_prefix(key))
         {
             return Some(val.clone());
         }
