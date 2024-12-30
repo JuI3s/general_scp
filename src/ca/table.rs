@@ -1,7 +1,5 @@
 use std::{borrow::BorrowMut, cell::RefCell, rc::Rc};
 
-
-
 use super::{
     ca_type::{PublicKey, SCPSignature},
     cell::{Cell, DelegateCell, ValueCell},
@@ -20,23 +18,19 @@ pub enum TableOpError {
     EmptyCell,
 }
 
-// Every cell is stored in a table, which groups all the mappings
-// created by a single authority public key for a specific namespace.
-// Individual cells are referenced by an application-specific label in a
-// lookup table. _The combination of a lookup key and a referenced cell
-// value forms a mapping_.
+/// https://datatracker.ietf.org/doc/html/draft-watson-dinrg-delmap-01
+///
+/// Tables
 
-//     struct tableentry {
-//         opaque lookup_key<>;
-//         cell c;
-//     }
+/// Every cell is stored in a table, which groups all the mappings created by a single authority public key for a specific namespace. Individual cells are referenced by an application-specific label in a lookup table. _The combination of a lookup key and a referenced cell value forms a mapping_.
 
-// Delegating the whole or part of a namespace requires adding a new
-// lookup key for the namespace and a matching delegate cell.  Each
-// delegation must be validated in the context of the other table
-// entries and the table itself.  For example, the owner of a table
-// delegated an /8 IPv4 block must not to delegate the same /16 block to
-// two different tables.
+///     struct tableentry {
+///         opaque lookup_key<>;
+///         cell c;
+///     }
+
+/// Delegating the whole or part of a namespace requires adding a new lookup key for the namespace and a matching delegate cell.  Each delegation must be validated in the context of the other table entries and the table itself.  For example, the owner of a table delegated an /8 IPv4 block must not to delegate the same /16 block to two different tables.
+
 pub enum TableEntry {
     Value(ValueEntry),
     Delegate(DelegateEntry),
