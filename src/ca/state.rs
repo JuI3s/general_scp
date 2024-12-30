@@ -198,12 +198,4 @@ mod tests {
 
     
 
-    #[test]
-    fn box_value() {
-        let a = Box::new(1);
-        let mut b = a.clone();
-        let y = &mut b;
-        *y = Box::new(2);
-        assert_eq!(*a, 1);
-    }
 }
