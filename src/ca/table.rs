@@ -93,10 +93,8 @@ impl Table {
         match self.check_cell_valid(&cell) {
             Err(err) => Err(err),
             Ok(_) => match &cell.inner {
-                super::cell::CellData::Value(inner_value_cell) => Ok(self.value_entries.push(cell)),
-                super::cell::CellData::Delegate(inner_delegate_cell) => todo!(),
-                // Cell::Value(cell) => Ok(self.value_entries.push(ValueEntry { cell })),
-                // Cell::Delegate(cell) => Ok(self.delegate_entries.push(DelegateEntry { cell })),
+                super::cell::CellData::Value(_) => Ok(self.value_entries.push(cell)),
+                super::cell::CellData::Delegate(_) => Ok(self.delegate_entries.push(cell)),
             },
         }
     }
