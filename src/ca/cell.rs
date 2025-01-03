@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use super::{
     ca_type::{mock_public_key, PublicKey, SCPSignature, Timestamp},
     merkle::MerkleHash,
-    table::HTable,
+    table::{HTable, TableId},
 };
 
 type CellOpResult<T> = std::result::Result<T, CellOpError>;
@@ -42,8 +42,9 @@ pub enum InnerCell {
 #[derive(Clone)]
 pub struct InnerDelegateCell {
     // opaque namespace<>
-    name_space: String,
-    allowance: u32,
+    pub name_space: String,
+    pub allowance: u32,
+    pub table: Option<TableId>,
 }
 
 // Value cells store individual mapping values.  They resolve a lookup
@@ -104,6 +105,13 @@ fn timestamp_now() -> u64 {
 }
 
 impl Cell {
+    pub fn contains_prefix(&self, prefix: &str) -> bool {
+        match &self.inner {
+            CellData::Value(value_cell) => value_cell.value.starts_with(prefix),
+            CellData::Delegate(delegate_cell) => delegate_cell.name_space.starts_with(prefix),
+        }
+    }
+
     pub fn set_modify_timestamp(&mut self) -> CellOpResult<()> {
         let now = timestamp_now();
 
@@ -143,6 +151,7 @@ impl Cell {
             inner: CellData::Delegate(InnerDelegateCell {
                 name_space,
                 allowance,
+                table: None,
             }),
         }
     }
@@ -203,7 +212,7 @@ impl Cell {
             .starts_with(self.name_space_or_value())
     }
 
-    pub fn contains_prefix(&self, cell: &Cell) -> bool {
+    pub fn contains_prefix_in_cell(&self, cell: &Cell) -> bool {
         self.name_space_or_value()
             .starts_with(cell.name_space_or_value())
     }

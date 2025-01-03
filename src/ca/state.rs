@@ -1,7 +1,4 @@
-use std::{
-    borrow::BorrowMut,
-    collections::BTreeMap,
-};
+use std::{borrow::BorrowMut, collections::BTreeMap};
 
 use serde::Serialize;
 
@@ -13,13 +10,16 @@ use super::{
     merkle::MerkleTree,
     operation::{CellMerkleProof, SetOperation, TableMerkleProof},
     root::{RootEntry, RootEntryKey, RootListing},
-    table::{HDelegateEntry, HTable, HValueEntry, Table, TableOpError},
+    table::{
+        find_delegation_cell, find_value_cell, HTable, Table, TableCollection, TableId,
+        TableOpError,
+    },
 };
 
 pub struct CAState {
     table_tree: MerkleTree,
     root_listing: RootListing,
-    tables: BTreeMap<RootEntryKey, BTreeMap<String, HTable>>,
+    tables: BTreeMap<RootEntryKey, TableCollection>,
 }
 
 #[derive(Hash, Default, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Debug)]
@@ -73,13 +73,16 @@ impl CAState {
     }
 
     pub fn validate_merkle_proof_for_cell<'a>(
-        &self,
+        &mut self,
         root_key: &RootEntryKey,
         merkle_proof: &CellMerkleProof,
     ) -> CAStateOpResult<()> {
-        if let Some(table) = self.get_table(root_key, merkle_proof.key) {
+        // TODO: should change add get_mut_table
+
+        let table_key = TableId(merkle_proof.key.to_owned());
+        if let Some(table) = self.get_table(root_key, &table_key) {
             // Check tree root has not changed.
-            if table.borrow().merkle_tree.root() != merkle_proof.root {
+            if table.merkle_tree.root() != merkle_proof.root {
                 return Err(CAStateOpError::MerkleTreeChanged);
             }
 
@@ -89,7 +92,6 @@ impl CAState {
                 .to_merkle_hash()
                 .is_some_and(|hash| {
                     table
-                        .borrow()
                         .merkle_tree
                         .veritfy_inclusion_proof(
                             &hash,
@@ -118,7 +120,7 @@ impl CAState {
         cell: Cell,
     ) -> CAStateOpResult<()> {
         if let Some(root_table) = self.get_root_table(root_entry_key) {
-            match root_table.as_ref().borrow_mut().add_entry(cell) {
+            match root_table.add_entry(cell) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(CAStateOpError::TableOpError(err)),
             }
@@ -135,27 +137,31 @@ impl CAState {
         &self,
         root_entry_key: &RootEntryKey,
         cell_key: &String,
-    ) -> Option<HDelegateEntry> {
-        let root_table = self.get_root_table(root_entry_key)?;
-        Table::find_delegation_cell(&root_table, cell_key)
+    ) -> Option<&Cell> {
+        let root_table = self.tables.get(root_entry_key)?;
+        let root_table_id = TableId("".to_owned());
+
+        find_delegation_cell(root_table, &root_table_id, cell_key)
     }
 
     pub fn find_value_cell(
         &self,
         root_entry_key: &RootEntryKey,
         cell_key: &String,
-    ) -> Option<HValueEntry> {
-        let root_table = self.get_root_table(root_entry_key)?;
-        Table::find_value_cell(&root_table, cell_key)
+    ) -> Option<&Cell> {
+        let root_table = self.tables.get(root_entry_key)?;
+        let root_table_id = TableId("".to_owned());
+        find_value_cell(root_table, &root_table_id, cell_key)
     }
 
-    fn get_root_table(&self, root_entry_key: &RootEntryKey) -> Option<HTable> {
-        self.get_table(root_entry_key, "")
+    fn get_root_table(&mut self, root_entry_key: &RootEntryKey) -> Option<&mut Table> {
+        let table_key = TableId("".to_owned());
+        self.get_table(root_entry_key, &table_key)
     }
 
-    fn get_table(&self, root_entry: &RootEntryKey, table_key: &str) -> Option<HTable> {
-        let root_table = self.tables.get(root_entry)?;
-        root_table.get(table_key).map(|v| v.clone())
+    fn get_table(&mut self, root_entry: &RootEntryKey, table_key: &TableId) -> Option<&mut Table> {
+        let root_table = self.tables.get_mut(root_entry)?;
+        root_table.0.get_mut(table_key)
     }
 
     pub fn contains_root_entry(
@@ -194,8 +200,4 @@ impl CAState {
 // misbehaving applications.
 
 #[cfg(test)]
-mod tests {
-
-    
-
-}
+mod tests {}

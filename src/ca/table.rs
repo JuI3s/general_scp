@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, cell::RefCell, rc::Rc};
+use std::{borrow::BorrowMut, cell::RefCell, collections::HashMap, rc::Rc};
 
 use super::{
     ca_type::{PublicKey, SCPSignature},
@@ -31,33 +31,22 @@ pub enum TableOpError {
 
 /// Delegating the whole or part of a namespace requires adding a new lookup key for the namespace and a matching delegate cell.  Each delegation must be validated in the context of the other table entries and the table itself.  For example, the owner of a table delegated an /8 IPv4 block must not to delegate the same /16 block to two different tables.
 
-pub enum TableEntry {
-    Value(ValueEntry),
-    Delegate(DelegateEntry),
-}
-
-pub type HValueEntry = Rc<RefCell<ValueEntry>>;
-pub struct ValueEntry {
-    pub cell: ValueCell,
-}
-
-pub type HDelegateEntry = Rc<RefCell<DelegateEntry>>;
-pub struct DelegateEntry {
-    pub cell: DelegateCell,
-}
-
 pub struct TableMeta {
     pub allowance: u32,
     lookup_key: String,
 }
+
+#[derive(Eq, PartialEq, Debug, Hash, Clone)]
+pub struct TableId(pub String);
+pub struct TableCollection(pub HashMap<TableId, Table>);
 
 pub type HTable = Rc<RefCell<Table>>;
 pub struct Table {
     pub allowance: u32,
     pub name_space: String,
     // Need to change this to a map
-    pub value_entries: Vec<HValueEntry>,
-    pub delegate_entries: Vec<HDelegateEntry>,
+    pub value_entries: Vec<Cell>,
+    pub delegate_entries: Vec<Cell>,
     pub merkle_tree: Box<MerkleTree>,
 }
 
@@ -68,15 +57,12 @@ pub struct RootEntry<'a> {
     allowance: u32,
 }
 
-impl TableEntry {
-    //    Delegating the whole or part of a namespace requires adding a new
-    //    lookup key for the namespace and a matching delegate cell.  Each
-    //    delegation must be validated in the context of the other table
-    //    entries and the table itself.  For example, the owner of a table
-    //    delegated an /8 IPv4 block must not to delegate the same /16 block to
-    //    two different tables.
-    pub fn delegate(&mut self) {}
-}
+//    Delegating the whole or part of a namespace requires adding a new
+//    lookup key for the namespace and a matching delegate cell.  Each
+//    delegation must be validated in the context of the other table
+//    entries and the table itself.  For example, the owner of a table
+//    delegated an /8 IPv4 block must not to delegate the same /16 block to
+//    two different tables.
 
 impl Default for Table {
     fn default() -> Self {
@@ -106,50 +92,12 @@ impl Table {
     pub fn add_entry(&mut self, cell: Cell) -> TableOpResult<()> {
         match self.check_cell_valid(&cell) {
             Err(err) => Err(err),
-            Ok(_) => match cell {
-                Cell::Value(cell) => Ok(self.value_entries.push(ValueEntry::new_handle(cell))),
-                Cell::Delegate(cell) => {
-                    Ok(self.delegate_entries.push(DelegateEntry::new_handle(cell)))
-                }
+            Ok(_) => match &cell.inner {
+                super::cell::CellData::Value(inner_value_cell) => Ok(self.value_entries.push(cell)),
+                super::cell::CellData::Delegate(inner_delegate_cell) => todo!(),
+                // Cell::Value(cell) => Ok(self.value_entries.push(ValueEntry { cell })),
+                // Cell::Delegate(cell) => Ok(self.delegate_entries.push(DelegateEntry { cell })),
             },
-        }
-    }
-
-    pub fn remove_delegation_cell(table: &HTable, key: &String) {
-        // TODO: update modification time.
-        match Table::find_delegation_cell(table, key) {
-            None => {}
-            Some(entry) => {
-                if !entry
-                    .as_ref()
-                    .borrow_mut()
-                    .cell
-                    .set_modify_timestamp()
-                    .is_ok()
-                {
-                    return;
-                }
-                entry.as_ref().borrow_mut().cell.inner_cell = None
-            }
-        }
-    }
-
-    pub fn remove_value_cell(table: &HTable, key: &String) {
-        // TODO: update modification time.
-        match Table::find_value_cell(table, key) {
-            None => {}
-            Some(entry) => {
-                if !entry
-                    .as_ref()
-                    .borrow_mut()
-                    .cell
-                    .set_modify_timestamp()
-                    .is_ok()
-                {
-                    return;
-                }
-                entry.as_ref().borrow_mut().cell.inner_cell = None;
-            }
         }
     }
 
@@ -175,17 +123,14 @@ impl Table {
         //    schemes where there is no explicit restriction can use an empty
         //    prefix.
 
-        if !cell
-            .name_space_or_value()
-            .is_some_and(|v| v.starts_with(&self.name_space))
-        {
+        if !cell.contains_prefix(&self.name_space) {
             return Err(TableOpError::NamespaceError);
         }
 
         if self
             .value_entries
             .iter()
-            .any(|table_entry| table_entry.borrow().cell.contains_prefix_from_cell(cell))
+            .any(|table_entry| table_entry.contains_prefix(&cell.name_space_or_value()))
         {
             return Err(TableOpError::CellAddressIsPrefix);
         }
@@ -193,7 +138,7 @@ impl Table {
         if self
             .value_entries
             .iter()
-            .any(|table_entry| table_entry.borrow().cell.is_prefix_of_cell(cell))
+            .any(|table_entry| table_entry.contains_prefix_in_cell(cell))
         {
             return Err(TableOpError::CellAddressContainsPrefix);
         }
@@ -201,7 +146,7 @@ impl Table {
         if self
             .delegate_entries
             .iter()
-            .any(|table_entry| table_entry.borrow().cell.contains_prefix_from_cell(cell))
+            .any(|table_entry| table_entry.contains_prefix_in_cell(cell))
         {
             return Err(TableOpError::CellAddressIsPrefix);
         }
@@ -209,7 +154,7 @@ impl Table {
         if self
             .delegate_entries
             .iter()
-            .any(|table_entry| table_entry.borrow().cell.is_prefix_of_cell(cell))
+            .any(|table_entry| cell.contains_prefix_in_cell(table_entry))
         {
             return Err(TableOpError::CellAddressContainsPrefix);
         }
@@ -224,15 +169,11 @@ impl Table {
 
         let mut cur: u32 = 0;
         self.value_entries.iter().for_each(|e| {
-            if e.borrow().cell.inner_cell.is_some() {
-                cur += 1;
-            }
+            cur += 1;
         });
 
         self.delegate_entries.iter().for_each(|e| {
-            if let Some(val) = e.borrow().cell.allowance() {
-                cur += val;
-            }
+            cur += e.allowance();
         });
 
         if cur + allowance > self.allowance {
@@ -241,60 +182,64 @@ impl Table {
             Ok(())
         }
     }
+}
 
-    pub fn find_delegation_cell(table: &Rc<RefCell<Self>>, key: &String) -> Option<HDelegateEntry> {
-        for entry in &table.borrow().delegate_entries {
-            if entry.borrow().cell.equals_prefix(key) {
-                return Some(entry.clone());
-            }
+pub fn find_delegation_cell<'a>(
+    table_maps: &'a TableCollection,
+    table_id: &TableId,
+    key: &String,
+) -> Option<&'a Cell> {
+    let table = table_maps.0.get(table_id)?;
 
-            if entry.borrow().cell.is_prefix_of(key) {
-                if let Some(next_table) = &entry.borrow().cell.table {
-                    return Table::find_delegation_cell(&next_table, key);
+    for entry in &table.delegate_entries {
+        match &entry.inner {
+            super::cell::CellData::Value(_) => {}
+            super::cell::CellData::Delegate(inner_delegate_cell) => {
+                if entry.name_space_or_value() == key {
+                    return Some(entry);
+                }
+
+                if let Some(new_table_id) = &inner_delegate_cell.table {
+                    return find_delegation_cell(table_maps, new_table_id, key);
                 }
             }
         }
-
-        None
     }
 
-    pub fn find_value_cell(table: &Rc<RefCell<Self>>, key: &String) -> Option<HValueEntry> {
-        if let Some(val) = table
-            .borrow()
-            .value_entries
-            .iter()
-            .find(|e| e.borrow().equals_prefix(key))
-        {
-            return Some(val.clone());
-        }
+    None
+}
 
-        if let Some(del_entry) = table
-            .borrow()
-            .delegate_entries
-            .iter()
-            .find(|e| e.borrow().cell.is_prefix_of(key))
-        {
-            match &del_entry.borrow().cell.table {
-                Some(new_table) => return Self::find_value_cell(new_table, key),
-                None => {
-                    return None;
+pub fn find_value_cell<'a>(
+    table_maps: &'a TableCollection,
+    table_id: &TableId,
+    key: &String,
+) -> Option<&'a Cell> {
+    let table = table_maps.0.get(table_id)?;
+
+    if let Some(val) = table
+        .value_entries
+        .iter()
+        .find(|e| e.name_space_or_value() == key)
+    {
+        return Some(val);
+    }
+
+    if let Some(del_entry) = table
+        .delegate_entries
+        .iter()
+        .find(|e| key.starts_with(e.name_space_or_value()))
+    {
+        match &del_entry.inner {
+            super::cell::CellData::Value(_) => panic!("This should not happen"),
+            super::cell::CellData::Delegate(inner_delegate_cell) => {
+                if let Some(new_table_id) = &inner_delegate_cell.table {
+                    return find_value_cell(table_maps, new_table_id, key);
                 }
             }
         }
-        None
     }
-}
 
-impl ValueEntry {
-    pub fn new_handle(cell: ValueCell) -> HValueEntry {
-        Rc::new(RefCell::new(Self { cell: cell }))
-    }
-}
-
-impl DelegateEntry {
-    pub fn new_handle(cell: DelegateCell) -> HDelegateEntry {
-        Rc::new(RefCell::new(Self { cell: cell }))
-    }
+    None
 }
 
 impl TableMeta {
@@ -311,10 +256,10 @@ mod tests {
     fn prefix_delegation_rule() {
         let mut entries = Table::new(100, "home/".to_owned());
         let home_cell = Cell::test_new_delegate_cell(String::from("home/home"), 1);
-        let cell1 = Cell::test_new_value_cell(String::from("home/cell1"));
+        let cell1 = Cell::test_new_value_cell(String::from("home/cell1"), 0);
 
         assert!(entries
-            .check_cell_valid(&Cell::test_new_value_cell(String::from("ho")))
+            .check_cell_valid(&Cell::test_new_value_cell(String::from("ho"), 1))
             .is_err_and(|err| { err == TableOpError::NamespaceError }));
         assert!(entries.add_entry(home_cell).is_ok());
         assert!(entries.check_cell_valid(&cell1).is_ok());
@@ -325,8 +270,8 @@ mod tests {
                 || err == TableOpError::CellAddressContainsPrefix
         }));
 
-        let cell2 = Cell::test_new_value_cell(String::from("home/"));
-        let cell3 = Cell::test_new_value_cell(String::from("home/1/2"));
+        let cell2 = Cell::test_new_value_cell(String::from("home/"), 1);
+        let cell3 = Cell::test_new_value_cell(String::from("home/1/2"), 2);
 
         assert!(entries
             .check_cell_valid(&cell2)
