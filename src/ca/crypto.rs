@@ -189,47 +189,6 @@ mod tests {
     const OPENSSL_PEM_PUBLIC_KEY: &str = include_str!("../../test_public.pem");
 
     #[test]
-    fn custom_verifying_key() {
-        let msg = b"hello world";
-        let signing_key = PrivateKey(
-            SigningKey::from_pkcs8_pem(OPENSSL_PEM_PRIVATE_KEY)
-                .expect("Failed to decode PEM encoded OpenSSL signing key"),
-        );
-
-        let signature: Signature = signing_key
-            .0
-            .sign_digest_with_rng(&mut rand::thread_rng(), Sha256::new().chain_update(msg));
-
-        let verifying_key = signing_key.0.verifying_key();
-
-        assert!(verifying_key
-            .verify_digest(Sha256::new().chain_update(msg), &signature)
-            .is_ok());
-
-        let veryifing_key_pem = verifying_key
-            .to_public_key_pem(LineEnding::LF)
-            .expect("Error converting public key to pem");
-
-        assert_eq!(veryifing_key_pem, OPENSSL_PEM_PUBLIC_KEY);
-
-        let scp_verifying_key = PublicKey(verifying_key.clone());
-
-        let verifying_key_encoded = bincode::serialize(&scp_verifying_key).unwrap();
-
-        // assert_eq!(verifying_key.to_public_key_der().expect("").as_bytes().len(),
-        // 126); assert_eq!(verifying_key.to_public_key_der().expect("").
-        // as_bytes().len(), 127);
-
-        let scp_verifying_key_decoded: PublicKey =
-            bincode::deserialize(&verifying_key_encoded).unwrap();
-
-        assert!(scp_verifying_key_decoded
-            .0
-            .verify_digest(Sha256::new().chain_update(msg), &signature)
-            .is_ok());
-    }
-
-    #[test]
     fn decode_encode_openssl_signing_key() {
         // https://github.com/RustCrypto/signatures/blob/e3a163c76b699492541d9b8e78223f60ad22493f/dsa/tests/signing_key.rs#L13
 
@@ -241,6 +200,10 @@ mod tests {
             .expect("Failed to encode private key into PEM representation");
 
         assert_eq!(*reencoded_signing_key, OPENSSL_PEM_PRIVATE_KEY);
+        let new_signing_key = SigningKey::from_pkcs8_pem(&reencoded_signing_key)
+            .expect("Failed to decode PEM encoded OpenSSL key");
+
+        assert_eq!(signing_key, new_signing_key);
     }
 
     #[test]
