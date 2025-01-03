@@ -1,8 +1,7 @@
 use std::{borrow::BorrowMut, cell::RefCell, collections::HashMap, rc::Rc};
 
 use super::{
-    crypto::{PublicKey, SCPSignature},
-    cell::{Cell, DelegateCell, ValueCell},
+    cell::Cell,
     merkle::{MerkleHash, MerkleTree},
 };
 
@@ -243,11 +242,7 @@ pub fn find_value_cell<'a>(
 
 #[cfg(test)]
 mod tests {
-    use crate::ca::{
-        crypto::{mock_public_key, Timestamp},
-        cell::{test_make_new_delegate_cell, test_make_new_value_cell, timestamp_now, CellData, InnerDelegateCell, InnerValueCell},
-    };
-
+    use crate::ca::cell::{test_make_new_delegate_cell, test_make_new_value_cell};
     use super::*;
 
 

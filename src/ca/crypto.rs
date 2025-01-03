@@ -102,8 +102,6 @@ impl<'de> Deserialize<'de> for PublicKey {
 
 impl PublicKey {}
 
-pub type Timestamp = u64;
-
 #[derive(Clone)]
 pub struct SCPSignature {
     pk: PublicKey,
@@ -181,8 +179,6 @@ mod tests {
 
     use sha2::Sha256;
     use signature::{DigestVerifier, RandomizedDigestSigner};
-    use syn::token::Pub;
-
     use super::*;
 
     const OPENSSL_PEM_PRIVATE_KEY: &str = include_str!("../../test_private.pem");

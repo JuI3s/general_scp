@@ -1,9 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
-
-use crate::mock::scp_driver::MockSCPDriver;
-
+use crate::ca::ca_type::Timestamp;
 use super::{
-    crypto::{mock_public_key, mock_sig, PublicKey, SCPSignature, Timestamp},
+    crypto::{mock_public_key, mock_sig, PublicKey, SCPSignature},
     merkle::MerkleHash,
     table::{HTable, TableId},
 };

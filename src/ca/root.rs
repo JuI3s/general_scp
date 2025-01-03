@@ -2,7 +2,7 @@ use digest::impl_oid_carrier;
 use dsa::Signature;
 
 use super::{
-    crypto::{PublicKey, SCPSignature},
+    crypto::{PrivateKey, PublicKey, SCPSignature},
     merkle::MerkleTree,
 };
 
@@ -28,14 +28,26 @@ pub struct RootEntryKey(pub String);
 
 // TODO: my understanding is that each root entry represents a merkle tree?
 pub struct RootEntry {
-    namespace_root_key: PublicKey,
-    application_identifier: String,
-    listing_sig: SCPSignature,
-    allowance: u32,
+    pub namespace_root_key: PublicKey,
+    pub application_identifier: String,
+    pub listing_sig: SCPSignature,
+    pub allowance: u32,
     // TODO: This should point to some Merkle tree?
 }
 
 impl RootEntry {
+    pub fn new(private_key: &PrivateKey, application_identifier: String) -> Self {
+        let listing_sig = SCPSignature::sign(&private_key, &application_identifier.as_bytes());
+        let namespace_root_key = PublicKey(private_key.0.verifying_key().to_owned());
+
+        Self {
+            namespace_root_key,
+            application_identifier,
+            listing_sig,
+            allowance: 0,
+        }
+    }
+
     pub fn verify(&self) -> bool {
         todo!()
     }
