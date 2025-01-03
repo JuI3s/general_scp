@@ -1,3 +1,6 @@
+use digest::impl_oid_carrier;
+use dsa::Signature;
+
 use super::{
     ca_type::{PublicKey, SCPSignature},
     merkle::MerkleTree,
@@ -21,7 +24,8 @@ pub enum RootOpError {
 // or not to accept the change.
 
 #[derive(PartialEq, Eq, Hash, Clone)]
-pub struct RootEntryKey(pub (Vec<u8>, String));
+pub struct RootEntryKey(pub String);
+
 // TODO: my understanding is that each root entry represents a merkle tree?
 pub struct RootEntry {
     namespace_root_key: PublicKey,

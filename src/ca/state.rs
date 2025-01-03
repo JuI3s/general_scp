@@ -1,4 +1,7 @@
-use std::{borrow::BorrowMut, collections::{BTreeMap, HashMap}};
+use std::{
+    borrow::BorrowMut,
+    collections::{BTreeMap, HashMap},
+};
 
 use serde::Serialize;
 
@@ -17,7 +20,6 @@ use super::{
 };
 
 pub struct CAState {
-    table_tree: MerkleTree,
     root_listing: RootListing,
     tables: HashMap<RootEntryKey, TableCollection>,
 }
@@ -42,7 +44,6 @@ impl NominationValue for CANominationValue {}
 impl Default for CAState {
     fn default() -> Self {
         Self {
-            table_tree: Default::default(),
             root_listing: Default::default(),
             tables: Default::default(),
         }
@@ -50,27 +51,27 @@ impl Default for CAState {
 }
 
 impl CAState {
-    pub fn validate_merkle_proof_for_table(
-        &self,
-        merkle_proof: &TableMerkleProof,
-    ) -> CAStateOpResult<()> {
-        if let Some(hash) = merkle_proof.table.to_merkle_hash() {
-            if merkle_proof.root != self.table_tree.root() {
-                return Err(CAStateOpError::MerkleTreeChanged);
-            }
+    // pub fn validate_merkle_proof_for_table(
+    //     &self,
+    //     merkle_proof: &TableMerkleProof,
+    // ) -> CAStateOpResult<()> {
+    //     if let Some(hash) = merkle_proof.table.to_merkle_hash() {
+    //         if merkle_proof.root != self.table_tree.root() {
+    //             return Err(CAStateOpError::MerkleTreeChanged);
+    //         }
 
-            match self.table_tree.veritfy_inclusion_proof(
-                &hash,
-                merkle_proof.idx,
-                &merkle_proof.sibling_hashes,
-            ) {
-                Ok(_) => Ok(()),
-                Err(_) => Err(CAStateOpError::InvalidProof),
-            }
-        } else {
-            Err(CAStateOpError::InvalidProof)
-        }
-    }
+    //         match self.table_tree.veritfy_inclusion_proof(
+    //             &hash,
+    //             merkle_proof.idx,
+    //             &merkle_proof.sibling_hashes,
+    //         ) {
+    //             Ok(_) => Ok(()),
+    //             Err(_) => Err(CAStateOpError::InvalidProof),
+    //         }
+    //     } else {
+    //         Err(CAStateOpError::InvalidProof)
+    //     }
+    // }
 
     pub fn validate_merkle_proof_for_root<'a>(
         &mut self,

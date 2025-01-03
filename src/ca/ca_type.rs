@@ -15,7 +15,7 @@ use signature::{DigestVerifier, RandomizedDigestSigner};
 #[derive(Clone, PartialEq)]
 pub struct PublicKey {
     // TODO: remove option
-    key: VerifyingKey,
+    pub key: VerifyingKey,
 }
 
 pub struct SCPVerifyingKey(VerifyingKey);
