@@ -2,7 +2,7 @@ use ct_merkle::inclusion::InclusionProof;
 use sha2::Sha256;
 
 use super::{
-    ca_type::SCPSignature,
+    crypto::SCPSignature,
     cell::Cell,
     merkle::MerkleRoot,
     root::RootEntry,
@@ -52,9 +52,14 @@ pub struct ReturnError<'a> {
     reason: &'a str,
 }
 
-pub struct SetOperation<'a> {
-    application_identifier: &'a str,
-    full_lookup_key: &'a str,
+pub enum SCPOperatoin {
+    Set(SetOperation),
+    SetRoot(SetRootOperation),
+}
+
+pub struct SetOperation {
+    application_identifier: String,
+    full_lookup_key: String,
     cell: Cell,
 }
 

@@ -1,7 +1,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::mock::scp_driver::MockSCPDriver;
+
 use super::{
-    ca_type::{mock_public_key, PublicKey, SCPSignature, Timestamp},
+    crypto::{mock_public_key, mock_sig, PublicKey, SCPSignature, Timestamp},
     merkle::MerkleHash,
     table::{HTable, TableId},
 };
@@ -99,7 +101,7 @@ pub enum CellData {
     Delegate(InnerDelegateCell),
 }
 
-fn timestamp_now() -> u64 {
+pub fn timestamp_now() -> u64 {
     let now = SystemTime::now();
     now.duration_since(UNIX_EPOCH).unwrap().as_secs()
 }
@@ -126,8 +128,9 @@ impl Cell {
     }
 
     pub fn is_valid(&self) -> CellOpResult<()> {
-        // TODO: for now, just check the signature is vali
-        if !self.sig.verify() {
+        // TODO: for now, just check the signature is valid
+        // TODO: need to check this is safe
+        if !self.sig.verify(b"Ok") {
             return Err(CellOpError::InvalidSignature);
         }
 
@@ -138,32 +141,6 @@ impl Cell {
         match &self.inner {
             CellData::Value(_) => true,
             CellData::Delegate(_) => false,
-        }
-    }
-
-    pub fn test_new_delegate_cell(name_space: String, allowance: u32) -> Self {
-        Self {
-            create_time: timestamp_now(),
-            revision_time: timestamp_now(),
-            commitment_time: timestamp_now(),
-            sig: Default::default(),
-            owner_key: mock_public_key(),
-            inner: CellData::Delegate(InnerDelegateCell {
-                name_space,
-                allowance,
-                table: None,
-            }),
-        }
-    }
-
-    pub fn test_new_value_cell(value: String, commitment_time: Timestamp) -> Self {
-        Self {
-            create_time: timestamp_now(),
-            revision_time: timestamp_now(),
-            commitment_time,
-            sig: Default::default(),
-            owner_key: mock_public_key(),
-            inner: CellData::Value(InnerValueCell { value }),
         }
     }
 
@@ -218,13 +195,40 @@ impl Cell {
     }
 }
 
+pub fn test_make_new_delegate_cell(name_space: String, allowance: u32) -> Cell {
+    Cell {
+        create_time: timestamp_now(),
+        revision_time: timestamp_now(),
+        commitment_time: timestamp_now(),
+        sig: mock_sig(),
+        owner_key: mock_public_key(),
+        inner: CellData::Delegate(InnerDelegateCell {
+            name_space,
+            allowance,
+            table: None,
+        }),
+    }
+}
+pub fn test_make_new_value_cell(value: String, commitment_time: Timestamp) -> Cell {
+    Cell {
+        create_time: timestamp_now(),
+        revision_time: timestamp_now(),
+        commitment_time,
+        sig: mock_sig(),
+        owner_key: mock_public_key(),
+        inner: CellData::Value(InnerValueCell { value }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::ca::crypto::mock_fake_signature;
+
     use super::*;
 
     #[test]
     fn error_updating_before_commitment_timestamp_expires() {
-        let cell = Cell::test_new_value_cell("".to_string(), 1);
+        let cell = test_make_new_value_cell("".to_string(), 1);
 
         assert!(cell
             .commitment_expires(&0)
@@ -243,7 +247,7 @@ mod tests {
             create_time: timestamp_now(),
             revision_time: timestamp_now(),
             commitment_time: timestamp_now(),
-            sig: SCPSignature::test_gen_fake_signature(),
+            sig: mock_fake_signature(),
             owner_key: mock_public_key(),
             inner: CellData::Value(InnerValueCell { value: "".into() }),
         };
@@ -275,7 +279,7 @@ impl<'a> Default for Cell {
             create_time: Default::default(),
             revision_time: Default::default(),
             commitment_time: Default::default(),
-            sig: Default::default(),
+            sig: mock_sig(),
             owner_key: mock_public_key(),
             inner: CellData::Value(InnerValueCell { value: "".into() }),
         }

@@ -1,4 +1,4 @@
-mod ca_type;
+mod crypto;
 pub mod cell;
 mod merkle;
 pub mod operation;

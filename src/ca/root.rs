@@ -2,7 +2,7 @@ use digest::impl_oid_carrier;
 use dsa::Signature;
 
 use super::{
-    ca_type::{PublicKey, SCPSignature},
+    crypto::{PublicKey, SCPSignature},
     merkle::MerkleTree,
 };
 

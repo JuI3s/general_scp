@@ -1,7 +1,7 @@
 use std::{borrow::BorrowMut, cell::RefCell, collections::HashMap, rc::Rc};
 
 use super::{
-    ca_type::{PublicKey, SCPSignature},
+    crypto::{PublicKey, SCPSignature},
     cell::{Cell, DelegateCell, ValueCell},
     merkle::{MerkleHash, MerkleTree},
 };
@@ -243,16 +243,22 @@ pub fn find_value_cell<'a>(
 
 #[cfg(test)]
 mod tests {
+    use crate::ca::{
+        crypto::{mock_public_key, Timestamp},
+        cell::{test_make_new_delegate_cell, test_make_new_value_cell, timestamp_now, CellData, InnerDelegateCell, InnerValueCell},
+    };
+
     use super::*;
+
 
     #[test]
     fn prefix_delegation_rule() {
         let mut entries = Table::new(100, "home/".to_owned());
-        let home_cell = Cell::test_new_delegate_cell(String::from("home/home"), 1);
-        let cell1 = Cell::test_new_value_cell(String::from("home/cell1"), 0);
+        let home_cell = test_make_new_delegate_cell(String::from("home/home"), 1);
+        let cell1 = test_make_new_value_cell(String::from("home/cell1"), 0);
 
         assert!(entries
-            .check_cell_valid(&Cell::test_new_value_cell(String::from("ho"), 1))
+            .check_cell_valid(&test_make_new_value_cell(String::from("ho"), 1))
             .is_err_and(|err| { err == TableOpError::NamespaceError }));
         assert!(entries.add_entry(home_cell).is_ok());
         assert!(entries.check_cell_valid(&cell1).is_ok());
@@ -263,8 +269,8 @@ mod tests {
                 || err == TableOpError::CellAddressContainsPrefix
         }));
 
-        let cell2 = Cell::test_new_value_cell(String::from("home/"), 1);
-        let cell3 = Cell::test_new_value_cell(String::from("home/1/2"), 2);
+        let cell2 = test_make_new_value_cell(String::from("home/"), 1);
+        let cell3 = test_make_new_value_cell(String::from("home/1/2"), 2);
 
         assert!(entries
             .check_cell_valid(&cell2)
@@ -280,7 +286,7 @@ mod tests {
         let mut table = Table::new(1, "".to_string());
         assert!(table.contains_enough_allowance(1).is_ok());
 
-        let home_cell = Cell::test_new_delegate_cell(String::from("home/"), 1);
+        let home_cell = test_make_new_delegate_cell(String::from("home/"), 1);
         assert!(table.add_entry(home_cell).is_ok());
 
         assert!(table

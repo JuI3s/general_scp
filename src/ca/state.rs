@@ -5,7 +5,7 @@ use serde::Serialize;
 use crate::scp::nomination_protocol::NominationValue;
 
 use super::{
-    ca_type::PublicKey,
+    crypto::PublicKey,
     cell::Cell,
     operation::{CellMerkleProof, SetOperation},
     root::{RootEntry, RootEntryKey, RootListing},
