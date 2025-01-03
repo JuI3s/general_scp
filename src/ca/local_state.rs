@@ -12,6 +12,10 @@ pub struct LocalCAState {
 }
 
 impl LocalCAState {
+    pub fn init_from_toml(toml_path: &str) -> Self {
+        todo!()
+    }
+
     pub fn init_state_from_pkcs8_pem(private_key_path: &str) -> Self {
         let private_key = PrivateKey::from_pkcs8_pem(private_key_path);
         Self {
@@ -20,17 +24,11 @@ impl LocalCAState {
         }
     }
 
-    pub fn create_name_space(&self, name_space: String) -> CAStateOpResult<SCPOperation> {
-        if self
-            .state
-            .root_listing
-            .roots
-            .iter()
-            .any(|root| root.application_identifier == name_space)
-        {
+    pub fn create_name_space(&self, name_space: &str) -> CAStateOpResult<SCPOperation> {
+        if self.state.root_listing.0.contains_key(name_space) {
             Err(CAStateOpError::AlreadyExists)
         } else {
-            let entry = RootEntry::new(&self.private_key, name_space);
+            let entry = RootEntry::new(&self.private_key, name_space.to_owned());
 
             Ok(SCPOperation::SetRoot(SetRootOperation {
                 entry,
@@ -52,8 +50,6 @@ mod test {
         let state = CAState::default();
         let local_state = LocalCAState { private_key, state };
 
-        let operation = local_state
-            .create_name_space("namespace1".to_string())
-            .unwrap();
+        let operation = local_state.create_name_space("namespace1").unwrap();
     }
 }

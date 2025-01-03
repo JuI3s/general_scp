@@ -5,7 +5,11 @@ use serde::Serialize;
 use crate::scp::nomination_protocol::NominationValue;
 
 use super::{
-    cell::Cell, crypto::PublicKey, operation::{CellMerkleProof, SetOperation}, root::{RootEntry, RootEntryKey, RootListing}, table::{find_delegation_cell, find_value_cell, TableCollection, TableOpError, ROOT_TABLE_ID}
+    cell::Cell,
+    crypto::PublicKey,
+    operation::{CellMerkleProof, SetOperation},
+    root::{RootEntry, RootEntryKey, RootListing},
+    table::{find_delegation_cell, find_value_cell, TableCollection, TableOpError, ROOT_TABLE_ID},
 };
 
 pub struct CAState {
@@ -40,7 +44,6 @@ impl Default for CAState {
         }
     }
 }
-
 
 impl CAState {
     // pub fn validate_merkle_proof_for_table(
@@ -149,14 +152,8 @@ impl CAState {
         find_value_cell(root_table, &ROOT_TABLE_ID, cell_key)
     }
 
-    pub fn contains_root_entry(
-        &self,
-        namespace_root_key: &PublicKey,
-        application_identifier: String,
-    ) -> bool {
-        self.root_listing
-            .get_entry(namespace_root_key, application_identifier)
-            .is_some()
+    pub fn contains_root_entry(&self, application_identifier: &String) -> bool {
+        self.root_listing.0.get(application_identifier).is_some()
     }
 
     pub fn to_toml(&self) {

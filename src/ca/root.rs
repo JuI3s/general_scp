@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use digest::impl_oid_carrier;
 use dsa::Signature;
 
@@ -54,40 +56,4 @@ impl RootEntry {
 }
 
 #[derive(Default)]
-pub struct RootListing {
-    pub roots: Vec<RootEntry>,
-}
-
-impl RootListing {
-    pub fn get_entry_mut(
-        &mut self,
-        namespace_root_key: &PublicKey,
-        application_identifier: String,
-    ) -> Option<&mut RootEntry> {
-        if let Some(entry) = self.roots.iter_mut().find(|entry| {
-            entry.namespace_root_key == *namespace_root_key
-                && entry.application_identifier == application_identifier
-        }) {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    pub fn get_entry(
-        &self,
-        namespace_root_key: &PublicKey,
-        application_identifier: String,
-    ) -> Option<&RootEntry> {
-        if let Some(entry) = self.roots.iter().find(|entry| {
-            entry.namespace_root_key == *namespace_root_key
-                && entry.application_identifier == application_identifier
-        }) {
-            Some(entry)
-        } else {
-            None
-        }
-    }
-}
-
-impl RootEntry {}
+pub struct RootListing(pub HashMap<String, RootEntry>);
