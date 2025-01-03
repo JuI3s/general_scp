@@ -20,7 +20,8 @@ pub enum RootOpError {
 // additional real-world information, if applicable) determine whether
 // or not to accept the change.
 
-pub type RootEntryKey = (Vec<u8>, String);
+#[derive(PartialEq, Eq, Hash, Clone)]
+pub struct RootEntryKey(pub (Vec<u8>, String));
 // TODO: my understanding is that each root entry represents a merkle tree?
 pub struct RootEntry {
     namespace_root_key: PublicKey,

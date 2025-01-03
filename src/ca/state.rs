@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, collections::BTreeMap};
+use std::{borrow::BorrowMut, collections::{BTreeMap, HashMap}};
 
 use serde::Serialize;
 
@@ -19,7 +19,7 @@ use super::{
 pub struct CAState {
     table_tree: MerkleTree,
     root_listing: RootListing,
-    tables: BTreeMap<RootEntryKey, TableCollection>,
+    tables: HashMap<RootEntryKey, TableCollection>,
 }
 
 #[derive(Hash, Default, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Debug)]
@@ -190,4 +190,11 @@ impl CAState {
 // misbehaving applications.
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use crate::ca::state::CAState;
+
+    #[test]
+    fn test_ca_state() {
+        let mut ca_state = CAState::default();
+    }
+}
