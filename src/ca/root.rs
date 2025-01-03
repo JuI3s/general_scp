@@ -35,18 +35,15 @@ pub struct RootEntry {
     // TODO: This should point to some Merkle tree?
 }
 
-pub struct RootListing {
-    roots: Vec<RootEntry>,
-    merkle_tree: Box<MerkleTree>,
+impl RootEntry {
+    pub fn verify(&self) -> bool {
+        todo!()
+    }
 }
 
-impl Default for RootListing {
-    fn default() -> Self {
-        Self {
-            roots: Default::default(),
-            merkle_tree: Default::default(),
-        }
-    }
+#[derive(Default)]
+pub struct RootListing {
+    roots: Vec<RootEntry>,
 }
 
 impl RootListing {

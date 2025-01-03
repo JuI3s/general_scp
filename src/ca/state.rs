@@ -1,7 +1,4 @@
-use std::{
-    borrow::BorrowMut,
-    collections::{BTreeMap, HashMap},
-};
+use std::collections::HashMap;
 
 use serde::Serialize;
 
@@ -10,13 +7,9 @@ use crate::scp::nomination_protocol::NominationValue;
 use super::{
     ca_type::PublicKey,
     cell::Cell,
-    merkle::MerkleTree,
-    operation::{CellMerkleProof, SetOperation, TableMerkleProof},
+    operation::{CellMerkleProof, SetOperation},
     root::{RootEntry, RootEntryKey, RootListing},
-    table::{
-        self, find_delegation_cell, find_value_cell, HTable, Table, TableCollection, TableId,
-        TableOpError, ROOT_TABLE_ID,
-    },
+    table::{find_delegation_cell, find_value_cell, TableCollection, TableOpError, ROOT_TABLE_ID},
 };
 
 pub struct CAState {
@@ -78,6 +71,8 @@ impl CAState {
         root_key: &RootEntryKey,
         merkle_proof: &CellMerkleProof,
     ) -> CAStateOpResult<()> {
+        // TODO: this implementation is probably not righ
+
         let root_tables = self
             .tables
             .get(root_key)

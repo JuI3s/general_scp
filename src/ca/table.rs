@@ -36,6 +36,12 @@ pub struct TableMeta {
     lookup_key: String,
 }
 
+impl TableMeta {
+    pub fn to_merkle_hash(&self) -> Option<MerkleHash> {
+        todo!()
+    }
+}
+
 #[derive(Eq, PartialEq, Debug, Hash, Clone)]
 pub struct TableId(pub &'static str);
 pub const ROOT_TABLE_ID: TableId = TableId("");
@@ -50,13 +56,6 @@ pub struct Table {
     pub value_entries: Vec<Cell>,
     pub delegate_entries: Vec<Cell>,
     pub merkle_tree: Box<MerkleTree>,
-}
-
-pub struct RootEntry<'a> {
-    namespace_root_key: PublicKey,
-    application_identifier: &'a str,
-    listing_sig: SCPSignature,
-    allowance: u32,
 }
 
 //    Delegating the whole or part of a namespace requires adding a new
@@ -240,12 +239,6 @@ pub fn find_value_cell<'a>(
     }
 
     None
-}
-
-impl TableMeta {
-    pub fn to_merkle_hash(&self) -> Option<MerkleHash> {
-        todo!()
-    }
 }
 
 #[cfg(test)]

@@ -58,6 +58,12 @@ pub struct SetOperation<'a> {
     cell: Cell,
 }
 
+// https://datatracker.ietf.org/doc/html/draft-watson-dinrg-delmap-01#page-7 (p.9)
+// struct SetRootOperation {
+//     rootentry e;
+//     bool remove;
+// }
+
 pub struct SetRootOperation {
     entry: RootEntry,
     remove: bool,

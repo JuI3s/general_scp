@@ -2,23 +2,15 @@ use std::fmt::{self, Display};
 
 use digest::Digest;
 use dsa::{Signature, SigningKey, VerifyingKey};
-use pkcs8::{
-    DecodePrivateKey, DecodePublicKey, EncodePublicKey,
-};
+use pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePublicKey};
 use serde::{de, ser, Deserialize, Deserializer, Serialize};
 use sha2::Sha256;
 use signature::{DigestVerifier, RandomizedDigestSigner};
 
-
 // pub type PublicKey = [u8; 64];
 // pub type PublicKey = String;
 #[derive(Clone, PartialEq)]
-pub struct PublicKey {
-    // TODO: remove option
-    pub key: VerifyingKey,
-}
-
-pub struct SCPVerifyingKey(VerifyingKey);
+pub struct PublicKey(pub VerifyingKey);
 
 // Custom wrapper around verifying key for serialization and deserializatioon.
 // Uses DER format to encode the veryifying key to bytes.
@@ -45,7 +37,7 @@ impl de::Error for SCPVerifyingKeySerdeError {
 
 impl std::error::Error for SCPVerifyingKeySerdeError {}
 
-impl Serialize for SCPVerifyingKey {
+impl Serialize for PublicKey {
     fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use ser::SerializeTuple;
 
@@ -66,7 +58,7 @@ impl Serialize for SCPVerifyingKey {
     // as_bytes()) }
 }
 
-impl<'de> Deserialize<'de> for SCPVerifyingKey {
+impl<'de> Deserialize<'de> for PublicKey {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct ByteArrayVisitor;
 
@@ -96,7 +88,7 @@ impl<'de> Deserialize<'de> for SCPVerifyingKey {
 
         deserializer
             .deserialize_bytes(ByteArrayVisitor)
-            .map(|b| SCPVerifyingKey(VerifyingKey::from_public_key_der(&b).unwrap()))
+            .map(|b| PublicKey(VerifyingKey::from_public_key_der(&b).unwrap()))
     }
 
     // let bytes: &[u8] = serde_bytes::deserialize(deserializer)?;
@@ -121,9 +113,7 @@ pub struct SCPSignature {
 pub fn mock_public_key() -> PublicKey {
     let (verifying_key, _) = mock_public_key_sig();
 
-    PublicKey {
-        key: verifying_key.clone(),
-    }
+    PublicKey(verifying_key.clone())
 }
 
 fn mock_public_key_sig() -> (VerifyingKey, Signature) {
@@ -140,7 +130,7 @@ fn mock_public_key_sig() -> (VerifyingKey, Signature) {
 impl SCPSignature {
     pub fn verify(&self) -> bool {
         self.pk
-            .key
+            .0
             .verify_digest(Sha256::new().chain_update(b"Ok"), &self.sig)
             .is_ok()
     }
@@ -149,9 +139,7 @@ impl SCPSignature {
         let sig = signing_key
             .sign_digest_with_rng(&mut rand::thread_rng(), Sha256::new().chain_update(b"Ok"));
         SCPSignature {
-            pk: PublicKey {
-                key: signing_key.verifying_key().clone(),
-            },
+            pk: PublicKey(signing_key.verifying_key().clone()),
             sig: sig,
         }
     }
@@ -192,10 +180,10 @@ mod tests {
     use digest::Digest;
     use dsa::{SigningKey, VerifyingKey};
     use pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding};
-    
+
     use sha2::Sha256;
     use signature::{DigestVerifier, RandomizedDigestSigner};
-    
+    use syn::token::Pub;
 
     use super::*;
 
@@ -223,7 +211,7 @@ mod tests {
 
         assert_eq!(veryifing_key_pem, OPENSSL_PEM_PUBLIC_KEY);
 
-        let scp_verifying_key = SCPVerifyingKey(verifying_key.clone());
+        let scp_verifying_key = PublicKey(verifying_key.clone());
 
         let verifying_key_encoded = bincode::serialize(&scp_verifying_key).unwrap();
 
@@ -231,7 +219,7 @@ mod tests {
         // 126); assert_eq!(verifying_key.to_public_key_der().expect("").
         // as_bytes().len(), 127);
 
-        let scp_verifying_key_decoded: SCPVerifyingKey =
+        let scp_verifying_key_decoded: PublicKey =
             bincode::deserialize(&verifying_key_encoded).unwrap();
 
         assert!(scp_verifying_key_decoded
