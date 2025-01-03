@@ -11,8 +11,8 @@ use super::{
     operation::{CellMerkleProof, SetOperation, TableMerkleProof},
     root::{RootEntry, RootEntryKey, RootListing},
     table::{
-        find_delegation_cell, find_value_cell, HTable, Table, TableCollection, TableId,
-        TableOpError,
+        self, find_delegation_cell, find_value_cell, HTable, Table, TableCollection, TableId,
+        TableOpError, ROOT_TABLE_ID,
     },
 };
 
@@ -72,41 +72,39 @@ impl CAState {
         }
     }
 
-    pub fn validate_merkle_proof_for_cell<'a>(
+    pub fn validate_merkle_proof_for_root<'a>(
         &mut self,
         root_key: &RootEntryKey,
         merkle_proof: &CellMerkleProof,
     ) -> CAStateOpResult<()> {
-        // TODO: should change add get_mut_table
+        let root_tables = self
+            .tables
+            .get(root_key)
+            .ok_or(CAStateOpError::MerkleTreeNotPresent)?;
+        let table = root_tables
+            .0
+            .get(&ROOT_TABLE_ID)
+            .ok_or(CAStateOpError::MerkleTreeNotPresent)?;
 
-        let table_key = TableId(merkle_proof.key.to_owned());
-        if let Some(table) = self.get_table(root_key, &table_key) {
-            // Check tree root has not changed.
-            if table.merkle_tree.root() != merkle_proof.root {
-                return Err(CAStateOpError::MerkleTreeChanged);
-            }
+        // Check tree root has not changed.
+        if table.merkle_tree.root() != merkle_proof.root {
+            return Err(CAStateOpError::MerkleTreeChanged);
+        }
 
-            // Check inclusion proof
-            if merkle_proof
-                .entry_cell
-                .to_merkle_hash()
-                .is_some_and(|hash| {
-                    table
-                        .merkle_tree
-                        .veritfy_inclusion_proof(
-                            &hash,
-                            merkle_proof.idx,
-                            &merkle_proof.sibling_hashes,
-                        )
-                        .is_ok()
-                })
-            {
-                Ok(())
-            } else {
-                Err(CAStateOpError::InvalidProof)
-            }
+        // Check inclusion proof
+        if merkle_proof
+            .entry_cell
+            .to_merkle_hash()
+            .is_some_and(|hash| {
+                table
+                    .merkle_tree
+                    .veritfy_inclusion_proof(&hash, merkle_proof.idx, &merkle_proof.sibling_hashes)
+                    .is_ok()
+            })
+        {
+            Ok(())
         } else {
-            Err(CAStateOpError::MerkleTreeNotPresent)
+            Err(CAStateOpError::InvalidProof)
         }
     }
 
@@ -119,13 +117,18 @@ impl CAState {
         root_entry_key: &RootEntryKey,
         cell: Cell,
     ) -> CAStateOpResult<()> {
-        if let Some(root_table) = self.get_root_table(root_entry_key) {
-            match root_table.add_entry(cell) {
-                Ok(_) => Ok(()),
-                Err(err) => Err(CAStateOpError::TableOpError(err)),
-            }
-        } else {
-            Err(CAStateOpError::RootTableNotFound)
+        let root_tables = self
+            .tables
+            .get_mut(root_entry_key)
+            .ok_or(CAStateOpError::RootTableNotFound)?;
+        let root_table = root_tables
+            .0
+            .get_mut(&ROOT_TABLE_ID)
+            .ok_or(CAStateOpError::RootTableNotFound)?;
+
+        match root_table.add_entry(cell) {
+            Ok(_) => Ok(()),
+            Err(err) => Err(CAStateOpError::TableOpError(err)),
         }
     }
 
@@ -139,9 +142,7 @@ impl CAState {
         cell_key: &String,
     ) -> Option<&Cell> {
         let root_table = self.tables.get(root_entry_key)?;
-        let root_table_id = TableId("".to_owned());
-
-        find_delegation_cell(root_table, &root_table_id, cell_key)
+        find_delegation_cell(root_table, &ROOT_TABLE_ID, cell_key)
     }
 
     pub fn find_value_cell(
@@ -150,18 +151,7 @@ impl CAState {
         cell_key: &String,
     ) -> Option<&Cell> {
         let root_table = self.tables.get(root_entry_key)?;
-        let root_table_id = TableId("".to_owned());
-        find_value_cell(root_table, &root_table_id, cell_key)
-    }
-
-    fn get_root_table(&mut self, root_entry_key: &RootEntryKey) -> Option<&mut Table> {
-        let table_key = TableId("".to_owned());
-        self.get_table(root_entry_key, &table_key)
-    }
-
-    fn get_table(&mut self, root_entry: &RootEntryKey, table_key: &TableId) -> Option<&mut Table> {
-        let root_table = self.tables.get_mut(root_entry)?;
-        root_table.0.get_mut(table_key)
+        find_value_cell(root_table, &ROOT_TABLE_ID, cell_key)
     }
 
     pub fn contains_root_entry(

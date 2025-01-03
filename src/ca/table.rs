@@ -37,7 +37,9 @@ pub struct TableMeta {
 }
 
 #[derive(Eq, PartialEq, Debug, Hash, Clone)]
-pub struct TableId(pub String);
+pub struct TableId(pub &'static str);
+pub const ROOT_TABLE_ID: TableId = TableId("");
+
 pub struct TableCollection(pub HashMap<TableId, Table>);
 
 pub type HTable = Rc<RefCell<Table>>;
