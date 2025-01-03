@@ -52,7 +52,7 @@ pub struct ReturnError<'a> {
     reason: &'a str,
 }
 
-pub enum SCPOperatoin {
+pub enum SCPOperation {
     Set(SetOperation),
     SetRoot(SetRootOperation),
 }
@@ -70,8 +70,8 @@ pub struct SetOperation {
 // }
 
 pub struct SetRootOperation {
-    entry: RootEntry,
-    remove: bool,
+    pub entry: RootEntry,
+    pub remove: bool,
 }
 
 pub enum SetReturnValue<'a> {

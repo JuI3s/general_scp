@@ -7,11 +7,22 @@ use serde::{de, ser, Deserialize, Deserializer, Serialize};
 use sha2::Sha256;
 use signature::{DigestVerifier, RandomizedDigestSigner};
 
+pub const TEST_OPENSSL_PRIVATE_KEY: &str = include_str!("../../test_private.pem");
+
 #[derive(Clone, PartialEq)]
 pub struct PublicKey(pub VerifyingKey);
 
 #[derive(Clone, PartialEq)]
 pub struct PrivateKey(pub SigningKey);
+
+impl PrivateKey {
+    pub fn from_pkcs8_pem(pem: &str) -> Self {
+        PrivateKey(
+            SigningKey::from_pkcs8_pem(pem)
+                .expect("Failed to decode PEM encoded OpenSSL signing key"),
+        )
+    }
+}
 
 // Custom wrapper around verifying key for serialization and deserializatioon.
 // Uses DER format to encode the veryifying key to bytes.
@@ -116,8 +127,7 @@ pub fn mock_public_key() -> PublicKey {
 }
 
 fn mock_public_key_sig() -> (VerifyingKey, Signature) {
-    const OPENSSL_PEM_PRIVATE_KEY: &str = include_str!("../../test_private.pem");
-    let signing_key: SigningKey = SigningKey::from_pkcs8_pem(OPENSSL_PEM_PRIVATE_KEY)
+    let signing_key: SigningKey = SigningKey::from_pkcs8_pem(TEST_OPENSSL_PRIVATE_KEY)
         .expect("Failed to decode PEM encoded OpenSSL signing key");
     let verifying_key: &VerifyingKey = signing_key.verifying_key();
     let sig = signing_key
@@ -177,9 +187,9 @@ mod tests {
     use dsa::{SigningKey, VerifyingKey};
     use pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding};
 
+    use super::*;
     use sha2::Sha256;
     use signature::{DigestVerifier, RandomizedDigestSigner};
-    use super::*;
 
     const OPENSSL_PEM_PRIVATE_KEY: &str = include_str!("../../test_private.pem");
     const OPENSSL_PEM_PUBLIC_KEY: &str = include_str!("../../test_public.pem");

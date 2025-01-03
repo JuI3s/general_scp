@@ -55,7 +55,7 @@ impl RootEntry {
 
 #[derive(Default)]
 pub struct RootListing {
-    roots: Vec<RootEntry>,
+    pub roots: Vec<RootEntry>,
 }
 
 impl RootListing {

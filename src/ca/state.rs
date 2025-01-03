@@ -5,16 +5,12 @@ use serde::Serialize;
 use crate::scp::nomination_protocol::NominationValue;
 
 use super::{
-    crypto::PublicKey,
-    cell::Cell,
-    operation::{CellMerkleProof, SetOperation},
-    root::{RootEntry, RootEntryKey, RootListing},
-    table::{find_delegation_cell, find_value_cell, TableCollection, TableOpError, ROOT_TABLE_ID},
+    cell::Cell, crypto::PublicKey, operation::{CellMerkleProof, SetOperation}, root::{RootEntry, RootEntryKey, RootListing}, table::{find_delegation_cell, find_value_cell, TableCollection, TableOpError, ROOT_TABLE_ID}
 };
 
 pub struct CAState {
-    root_listing: RootListing,
-    tables: HashMap<RootEntryKey, TableCollection>,
+    pub root_listing: RootListing,
+    pub tables: HashMap<RootEntryKey, TableCollection>,
 }
 
 #[derive(Hash, Default, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Debug)]
@@ -30,6 +26,8 @@ pub enum CAStateOpError {
     InvalidCell,
     RootTableNotFound,
     TableOpError(TableOpError),
+    NoExist,
+    AlreadyExists,
 }
 
 impl NominationValue for CANominationValue {}
@@ -42,6 +40,7 @@ impl Default for CAState {
         }
     }
 }
+
 
 impl CAState {
     // pub fn validate_merkle_proof_for_table(
