@@ -29,6 +29,7 @@ pub enum RootOpError {
 pub struct RootEntryKey(pub String);
 
 // TODO: my understanding is that each root entry represents a merkle tree?
+#[derive(Clone)]
 pub struct RootEntry {
     pub namespace_root_key: PublicKey,
     pub application_identifier: String,

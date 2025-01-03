@@ -46,10 +46,23 @@ mod test {
 
     #[test]
     fn test_create_name_space() {
-        let private_key = PrivateKey::from_pkcs8_pem(TEST_OPENSSL_PRIVATE_KEY);
-        let state = CAState::default();
-        let local_state = LocalCAState { private_key, state };
+        let mut local_state = LocalCAState::init_state_from_pkcs8_pem(TEST_OPENSSL_PRIVATE_KEY);
 
         let operation = local_state.create_name_space("namespace1").unwrap();
+        let entry = match &operation {
+            SCPOperation::SetRoot(set_root_operation) => set_root_operation.entry.clone(),
+            _ => panic!("not reached"),
+        };
+
+        assert!(local_state.state.on_scp_operation(operation).is_ok());
+
+        assert_eq!(local_state.state.root_listing.0.len(), 1);
+        let added_entry = local_state.state.root_listing.0.get("namespace1").unwrap();
+
+        assert_eq!(
+            added_entry.application_identifier,
+            entry.application_identifier
+        );
+        assert_eq!(added_entry.allowance, entry.allowance);
     }
 }

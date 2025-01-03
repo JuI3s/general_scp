@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::scp::nomination_protocol::NominationValue;
+use crate::scp::{self, nomination_protocol::NominationValue};
 
 use super::{
     cell::Cell,
     crypto::PublicKey,
-    operation::{CellMerkleProof, SetOperation},
+    operation::{CellMerkleProof, SCPOperation, SetOperation},
     root::{RootEntry, RootEntryKey, RootListing},
     table::{find_delegation_cell, find_value_cell, TableCollection, TableOpError, ROOT_TABLE_ID},
 };
@@ -130,10 +130,6 @@ impl CAState {
         }
     }
 
-    pub fn insert_root_entry(&mut self, root_entry: &RootEntry) {
-        todo!()
-    }
-
     pub fn find_delegation_cell(
         &self,
         root_entry_key: &RootEntryKey,
@@ -154,6 +150,32 @@ impl CAState {
 
     pub fn contains_root_entry(&self, application_identifier: &String) -> bool {
         self.root_listing.0.get(application_identifier).is_some()
+    }
+
+    pub fn on_scp_operation(&mut self, scp_operation: SCPOperation) -> CAStateOpResult<()> {
+        match scp_operation {
+            SCPOperation::Set(set_operation) => {
+                todo!()
+            }
+            SCPOperation::SetRoot(set_root_operation) => {
+                if set_root_operation.remove {
+                    if self.contains_root_entry(&set_root_operation.entry.application_identifier) {
+                        self.root_listing
+                            .0
+                            .remove(&set_root_operation.entry.application_identifier);
+                        Ok(())
+                    } else {
+                        Err(CAStateOpError::NoExist)
+                    }
+                } else {
+                    let entry = set_root_operation.entry;
+                    self.root_listing
+                        .0
+                        .insert(entry.application_identifier.to_owned(), entry);
+                    Ok(())
+                }
+            }
+        }
     }
 
     pub fn to_toml(&self) {
