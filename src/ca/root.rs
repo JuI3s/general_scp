@@ -1,7 +1,9 @@
-use std::{collections::HashMap, fmt::Debug};
+use core::hash;
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use digest::impl_oid_carrier;
 use dsa::Signature;
+use serde::{Deserialize, Serialize};
 
 use super::{
     crypto::{PrivateKey, PublicKey, SCPSignature},
@@ -29,13 +31,42 @@ pub enum RootOpError {
 pub struct RootEntryKey(pub String);
 
 // TODO: my understanding is that each root entry represents a merkle tree?
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct RootEntry {
     pub namespace_root_key: PublicKey,
     pub application_identifier: String,
     pub listing_sig: SCPSignature,
     pub allowance: u32,
     // TODO: This should point to some Merkle tree?
+}
+
+impl Hash for RootEntry {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.application_identifier.hash(state);
+        self.allowance.hash(state);
+    }
+}
+
+impl PartialEq for RootEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.namespace_root_key == other.namespace_root_key && self.allowance == other.allowance
+    }
+}
+
+impl Eq for RootEntry {}
+
+impl PartialOrd for RootEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for RootEntry {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.application_identifier
+            .cmp(&other.application_identifier)
+            .then(self.allowance.cmp(&other.allowance))
+    }
 }
 
 impl Debug for RootEntry {

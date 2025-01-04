@@ -1,5 +1,7 @@
 use std::{borrow::BorrowMut, cell::RefCell, collections::HashMap, rc::Rc};
 
+use serde::{Deserialize, Serialize};
+
 use super::{
     cell::Cell,
     merkle::{MerkleHash, MerkleTree},
@@ -41,9 +43,15 @@ impl TableMeta {
     }
 }
 
-#[derive(Eq, PartialEq, Debug, Hash, Clone)]
-pub struct TableId(pub &'static str);
-pub const ROOT_TABLE_ID: TableId = TableId("");
+#[derive(Eq, PartialEq, Debug, Hash, Clone, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct TableId(pub String);
+
+impl TableId {
+    pub fn root() -> Self {
+        Self("".to_string())
+    }
+
+}
 
 pub struct TableCollection(pub HashMap<TableId, Table>);
 
@@ -242,9 +250,8 @@ pub fn find_value_cell<'a>(
 
 #[cfg(test)]
 mod tests {
-    use crate::ca::cell::{test_make_new_delegate_cell, test_make_new_value_cell};
     use super::*;
-
+    use crate::ca::cell::{test_make_new_delegate_cell, test_make_new_value_cell};
 
     #[test]
     fn prefix_delegation_rule() {

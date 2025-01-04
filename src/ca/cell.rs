@@ -1,4 +1,5 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use tokio::runtime::Handle;
 
 use super::{
     crypto::{mock_public_key, mock_sig, PublicKey, SCPSignature},
@@ -7,8 +8,7 @@ use super::{
 };
 use crate::ca::ca_type::Timestamp;
 use std::{
-    fmt::Debug,
-    time::{SystemTime, UNIX_EPOCH},
+    fmt::Debug, hash::Hash, time::{SystemTime, UNIX_EPOCH}
 };
 
 type CellOpResult<T> = std::result::Result<T, CellOpError>;
@@ -44,7 +44,7 @@ pub enum InnerCell {
 // this ensures that the delegee cannot unilaterally modify its
 // namespace, which limits the range of mappings they can create to
 // those legitimately assigned to them.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Deserialize, Serialize, Hash)]
 pub struct InnerDelegateCell {
     // opaque namespace<>
     pub name_space: String,
@@ -62,7 +62,7 @@ pub struct InnerDelegateCell {
 // the "owner_key".  The cell owner may rotate ptheir public key at any
 // time by signing the update with the old key.p
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize, Hash)]
 pub struct InnerValueCell {
     // opaque value<>
     value: String,
@@ -88,7 +88,7 @@ pub struct DelegateCell {
 }
 
 // AsRef<[u8]>,
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Cell {
     pub create_time: Timestamp,
     pub revision_time: Timestamp,
@@ -96,6 +96,42 @@ pub struct Cell {
     pub sig: SCPSignature,
     pub owner_key: PublicKey,
     pub inner: CellData,
+}
+
+impl Hash for Cell {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.create_time.hash(state);
+        self.revision_time.hash(state);
+        self.commitment_time.hash(state);
+        self.inner.hash(state);
+    }
+}
+
+impl PartialEq for Cell {
+    fn eq(&self, other: &Self) -> bool {
+        self.create_time == other.create_time
+            && self.revision_time == other.revision_time
+            && self.commitment_time == other.commitment_time
+            && self.inner == other.inner
+    }
+}
+
+impl Eq for Cell {}
+
+impl Ord for Cell {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.create_time
+            .cmp(&other.create_time)
+            .then(self.revision_time.cmp(&other.revision_time))
+            .then(self.commitment_time.cmp(&other.commitment_time))
+            .then(self.inner.cmp(&other.inner))
+    }
+}
+
+impl PartialOrd for Cell {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Debug for Cell {
@@ -109,7 +145,7 @@ impl Debug for Cell {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize, Hash)]
 pub enum CellData {
     Value(InnerValueCell),
     Delegate(InnerDelegateCell),
@@ -269,21 +305,6 @@ mod tests {
         assert!(cell_invalid_sig
             .is_valid()
             .is_err_and(|err| { err == CellOpError::InvalidSignature }));
-    }
-}
-
-impl<'a> PartialEq for Cell {
-    fn eq(&self, other: &Self) -> bool {
-        self.name_space_or_value() == other.name_space_or_value()
-    }
-}
-
-impl<'a> Eq for Cell {}
-
-impl<'a> PartialOrd for Cell {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.name_space_or_value()
-            .partial_cmp(other.name_space_or_value())
     }
 }
 

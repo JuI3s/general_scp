@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::Serialize;
+use tracing::Span;
 
 use crate::scp::{self, nomination_protocol::NominationValue};
 
@@ -9,7 +10,7 @@ use super::{
     crypto::PublicKey,
     operation::{CellMerkleProof, SCPOperation, SetOperation},
     root::{RootEntry, RootEntryKey, RootListing},
-    table::{find_delegation_cell, find_value_cell, TableCollection, TableOpError, ROOT_TABLE_ID},
+    table::{find_delegation_cell, find_value_cell, TableCollection, TableId, TableOpError},
 };
 
 pub struct CAState {
@@ -81,7 +82,7 @@ impl CAState {
             .ok_or(CAStateOpError::MerkleTreeNotPresent)?;
         let table = root_tables
             .0
-            .get(&ROOT_TABLE_ID)
+            .get(&TableId::root())
             .ok_or(CAStateOpError::MerkleTreeNotPresent)?;
 
         // Check tree root has not changed.
@@ -121,7 +122,7 @@ impl CAState {
             .ok_or(CAStateOpError::RootTableNotFound)?;
         let root_table = root_tables
             .0
-            .get_mut(&ROOT_TABLE_ID)
+            .get_mut(&TableId::root())
             .ok_or(CAStateOpError::RootTableNotFound)?;
 
         match root_table.add_entry(cell) {
@@ -136,7 +137,7 @@ impl CAState {
         cell_key: &String,
     ) -> Option<&Cell> {
         let root_table = self.tables.get(root_entry_key)?;
-        find_delegation_cell(root_table, &ROOT_TABLE_ID, cell_key)
+        find_delegation_cell(root_table, &TableId::root(), cell_key)
     }
 
     pub fn find_value_cell(
@@ -145,7 +146,7 @@ impl CAState {
         cell_key: &String,
     ) -> Option<&Cell> {
         let root_table = self.tables.get(root_entry_key)?;
-        find_value_cell(root_table, &ROOT_TABLE_ID, cell_key)
+        find_value_cell(root_table, &TableId::root(), cell_key)
     }
 
     pub fn contains_root_entry(&self, application_identifier: &String) -> bool {
@@ -154,6 +155,7 @@ impl CAState {
 
     pub fn on_scp_operation(&mut self, scp_operation: SCPOperation) -> CAStateOpResult<()> {
         match scp_operation {
+            SCPOperation::Empty => Ok(()),
             SCPOperation::Set(set_operation) => {
                 todo!()
             }

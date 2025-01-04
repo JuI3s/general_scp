@@ -2,7 +2,7 @@ use ct_merkle::inclusion::InclusionProof;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
-use crate::scp::nomination_protocol::NominationValue;
+use crate::scp::{nomination_protocol::NominationValue, scp::SCP};
 
 use super::{
     cell::Cell,
@@ -12,13 +12,20 @@ use super::{
     table::{Table, TableMeta},
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash, Clone)]
 pub enum SCPOperation {
+    Empty,
     Set(SetOperation),
     SetRoot(SetRootOperation),
 }
 
-// impl NominationValue for SCPOperation {}
+impl Default for SCPOperation {
+    fn default() -> Self {
+        SCPOperation::Empty
+    }
+}
+
+impl NominationValue for SCPOperation {}
 
 pub struct MerkleRootOperations {}
 
@@ -63,7 +70,7 @@ pub struct ReturnError<'a> {
     reason: &'a str,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize, Hash, Clone)]
 pub struct SetOperation {
     application_identifier: String,
     full_lookup_key: String,
@@ -76,7 +83,7 @@ pub struct SetOperation {
 //     bool remove;
 // }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash, Clone)]
 pub struct SetRootOperation {
     pub entry: RootEntry,
     pub remove: bool,
