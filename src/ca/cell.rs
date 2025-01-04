@@ -144,7 +144,7 @@ impl Cell {
     pub fn is_valid(&self) -> CellOpResult<()> {
         // TODO: for now, just check the signature is valid
         // TODO: need to check this is safe
-        if !self.sig.verify(b"Ok") {
+        if !self.sig.verify(&self.owner_key, b"Ok") {
             return Err(CellOpError::InvalidSignature);
         }
 

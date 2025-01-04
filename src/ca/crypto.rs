@@ -5,7 +5,7 @@ use dsa::{Signature, SigningKey, VerifyingKey};
 use pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePublicKey};
 use serde::{de, ser, Deserialize, Deserializer, Serialize};
 use sha2::Sha256;
-use signature::{DigestVerifier, RandomizedDigestSigner};
+use signature::{DigestVerifier, RandomizedDigestSigner, SignatureEncoding};
 use syn::token::Pub;
 
 pub const TEST_OPENSSL_PRIVATE_KEY: &str = include_str!("../../test_private.pem");
@@ -91,10 +91,35 @@ impl std::error::Error for SCPVerifyingKeySerdeError {}
 impl PublicKey {}
 
 #[derive(Clone)]
-pub struct SCPSignature {
-    pk: PublicKey,
-    // TODO: remove the option
-    sig: Signature,
+pub struct SCPSignature(pub Signature);
+
+impl Serialize for SCPSignature {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        serializer.serialize_bytes(&self.0.to_bytes())
+    }
+}
+
+impl<'de> Deserialize<'de> for SCPSignature {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes: &[u8] = serde_bytes::deserialize(deserializer)?;
+        match Signature::try_from(bytes) {
+            Ok(sig) => Ok(SCPSignature(sig)),
+            Err(err) => {
+                let err_msg = format!("Failed to deserialize signature from bytes, err: {:?}", err);
+                Err(de::Error::custom(err_msg))
+            }
+        }
+    }
+}
+
+pub fn mock_private_key() -> PrivateKey {
+    PrivateKey::from_pkcs8_pem(TEST_OPENSSL_PRIVATE_KEY)
 }
 
 pub fn mock_public_key() -> PublicKey {
@@ -116,24 +141,16 @@ fn mock_public_key_sig() -> (VerifyingKey, Signature) {
 pub fn mock_sig() -> SCPSignature {
     let (_, sig) = mock_public_key_sig();
 
-    SCPSignature {
-        pk: mock_public_key(),
-        sig,
-    }
+    SCPSignature(sig)
 }
 
 pub fn mock_fake_signature() -> SCPSignature {
-    const OPENSSL_PEM_PRIVATE_KEY: &str = include_str!("../../test_private.pem");
-    let signing_key = PrivateKey(
-        SigningKey::from_pkcs8_pem(OPENSSL_PEM_PRIVATE_KEY)
-            .expect("Failed to decode PEM encoded OpenSSL signing key"),
-    );
-
+    let private_key = mock_private_key();
     let mut scp_sig = mock_sig();
 
-    let sig = SCPSignature::sign(&signing_key, b"Not ok").sig;
+    let sig = SCPSignature::sign(&private_key, b"Not ok").0;
 
-    scp_sig.sig = sig;
+    scp_sig.0 = sig;
     scp_sig
 }
 
@@ -143,16 +160,13 @@ impl SCPSignature {
             .0
             .sign_digest_with_rng(&mut rand::thread_rng(), Sha256::new().chain_update(msg));
 
-        SCPSignature {
-            pk: PublicKey(private_key.0.verifying_key().clone()),
-            sig,
-        }
+        SCPSignature(sig)
     }
 
-    pub fn verify(&self, msg: &[u8]) -> bool {
-        self.pk
+    pub fn verify(&self, public_key: &PublicKey, msg: &[u8]) -> bool {
+        public_key
             .0
-            .verify_digest(Sha256::new().chain_update(msg), &self.sig)
+            .verify_digest(Sha256::new().chain_update(msg), &self.0)
             .is_ok()
     }
 }
@@ -185,11 +199,20 @@ mod tests {
         let msg_bytes = "Ok".as_bytes();
         let mut sig = SCPSignature::sign(&private_key, msg_bytes);
 
-        sig.pk = deserialized.clone();
-        assert!(sig.verify(msg_bytes));
+        assert!(sig.verify(&public_key, msg_bytes));
+        assert!(sig.verify(&deserialized, msg_bytes));
+    }
 
-        sig.pk = public_key;
-        assert!(sig.verify(msg_bytes));
+    #[test]
+    fn serialize_and_deserialize_signature() {
+        let public_key = mock_private_key().public_key();
+
+        let sig = mock_sig();
+        let serialized = bincode::serialize(&sig).expect("Failed to serialize signature");
+        let deserialized: SCPSignature =
+            bincode::deserialize(&serialized).expect("Failed to deserialize signature");
+        assert!(deserialized.verify(&public_key, b"Ok"));
+        assert!(sig.verify(&public_key, b"Ok"));
     }
 
     #[test]
@@ -251,12 +274,13 @@ mod tests {
         );
 
         let signature = SCPSignature::sign(&private_key, b"Ok");
-        assert!(signature.verify(b"Ok"));
+        assert!(signature.verify(&private_key.public_key(), b"Ok"));
     }
 
     #[test]
     fn corrupted_signature() {
         let corrupted = mock_fake_signature();
-        assert!(!corrupted.verify(b"Ok"));
+        let public_key = mock_private_key().public_key();
+        assert!(!corrupted.verify(&public_key, b"Ok"));
     }
 }
