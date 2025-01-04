@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug};
 
 use digest::impl_oid_carrier;
 use dsa::Signature;
@@ -36,6 +36,15 @@ pub struct RootEntry {
     pub listing_sig: SCPSignature,
     pub allowance: u32,
     // TODO: This should point to some Merkle tree?
+}
+
+impl Debug for RootEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RootEntry")
+            .field("application_identifier", &self.application_identifier)
+            .field("allowance", &self.allowance)
+            .finish()
+    }
 }
 
 impl RootEntry {

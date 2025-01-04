@@ -1,9 +1,14 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-use crate::ca::ca_type::Timestamp;
+use serde::Serialize;
+
 use super::{
     crypto::{mock_public_key, mock_sig, PublicKey, SCPSignature},
     merkle::MerkleHash,
     table::{HTable, TableId},
+};
+use crate::ca::ca_type::Timestamp;
+use std::{
+    fmt::Debug,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 type CellOpResult<T> = std::result::Result<T, CellOpError>;
@@ -39,7 +44,7 @@ pub enum InnerCell {
 // this ensures that the delegee cannot unilaterally modify its
 // namespace, which limits the range of mappings they can create to
 // those legitimately assigned to them.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct InnerDelegateCell {
     // opaque namespace<>
     pub name_space: String,
@@ -57,7 +62,7 @@ pub struct InnerDelegateCell {
 // the "owner_key".  The cell owner may rotate ptheir public key at any
 // time by signing the update with the old key.p
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct InnerValueCell {
     // opaque value<>
     value: String,
@@ -93,7 +98,18 @@ pub struct Cell {
     pub inner: CellData,
 }
 
-#[derive(Clone)]
+impl Debug for Cell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Cell")
+            .field("create_time", &self.create_time)
+            .field("revision_time", &self.revision_time)
+            .field("commitment_time", &self.commitment_time)
+            .field("inner", &self.inner)
+            .finish()
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum CellData {
     Value(InnerValueCell),
     Delegate(InnerDelegateCell),

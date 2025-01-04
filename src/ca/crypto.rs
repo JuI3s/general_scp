@@ -6,11 +6,46 @@ use pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePublicKey};
 use serde::{de, ser, Deserialize, Deserializer, Serialize};
 use sha2::Sha256;
 use signature::{DigestVerifier, RandomizedDigestSigner};
+use syn::token::Pub;
 
 pub const TEST_OPENSSL_PRIVATE_KEY: &str = include_str!("../../test_private.pem");
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct PublicKey(pub VerifyingKey);
+
+impl Serialize for PublicKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        match self.0.to_public_key_der() {
+            Ok(doc) => {
+                let bytes = doc.as_bytes();
+                serializer.serialize_bytes(bytes)
+            }
+            Err(err) => {
+                let err_msg = format!("Failed to serialize public key, err: {:?}", err);
+                Err(ser::Error::custom(err_msg))
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for PublicKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes: &[u8] = serde_bytes::deserialize(deserializer)?;
+        match VerifyingKey::from_public_key_der(bytes) {
+            Ok(key) => Ok(PublicKey(key)),
+            Err(err) => {
+                let err_msg = format!("Failed to serialize public key, err: {:?}", err);
+                Err(de::Error::custom(err_msg))
+            }
+        }
+    }
+}
 
 #[derive(Clone, PartialEq)]
 pub struct PrivateKey(pub SigningKey);
@@ -21,6 +56,10 @@ impl PrivateKey {
             SigningKey::from_pkcs8_pem(pem)
                 .expect("Failed to decode PEM encoded OpenSSL signing key"),
         )
+    }
+
+    pub fn public_key(&self) -> PublicKey {
+        PublicKey(self.0.verifying_key().clone())
     }
 }
 
@@ -48,68 +87,6 @@ impl de::Error for SCPVerifyingKeySerdeError {
 }
 
 impl std::error::Error for SCPVerifyingKeySerdeError {}
-
-impl Serialize for PublicKey {
-    fn serialize<S: ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        use ser::SerializeTuple;
-
-        let mut seq = serializer.serialize_tuple(842)?;
-
-        for byte in self.0.to_public_key_der().expect("").as_bytes() {
-            seq.serialize_element(&byte)?;
-        }
-
-        seq.end()
-    }
-
-    // fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    // where
-    //     S: serde::Serializer,
-    // {
-    //     serializer.serialize_bytes(self.0.to_public_key_der().expect("").
-    // as_bytes()) }
-}
-
-impl<'de> Deserialize<'de> for PublicKey {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct ByteArrayVisitor;
-
-        impl<'de> de::Visitor<'de> for ByteArrayVisitor {
-            type Value = [u8; 842];
-
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("bytestring of length 842")
-            }
-
-            fn visit_seq<A>(self, mut seq: A) -> Result<[u8; 842], A::Error>
-            where
-                A: de::SeqAccess<'de>,
-            {
-                use de::Error;
-                let mut arr = [0u8; 842];
-
-                for (i, byte) in arr.iter_mut().enumerate() {
-                    *byte = seq
-                        .next_element()?
-                        .ok_or_else(|| Error::invalid_length(i, &self))?;
-                }
-
-                Ok(arr)
-            }
-        }
-
-        deserializer
-            .deserialize_bytes(ByteArrayVisitor)
-            .map(|b| PublicKey(VerifyingKey::from_public_key_der(&b).unwrap()))
-    }
-
-    // let bytes: &[u8] = serde_bytes::deserialize(deserializer)?;
-    // match VerifyingKey::from_public_key_der(bytes) {
-    //     Ok(key) => Ok(SCPVerifyingKey(key)),
-    //     Err(_) => Err(SCPVerifyingKeySerdeError
-    // {}).map_err(serde::de::Error::custom), }
-    // }
-}
 
 impl PublicKey {}
 
@@ -193,6 +170,27 @@ mod tests {
 
     const OPENSSL_PEM_PRIVATE_KEY: &str = include_str!("../../test_private.pem");
     const OPENSSL_PEM_PUBLIC_KEY: &str = include_str!("../../test_public.pem");
+
+    #[test]
+    fn serialize_and_deserialize_public_key() {
+        let private_key = PrivateKey::from_pkcs8_pem(OPENSSL_PEM_PRIVATE_KEY);
+        let public_key = private_key.public_key();
+
+        let serialized = bincode::serialize(&public_key).expect("Failed to serialize public key");
+        let deserialized: PublicKey =
+            bincode::deserialize(&serialized).expect("Failed to deserialize public key");
+
+        assert_eq!(public_key, deserialized);
+
+        let msg_bytes = "Ok".as_bytes();
+        let mut sig = SCPSignature::sign(&private_key, msg_bytes);
+
+        sig.pk = deserialized.clone();
+        assert!(sig.verify(msg_bytes));
+
+        sig.pk = public_key;
+        assert!(sig.verify(msg_bytes));
+    }
 
     #[test]
     fn decode_encode_openssl_signing_key() {
