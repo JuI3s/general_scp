@@ -37,6 +37,8 @@ pub trait HerderDriver<N>
 where
     N: NominationValue,
 {
+    fn new() -> Self;
+
     // Needs to be implemented by the specific consensus protocol for application
     // level checks.
     fn validate_value(&self, value: &N, nomination: bool) -> ValidationLevel {
@@ -64,30 +66,5 @@ where
         } else {
             Duration::from_secs(round_number)
         }
-    }
-}
-
-struct HerderSCPDriver {
-    quorum_set_map: BTreeMap<HashValue, QuorumSet>,
-}
-
-impl HerderDriver<SCPNominationValue> for HerderSCPDriver {
-    fn emit_envelope(&self, envelope: &SCPEnvelope<SCPNominationValue>) {
-        todo!()
-    }
-
-    fn get_quorum_set(&self, statement: &SCPStatement<SCPNominationValue>) -> Option<&QuorumSet> {
-        self.quorum_set_map.get(&statement.quorum_set_hash_value())
-    }
-
-    fn extract_valid_value(&self, value: &SCPNominationValue) -> Option<SCPNominationValue> {
-        todo!()
-    }
-
-    fn combine_candidates(
-        &self,
-        candidates: &BTreeSet<Arc<SCPNominationValue>>,
-    ) -> Option<SCPNominationValue> {
-        todo!()
     }
 }

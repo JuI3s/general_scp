@@ -2,13 +2,16 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     application::work_queue::WorkScheduler,
-    overlay::{message::MessageController, peer_node::PeerNode},
+    herder::herder::HerderDriver,
+    overlay::{message::MessageController, peer::Peer, peer_node::PeerNode},
     overlay_impl::{
         in_memory_conn::{InMemoryConn, InMemoryConnBuilder},
         in_memory_global::InMemoryGlobalState,
         tcp_conn::{TCPConn, TCPConnBuilder},
     },
-    scp::{local_node::LocalNodeInfoBuilderFromFile, scp::NodeID},
+    scp::{
+        local_node::LocalNodeInfoBuilderFromFile, nomination_protocol::NominationValue, scp::NodeID,
+    },
 };
 
 use super::state::{MockState, MockStateDriver};
@@ -24,6 +27,8 @@ impl NodeBuilderDir {
         }
     }
 }
+
+pub type InMemoryPeerNode<N, H> = PeerNode<N, H, InMemoryConn<N>, InMemoryConnBuilder<N>>;
 
 pub type MockInMemoryPeerNode =
     PeerNode<MockState, MockStateDriver, InMemoryConn<MockState>, InMemoryConnBuilder<MockState>>;
@@ -71,13 +76,21 @@ impl MockTCPNodeBuilder {
 }
 
 // Build nodes used for testing. Initiate nodes from quorum sets data stored on file. Use in memory connectoins.
-pub struct MockInMemoryNodeBuilder {
-    pub global_state: Rc<RefCell<InMemoryGlobalState<MockState>>>,
-    pub nodes: HashMap<NodeID, Rc<RefCell<MockInMemoryPeerNode>>>,
+pub struct InMemoryNodeBuilder<N, H>
+where
+    N: NominationValue,
+    H: HerderDriver<N>,
+{
+    pub global_state: Rc<RefCell<InMemoryGlobalState<N>>>,
+    pub nodes: HashMap<NodeID, Rc<RefCell<InMemoryPeerNode<N, H>>>>,
     local_node_info_builder: LocalNodeInfoBuilderFromFile,
 }
 
-impl MockInMemoryNodeBuilder {
+impl<N, H> InMemoryNodeBuilder<N, H>
+where
+    N: NominationValue,
+    H: HerderDriver<N> + 'static,
+{
     pub fn new(quorum_dir_path: &str) -> Self {
         let local_node_info_builder = LocalNodeInfoBuilderFromFile::new(quorum_dir_path);
 
@@ -88,12 +101,15 @@ impl MockInMemoryNodeBuilder {
         }
     }
 
-    pub fn build_node(&mut self, node_idx: &str) -> Option<MockInMemoryPeerNode> {
-        let local_node_info: crate::scp::local_node::LocalNodeInfo<MockState> =
+    pub fn build_node(
+        &mut self,
+        node_idx: &str,
+    ) -> Option<PeerNode<N, H, InMemoryConn<N>, InMemoryConnBuilder<N>>> {
+        let local_node_info: crate::scp::local_node::LocalNodeInfo<N> =
             self.local_node_info_builder.build_from_file(node_idx)?;
 
         let conn_builder = InMemoryConnBuilder::new(&self.global_state);
-        let herder = MockStateDriver::new();
+        let herder = H::new();
         let work_scheduler = Rc::new(RefCell::new(WorkScheduler::new(None)));
 
         let peer = PeerNode::new(
@@ -111,13 +127,10 @@ impl MockInMemoryNodeBuilder {
             .insert(node_idx.to_owned(), msg_controller);
 
         Some(peer)
-        // let peer_handle = Rc::new(RefCell::new(peer));
-
-        // self.nodes.insert(node_idx.to_owned(), peer_handle.clone());
-
-        // Some(peer_handle)
     }
 }
+
+pub type MockInMemoryNodeBuilder = InMemoryNodeBuilder<MockState, MockStateDriver>;
 
 #[cfg(test)]
 mod tests {

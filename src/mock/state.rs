@@ -74,14 +74,6 @@ pub struct MockStateDriver {
     quorum_set_map: BTreeMap<HashValue, QuorumSet>,
 }
 
-impl MockStateDriver {
-    pub fn new() -> Self {
-        Self {
-            quorum_set_map: Default::default(),
-        }
-    }
-}
-
 pub struct MockStateDriverBuilder {}
 
 impl MockStateDriverBuilder {
@@ -155,6 +147,12 @@ impl HerderDriver<MockState> for MockStateDriver {
             std::time::Duration::from_secs(MAX_TIMEOUT_SECONDS)
         } else {
             std::time::Duration::from_secs(round_number)
+        }
+    }
+
+    fn new() -> Self {
+        MockStateDriver {
+            quorum_set_map: Default::default(),
         }
     }
 }
