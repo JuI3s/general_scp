@@ -122,13 +122,6 @@ impl HerderDriver<MockState> for MockStateDriver {
         Some(value.clone())
     }
 
-    fn get_quorum_set(
-        &self,
-        statement: &crate::scp::statement::SCPStatement<MockState>,
-    ) -> std::option::Option<&QuorumSet> {
-        self.quorum_set_map.get(&statement.quorum_set_hash_value())
-    }
-
     fn validate_value(
         &self,
         value: &MockState,

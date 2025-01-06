@@ -3,7 +3,7 @@ use crate::ca::operation::SetRootOperation;
 use crate::ca::root::RootEntry;
 use crate::ca::state::{CAState, CAStateOpError};
 
-use super::operation::SCPOperation;
+use super::operation::CAOperation;
 use super::state::CAStateOpResult;
 
 pub struct LocalCAState {
@@ -24,13 +24,13 @@ impl LocalCAState {
         }
     }
 
-    pub fn create_name_space(&self, name_space: &str) -> CAStateOpResult<SCPOperation> {
+    pub fn create_name_space(&self, name_space: &str) -> CAStateOpResult<CAOperation> {
         if self.state.root_listing.0.contains_key(name_space) {
             Err(CAStateOpError::AlreadyExists)
         } else {
             let entry = RootEntry::new(&self.private_key, name_space.to_owned());
 
-            Ok(SCPOperation::SetRoot(SetRootOperation {
+            Ok(CAOperation::SetRoot(SetRootOperation {
                 entry,
                 remove: false,
             }))
@@ -50,11 +50,11 @@ mod test {
 
         let operation = local_state.create_name_space("namespace1").unwrap();
         let entry = match &operation {
-            SCPOperation::SetRoot(set_root_operation) => set_root_operation.entry.clone(),
+            CAOperation::SetRoot(set_root_operation) => set_root_operation.entry.clone(),
             _ => panic!("not reached"),
         };
 
-        assert!(local_state.state.on_scp_operation(operation).is_ok());
+        assert!(local_state.state.on_ca_operation(operation).is_ok());
 
         assert_eq!(local_state.state.root_listing.0.len(), 1);
         let added_entry = local_state.state.root_listing.0.get("namespace1").unwrap();

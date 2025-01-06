@@ -3,17 +3,17 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use crate::{
     application::work_queue::WorkScheduler,
     herder::herder::HerderDriver,
-    overlay::{message::MessageController, peer::Peer, peer_node::PeerNode},
+    overlay::peer_node::PeerNode,
     overlay_impl::{
-        in_memory_conn::{InMemoryConn, InMemoryConnBuilder},
-        in_memory_global::InMemoryGlobalState,
+        in_memory_conn::{InMemoryConn, InMemoryConnBuilder}
+        ,
         tcp_conn::{TCPConn, TCPConnBuilder},
     },
     scp::{
         local_node::LocalNodeInfoBuilderFromFile, nomination_protocol::NominationValue, scp::NodeID,
     },
 };
-
+use crate::scp::builder::InMemoryNodeBuilder;
 use super::state::{MockState, MockStateDriver};
 
 pub enum NodeBuilderDir {
@@ -65,66 +65,6 @@ impl MockTCPNodeBuilder {
             local_node_info,
             work_scheduler,
         );
-        Some(peer)
-
-        // let peer_handle = Rc::new(RefCell::new(peer));
-
-        // self.nodes.insert(node_idx.to_owned(), peer_handle.clone());
-
-        // Some(peer_handle)
-    }
-}
-
-// Build nodes used for testing. Initiate nodes from quorum sets data stored on file. Use in memory connectoins.
-pub struct InMemoryNodeBuilder<N, H>
-where
-    N: NominationValue,
-    H: HerderDriver<N>,
-{
-    pub global_state: Rc<RefCell<InMemoryGlobalState<N>>>,
-    pub nodes: HashMap<NodeID, Rc<RefCell<InMemoryPeerNode<N, H>>>>,
-    local_node_info_builder: LocalNodeInfoBuilderFromFile,
-}
-
-impl<N, H> InMemoryNodeBuilder<N, H>
-where
-    N: NominationValue,
-    H: HerderDriver<N> + 'static,
-{
-    pub fn new(quorum_dir_path: &str) -> Self {
-        let local_node_info_builder = LocalNodeInfoBuilderFromFile::new(quorum_dir_path);
-
-        Self {
-            local_node_info_builder,
-            global_state: InMemoryGlobalState::new_handle(),
-            nodes: Default::default(),
-        }
-    }
-
-    pub fn build_node(
-        &mut self,
-        node_idx: &str,
-    ) -> Option<PeerNode<N, H, InMemoryConn<N>, InMemoryConnBuilder<N>>> {
-        let local_node_info: crate::scp::local_node::LocalNodeInfo<N> =
-            self.local_node_info_builder.build_from_file(node_idx)?;
-
-        let conn_builder = InMemoryConnBuilder::new(&self.global_state);
-        let herder = H::new();
-        let work_scheduler = Rc::new(RefCell::new(WorkScheduler::new(None)));
-
-        let peer = PeerNode::new(
-            node_idx.to_owned(),
-            herder,
-            conn_builder,
-            local_node_info,
-            work_scheduler,
-        );
-
-        let msg_controller = peer.message_controller.clone();
-        self.global_state
-            .borrow_mut()
-            .peer_msg_queues
-            .insert(node_idx.to_owned(), msg_controller);
 
         Some(peer)
     }

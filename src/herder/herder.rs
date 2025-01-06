@@ -57,7 +57,6 @@ where
     // now. Some(value.to_owned())
     // }
 
-    fn get_quorum_set(&self, statement: &SCPStatement<N>) -> Option<&QuorumSet>;
     fn compute_timeout(&self, round_number: u64) -> Duration {
         const MAX_TIMEOUT_SECONDS: u64 = 30 * 60;
 

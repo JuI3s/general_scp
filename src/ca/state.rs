@@ -8,7 +8,7 @@ use crate::scp::{self, nomination_protocol::NominationValue};
 use super::{
     cell::Cell,
     crypto::PublicKey,
-    operation::{CellMerkleProof, SCPOperation, SetOperation},
+    operation::{CAOperation, CellMerkleProof, SCPCAOperation, SetOperation},
     root::{RootEntry, RootEntryKey, RootListing},
     table::{find_delegation_cell, find_value_cell, TableCollection, TableId, TableOpError},
 };
@@ -153,13 +153,23 @@ impl CAState {
         self.root_listing.0.get(application_identifier).is_some()
     }
 
-    pub fn on_scp_operation(&mut self, scp_operation: SCPOperation) -> CAStateOpResult<()> {
-        match scp_operation {
-            SCPOperation::Empty => Ok(()),
-            SCPOperation::Set(set_operation) => {
+    pub fn on_scp_operation(&mut self, scp_operation: SCPCAOperation) {
+        // TODO: consider side effects
+        for operation in scp_operation.0 {
+            match self.on_ca_operation(operation) {
+                Ok(_) => {}
+                Err(_) => todo!(),
+            }
+        }
+    }
+
+    pub fn on_ca_operation(&mut self, ca_operation: CAOperation) -> CAStateOpResult<()> {
+        match ca_operation {
+            CAOperation::Empty => Ok(()),
+            CAOperation::Set(set_operation) => {
                 todo!()
             }
-            SCPOperation::SetRoot(set_root_operation) => {
+            CAOperation::SetRoot(set_root_operation) => {
                 if set_root_operation.remove {
                     if self.contains_root_entry(&set_root_operation.entry.application_identifier) {
                         self.root_listing

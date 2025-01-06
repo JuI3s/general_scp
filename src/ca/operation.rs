@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use ct_merkle::inclusion::InclusionProof;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
@@ -12,20 +14,23 @@ use super::{
     table::{Table, TableMeta},
 };
 
+#[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash, Clone)]
+pub struct SCPCAOperation(pub Vec<CAOperation>);
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash, Clone)]
-pub enum SCPOperation {
+pub enum CAOperation {
     Empty,
     Set(SetOperation),
     SetRoot(SetRootOperation),
 }
 
-impl Default for SCPOperation {
+impl Default for CAOperation {
     fn default() -> Self {
-        SCPOperation::Empty
+        CAOperation::Empty
     }
 }
 
-impl NominationValue for SCPOperation {}
+impl NominationValue for SCPCAOperation {}
 
 pub struct MerkleRootOperations {}
 
