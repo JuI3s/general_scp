@@ -40,7 +40,7 @@ impl LocalCAState {
 
 #[cfg(test)]
 mod test {
-    use crate::ca::crypto::TEST_OPENSSL_PRIVATE_KEY;
+    use crate::ca::{crypto::TEST_OPENSSL_PRIVATE_KEY, operation::SCPCAOperation};
 
     use super::*;
 
@@ -64,5 +64,23 @@ mod test {
             entry.application_identifier
         );
         assert_eq!(added_entry.allowance, entry.allowance);
+
+        let operation = local_state.create_name_space("namespace2").unwrap();
+        let scp_operation = SCPCAOperation(vec![operation]);
+
+        let entry = match &scp_operation.0[0] {
+            CAOperation::SetRoot(set_root_operation) => set_root_operation.entry.clone(),
+            _ => panic!("not reached"),
+        };
+
+        local_state.state.on_scp_operation(scp_operation);
+
+        assert_eq!(local_state.state.root_listing.0.len(), 2);
+        let added_entry = local_state.state.root_listing.0.get("namespace2").unwrap();
+
+        assert_eq!(
+            added_entry.application_identifier,
+            entry.application_identifier
+        );
     }
 }

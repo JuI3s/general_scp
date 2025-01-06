@@ -474,6 +474,7 @@ mod tests {
         //     InMemoryGlobalState::process_messages(&builder.global_state, &mut nodes),
         //     0
         // );
+        panic!()
     }
 
     //     #[test]

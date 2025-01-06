@@ -28,6 +28,7 @@ impl NodeBuilderDir {
     }
 }
 
+// TODO: move this 
 pub type InMemoryPeerNode<N, H> = PeerNode<N, H, InMemoryConn<N>, InMemoryConnBuilder<N>>;
 
 pub type MockInMemoryPeerNode =

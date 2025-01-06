@@ -563,7 +563,8 @@ where
             "node {:?} externalized value {:?}",
             self.local_node.node_id, value
         );
-        // todo!();
+
+        self.herder_driver.externalize_value(value);
     }
 
     fn sign_envelope(envelope: &mut SCPEnvelope<N>) {

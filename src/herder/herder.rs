@@ -46,6 +46,8 @@ where
         ValidationLevel::FullyValidated
     }
 
+    fn externalize_value(&self, value: &N) {}
+
     fn combine_candidates(&self, candidates: &BTreeSet<Arc<N>>) -> Option<N>;
     fn emit_envelope(&self, envelope: &SCPEnvelope<N>) {}
 
