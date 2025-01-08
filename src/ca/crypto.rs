@@ -47,7 +47,7 @@ impl<'de> Deserialize<'de> for PublicKey {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct PrivateKey(pub SigningKey);
 
 impl PrivateKey {

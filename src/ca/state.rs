@@ -13,6 +13,7 @@ use super::{
     table::{find_delegation_cell, find_value_cell, TableCollection, TableId, TableOpError},
 };
 
+#[derive(Clone, Debug)]
 pub struct CAState {
     pub root_listing: RootListing,
     pub tables: HashMap<RootEntryKey, TableCollection>,
@@ -165,7 +166,9 @@ impl CAState {
 
     pub fn on_ca_operation(&mut self, ca_operation: &CAOperation) -> CAStateOpResult<()> {
         match ca_operation {
-            CAOperation::Empty => Ok(()),
+            CAOperation::Empty => {
+                panic!("Empty")
+            }
             CAOperation::Set(set_operation) => {
                 todo!()
             }

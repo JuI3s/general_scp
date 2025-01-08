@@ -429,7 +429,7 @@ mod tests {
         assert!(nodes["node1"].get_current_nomination_state(&0).is_none());
         assert!(nodes["node2"].get_current_nomination_state(&0).is_none());
 
-        nodes.get_mut("node1").unwrap().slot_nominate(0);
+        nodes.get_mut("node1").unwrap().slot_nominate_with_default_val(0);
 
         assert!(InMemoryGlobalState::process_messages(&builder.global_state, &mut nodes) > 0);
 

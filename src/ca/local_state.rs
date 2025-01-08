@@ -6,6 +6,7 @@ use crate::ca::state::{CAState, CAStateOpError};
 use super::operation::CAOperation;
 use super::state::CAStateOpResult;
 
+#[derive(Clone, Debug)]
 pub struct LocalCAState {
     pub private_key: PrivateKey,
     pub state: CAState,

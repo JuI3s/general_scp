@@ -1,10 +1,7 @@
-use std::{
-    cell::RefCell, hash::Hasher, rc::Rc,
-};
+use std::{cell::RefCell, hash::Hasher, rc::Rc};
 
 use ct_merkle::{error::InclusionVerifError, inclusion::InclusionProof, CtMerkleTree, RootHash};
 use sha2::{Digest, Sha256};
-
 
 pub type MerkleHash = [u8; 32];
 pub type MerkleRoot = RootHash<Sha256>;
@@ -26,6 +23,8 @@ pub enum MerkleOpError {
 }
 
 pub type HMerkleTree = Rc<RefCell<MerkleTree>>;
+
+#[derive(Clone, Debug)]
 pub struct MerkleTree {
     mktree: CtMerkleTree<Sha256, MerkleHash>,
     size: usize,
@@ -102,13 +101,8 @@ mod tests {
 
     use ct_merkle::inclusion::InclusionProof;
     use ct_merkle::CtMerkleTree;
-    
-    
-    use sha2::{digest, Sha256};
-    
 
-    
-    
+    use sha2::{digest, Sha256};
 
     #[test]
     fn merkle_tree_create_and_add() {

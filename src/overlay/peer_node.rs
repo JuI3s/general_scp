@@ -51,7 +51,7 @@ where
 
     conn_builder: CB,
     pub scp_envelope_controller: SCPEnvelopeController<N>,
-    herder: H,
+    pub herder: H,
 
     work_scheduler: Rc<RefCell<WorkScheduler>>,
     local_node_info: Arc<LocalNodeInfo<N>>,
@@ -183,18 +183,19 @@ where
         }
     }
 
-    pub fn slot_nominate(&mut self, slot_idx: SlotIndex) {
+    pub fn slot_nominate(&mut self, slot_idx: SlotIndex, value: N) {
         log::debug!(
-            "slot_nominate: node {:?} slot_idx {:?}",
+            "slot_nominate: node {:?} slot_idx {:?} value {:?}",
             self.peer_idx,
-            slot_idx
+            slot_idx,
+            value
         );
         self.maybe_create_slot_and_state(slot_idx);
 
         self.slots.get(&slot_idx).unwrap().nominate(
             self.nomination_protocol_states.get_mut(&slot_idx).unwrap(),
             self.ballot_protocol_states.get_mut(&slot_idx).unwrap(),
-            Arc::new(N::default()),
+            Arc::new(value),
             &Default::default(),
             &mut self.scp_envelope_controller,
             &mut self.quorum_manager,
@@ -202,6 +203,10 @@ where
         );
 
         self.flush_all_broadcast_msg();
+    }
+
+    pub fn slot_nominate_with_default_val(&mut self, slot_idx: SlotIndex) {
+        self.slot_nominate(slot_idx, Default::default());
     }
 
     pub fn send_hello(&mut self) {

@@ -37,15 +37,15 @@ where
         }
     }
 
-    pub fn build_node(
+    pub fn build_node_with_herder(
         &mut self,
         node_idx: &str,
+        herder: H,
     ) -> Option<PeerNode<N, H, InMemoryConn<N>, InMemoryConnBuilder<N>>> {
         let local_node_info: crate::scp::local_node::LocalNodeInfo<N> =
             self.local_node_info_builder.build_from_file(node_idx)?;
 
         let conn_builder = InMemoryConnBuilder::new(&self.global_state);
-        let herder = H::new();
         let work_scheduler = Rc::new(RefCell::new(WorkScheduler::new(None)));
 
         let peer = PeerNode::new(
@@ -63,5 +63,12 @@ where
             .insert(node_idx.to_owned(), msg_controller);
 
         Some(peer)
+    }
+
+    pub fn build_node(
+        &mut self,
+        node_idx: &str,
+    ) -> Option<PeerNode<N, H, InMemoryConn<N>, InMemoryConnBuilder<N>>> {
+        self.build_node_with_herder(node_idx, H::new())
     }
 }

@@ -37,7 +37,7 @@ pub fn start_local_node_server() {
                 if let Some(cmd) = SCPCommand::parse(&input) {
                     match cmd {
                         SCPCommand::Nominate => {
-                            tcp_peer.borrow_mut().slot_nominate(0);
+                            tcp_peer.borrow_mut().slot_nominate_with_default_val(0);
                         }
                         SCPCommand::Hello => {}
                     }

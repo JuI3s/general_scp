@@ -50,12 +50,13 @@ impl TableId {
     pub fn root() -> Self {
         Self("".to_string())
     }
-
 }
 
+#[derive(Clone, Debug)]
 pub struct TableCollection(pub HashMap<TableId, Table>);
-
 pub type HTable = Rc<RefCell<Table>>;
+
+#[derive(Clone, Debug)]
 pub struct Table {
     pub allowance: u32,
     pub name_space: String,

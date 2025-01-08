@@ -27,7 +27,7 @@ pub enum RootOpError {
 // additional real-world information, if applicable) determine whether
 // or not to accept the change.
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub struct RootEntryKey(pub String);
 
 // TODO: my understanding is that each root entry represents a merkle tree?
@@ -96,5 +96,5 @@ impl RootEntry {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Debug)]
 pub struct RootListing(pub HashMap<String, RootEntry>);

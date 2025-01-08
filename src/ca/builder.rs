@@ -8,6 +8,7 @@ use std::sync::Arc;
 use super::local_state::LocalCAState;
 use super::operation::{CAOperation, SCPCAOperation};
 
+#[derive(Clone, Debug)]
 pub struct CAStateDriver(pub LocalCAState);
 
 impl HerderDriver<SCPCAOperation> for CAStateDriver {
@@ -30,6 +31,7 @@ impl HerderDriver<SCPCAOperation> for CAStateDriver {
     }
 
     fn externalize_value(&mut self, value: &SCPCAOperation) {
+        println!("Externalize value: {:?}", value);
         self.0.state.on_scp_operation(value);
     }
 
@@ -45,7 +47,12 @@ mod test {
     use std::collections::BTreeMap;
 
     use crate::{
-        ca::{builder::CAInMemoryNodeBuilder, operation::SCPCAOperation},
+        ca::{
+            builder::{CAInMemoryNodeBuilder, CAStateDriver},
+            crypto::TEST_OPENSSL_PRIVATE_KEY,
+            local_state::LocalCAState,
+            operation::SCPCAOperation,
+        },
         mock::builder::NodeBuilderDir,
         overlay::peer_node::PeerNode,
         overlay_impl::in_memory_global::InMemoryGlobalState,
@@ -53,12 +60,25 @@ mod test {
     };
 
     #[test]
-    fn func() {
+    fn ca_in_memory_peer_nominate_from_local_node_on_file() {
         let mut builder = CAInMemoryNodeBuilder::new(NodeBuilderDir::Test.get_dir_path());
+        let herder = CAStateDriver(LocalCAState::init_state_from_pkcs8_pem(
+            TEST_OPENSSL_PRIVATE_KEY,
+        ));
 
         let mut nodes = BTreeMap::new();
-        nodes.insert("node1".to_string(), builder.build_node("node1").unwrap());
-        nodes.insert("node2".to_string(), builder.build_node("node2").unwrap());
+        nodes.insert(
+            "node1".to_string(),
+            builder
+                .build_node_with_herder("node1", herder.clone())
+                .unwrap(),
+        );
+        nodes.insert(
+            "node2".to_string(),
+            builder
+                .build_node_with_herder("node2", herder.clone())
+                .unwrap(),
+        );
 
         PeerNode::add_leader_for_nodes(
             nodes.iter_mut().map(|(_, node)| node),
@@ -72,7 +92,20 @@ mod test {
         assert!(nodes["node1"].get_current_nomination_state(&0).is_none());
         assert!(nodes["node2"].get_current_nomination_state(&0).is_none());
 
-        nodes.get_mut("node1").unwrap().slot_nominate(0);
+        let operation = nodes
+            .get_mut("node1")
+            .unwrap()
+            .herder
+            .0
+            .create_name_space("namespace1")
+            .unwrap();
+        let scp_operation = SCPCAOperation(vec![operation]);
+
+        // todo!("Nominate with an input value");
+        nodes
+            .get_mut("node1")
+            .unwrap()
+            .slot_nominate(0, scp_operation);
 
         assert!(InMemoryGlobalState::process_messages(&builder.global_state, &mut nodes) > 0);
 
@@ -109,5 +142,27 @@ mod test {
         );
 
         assert!(builder.global_state.borrow().msg_peer_id_queue.len() == 0);
+
+        assert!(nodes
+            .get("node1")
+            .unwrap()
+            .herder
+            .0
+            .state
+            .root_listing
+            .0
+            .get("namespace1")
+            .is_some());
+
+        assert!(nodes
+            .get("node2")
+            .unwrap()
+            .herder
+            .0
+            .state
+            .root_listing
+            .0
+            .get("namespace1")
+            .is_some());
     }
 }
