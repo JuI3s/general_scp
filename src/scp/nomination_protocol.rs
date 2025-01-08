@@ -48,7 +48,7 @@ where
         previous_value: &N,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> Option<SCPEnvelopeID>;
     fn stop_nomination(&self, state: &mut NominationProtocolState<N>);
 
@@ -61,7 +61,7 @@ where
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> EnvelopeState;
 }
 
@@ -408,7 +408,7 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> Option<SCPEnvelopeID> {
         // This function creats a nomination statement that contains the current
         // nomination value. The statement is then wrapped in an SCP envelope which is
@@ -504,7 +504,7 @@ where
         previous_value: &N,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> Option<SCPEnvelopeID> {
         debug!("NominationProtocol::nominate, node: {:?}", self.node_idx());
         if !state.candidates.is_empty() {
@@ -625,7 +625,7 @@ where
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> EnvelopeState {
         debug!(
             "process_nomination_envelope: Node {:?} process nomination envelope {:?}",
@@ -758,6 +758,7 @@ where
                         &mut envelope_controller.envelopes,
                         &mut envelope_controller.envs_to_emit,
                         quorum_manager,
+                        herder_driver
                     );
 
                     debug!("Node {:?} bumped state", self.node_idx());

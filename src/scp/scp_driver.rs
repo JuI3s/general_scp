@@ -326,7 +326,7 @@ where
         env_id: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> EnvelopeState {
         let is_ballot = {
             let env = envelope_controller.get_envelope(env_id).unwrap();
@@ -354,6 +354,7 @@ where
                 &mut envelope_controller.envelopes,
                 &mut envelope_controller.envs_to_emit,
                 &quorum_manager,
+                herder_driver
             )
         } else {
             self.process_nomination_envelope(

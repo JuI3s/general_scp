@@ -20,7 +20,6 @@ where
     slot_index: Option<SlotIndex>,
     local_node: Option<Arc<LocalNodeInfo<N>>>,
     timer: Option<Rc<RefCell<WorkScheduler>>>,
-    herder_driver: Option<Arc<H>>,
     nomination_protocol_state: Option<NominationProtocolState<N>>,
     ballot_protocol_state: Option<BallotProtocolState<N>>,
     task_queue: Option<Rc<RefCell<SlotJobQueue<N, H>>>>,
@@ -36,7 +35,6 @@ where
             slot_index: Default::default(),
             local_node: Default::default(),
             timer: Default::default(),
-            herder_driver: Default::default(),
             nomination_protocol_state: Default::default(),
             ballot_protocol_state: Default::default(),
             task_queue: Default::default(),
@@ -65,11 +63,6 @@ where
 
     pub fn timer(mut self, timer: Rc<RefCell<WorkScheduler>>) -> Self {
         self.timer = Some(timer);
-        self
-    }
-
-    pub fn herder_driver(mut self, herder_driver: Arc<H>) -> Self {
-        self.herder_driver = Some(herder_driver);
         self
     }
 
@@ -104,10 +97,6 @@ where
             return Err("Missing timer.");
         }
 
-        if self.herder_driver.is_none() {
-            return Err("Missing Herder driver.");
-        }
-
         match local_node_info_builder.build_from_file::<N>(node_idx) {
             // TODO: need to share state???
             Some(local_node_info) => {
@@ -137,10 +126,6 @@ where
 
         if self.timer.is_none() {
             return Err("Missing timer.");
-        }
-
-        if self.herder_driver.is_none() {
-            return Err("Missing Herder driver.");
         }
 
         Ok(SlotDriver::<N, H>::new(

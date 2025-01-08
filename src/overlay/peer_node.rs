@@ -51,7 +51,7 @@ where
 
     conn_builder: CB,
     pub scp_envelope_controller: SCPEnvelopeController<N>,
-    herder: Arc<H>,
+    herder: H,
 
     work_scheduler: Rc<RefCell<WorkScheduler>>,
     local_node_info: Arc<LocalNodeInfo<N>>,
@@ -98,7 +98,7 @@ where
         Self {
             peer_idx,
             message_controller: MessageController::new_handle(),
-            herder: Arc::new(herder),
+            herder,
             conn_builder,
             peer_conns: conns,
             scp_envelope_controller: SCPEnvelopeController::new(),
@@ -198,6 +198,7 @@ where
             &Default::default(),
             &mut self.scp_envelope_controller,
             &mut self.quorum_manager,
+            &mut self.herder,
         );
 
         self.flush_all_broadcast_msg();
@@ -271,7 +272,6 @@ where
 
         SlotDriverBuilder::<N, H>::new()
             .slot_index(slot_idx)
-            .herder_driver(self.herder.clone())
             .timer(self.work_scheduler.clone())
             .local_node(self.local_node_info.clone())
             .nomination_protocol_state(NominationProtocolState::new(leader))
@@ -348,6 +348,7 @@ where
             &env_id,
             &mut self.scp_envelope_controller,
             &mut self.quorum_manager,
+            &mut self.herder,
         );
 
         debug!(

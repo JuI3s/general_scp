@@ -166,6 +166,7 @@ mod tests {
 
     use crate::{
         application::{clock::VirtualClock, quorum::QuorumSet, quorum_manager::QuorumManager},
+        herder,
         mock::{
             self,
             builder::{MockInMemoryNodeBuilder, NodeBuilderDir},
@@ -216,7 +217,6 @@ mod tests {
 
         let slot_driver = SlotDriverBuilder::<MockState, MockStateDriver>::new()
             .slot_index(0)
-            .herder_driver(Arc::new(state_driver))
             .timer(Rc::new(RefCell::new(timer_handle)))
             .local_node(Arc::new(local_node))
             .build()
@@ -231,6 +231,7 @@ mod tests {
         let timer_handle = WorkScheduler::new(None);
 
         let quorum_set = QuorumSet::example_quorum_set();
+        let mut herder = MockStateDriver::new();
 
         let local_node = LocalNodeBuilder::<MockState>::new()
             .is_validator(true)
@@ -242,7 +243,6 @@ mod tests {
         let slot_driver: Arc<SlotDriver<MockState, MockStateDriver>> =
             SlotDriverBuilder::<MockState, MockStateDriver>::new()
                 .slot_index(0)
-                .herder_driver(Arc::new(MockStateDriver::new()))
                 .timer(Rc::new(RefCell::new(timer_handle)))
                 .local_node(Arc::new(local_node))
                 .build_handle()
@@ -263,6 +263,7 @@ mod tests {
             &prev_value,
             &mut envelope_controller,
             &mut quorum_manager,
+            &mut herder,
         );
     }
 
@@ -288,7 +289,6 @@ mod tests {
             .slot_index(0)
             .local_node(Arc::new(local_node))
             .timer(Rc::new(RefCell::new(timer_handle)))
-            .herder_driver(Arc::new(MockStateDriver::new()))
             .build()
             .unwrap();
 
@@ -470,11 +470,6 @@ mod tests {
         println!("node2 state: {:?}", node2_nomnination_state);
 
         assert!(builder.global_state.borrow().msg_peer_id_queue.len() == 0);
-        // assert_eq!(
-        //     InMemoryGlobalState::process_messages(&builder.global_state, &mut nodes),
-        //     0
-        // );
-        panic!()
     }
 
     //     #[test]

@@ -255,7 +255,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool;
 
     // prepared: ballot that should be prepared
@@ -267,7 +267,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool;
 
     // step 2+3+8 from the SCP paper
@@ -280,7 +280,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool;
 
     // newC, newH : low/high bounds prepared confirmed
@@ -293,7 +293,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool;
 
     // step (4 and 6)+8 from the SCP paper
@@ -305,7 +305,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool;
     // new values for c and h
     fn set_accept_commit(
@@ -317,7 +317,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool;
 
     // step 7+8 from the SCP paper
@@ -329,7 +329,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool;
 
     fn set_confirm_commit(
@@ -341,7 +341,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool;
 
     // step 9 from the SCP paper
@@ -352,7 +352,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool;
 }
 
@@ -1513,7 +1513,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool {
         debug!(
             "node {:?} attempts to accept prepared",
@@ -1652,7 +1652,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool {
         debug!(
             "node {:?} attempts to confirm prepared",
@@ -1757,7 +1757,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool {
         *state.value_override.lock().unwrap() = Some(new_high.value.clone());
 
@@ -1811,7 +1811,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool {
         if state.phase != SCPPhase::PhasePrepare && state.phase != SCPPhase::PhaseConfirm {
             return false;
@@ -1926,7 +1926,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool {
         let mut did_work = false;
 
@@ -1987,7 +1987,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool {
         // TODO: to fix
         if ballot_state.phase != SCPPhase::PhaseConfirm {
@@ -2077,7 +2077,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool {
         state.commit = Some(accept_commit_low.clone());
         state.high_ballot = Some(accept_commit_high.clone());
@@ -2122,7 +2122,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
-        herder_driver: &H,
+        herder_driver: &mut H,
     ) -> bool {
         debug!("node {:?} attempts to bump", self.local_node.node_id);
         if state.phase == SCPPhase::PhasePrepare || state.phase == SCPPhase::PhaseConfirm {
