@@ -20,7 +20,7 @@ use crate::{
         quorum::accept_predicate,
         quorum_manager::{self, QuorumManager},
     },
-    herder::herder::HerderDriver,
+    herder::{self, herder::HerderDriver},
     overlay::{node, peer::PeerID},
     utils::test::pretty_print_scp_env_id,
 };
@@ -35,9 +35,10 @@ use super::{
     statement::{SCPStatement, SCPStatementNominate},
 };
 
-pub trait NominationProtocol<N>
+pub trait NominationProtocol<N, H>
 where
     N: NominationValue,
+    H: HerderDriver<N>,
 {
     fn nominate(
         &self,
@@ -47,6 +48,7 @@ where
         previous_value: &N,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
+        herder_driver: &H,
     ) -> Option<SCPEnvelopeID>;
     fn stop_nomination(&self, state: &mut NominationProtocolState<N>);
 
@@ -59,6 +61,7 @@ where
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
+        herder_driver: &H,
     ) -> EnvelopeState;
 }
 
@@ -405,6 +408,7 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
+        herder_driver: &H,
     ) -> Option<SCPEnvelopeID> {
         // This function creats a nomination statement that contains the current
         // nomination value. The statement is then wrapped in an SCP envelope which is
@@ -435,6 +439,7 @@ where
             &cur_env_id,
             envelope_controller,
             quorum_manager,
+            herder_driver,
         );
 
         match env_state {
@@ -486,7 +491,7 @@ where
     }
 }
 
-impl<N, H> NominationProtocol<N> for SlotDriver<N, H>
+impl<N, H> NominationProtocol<N, H> for SlotDriver<N, H>
 where
     N: NominationValue + 'static,
     H: HerderDriver<N> + 'static,
@@ -499,6 +504,7 @@ where
         previous_value: &N,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
+        herder_driver: &H,
     ) -> Option<SCPEnvelopeID> {
         debug!("NominationProtocol::nominate, node: {:?}", self.node_idx());
         if !state.candidates.is_empty() {
@@ -524,16 +530,16 @@ where
         state.previous_value = previous_value.clone();
         state.round_number += 1;
 
-        let timeout: std::time::Duration = self.herder_driver.compute_timeout(state.round_number);
+        let timeout: std::time::Duration = herder_driver.compute_timeout(state.round_number);
 
         {
             updated = updated
                 || state.gather_votes_from_round_leaders(
                     &self.slot_index,
                     &self.local_node.node_id,
-                    &|value| self.herder_driver.extract_valid_value(value),
-                    &|value| self.herder_driver.validate_value(value, true),
-                    &|value| self.herder_driver.nominating_value(value, &self.slot_index),
+                    &|value| herder_driver.extract_valid_value(value),
+                    &|value| herder_driver.validate_value(value, true),
+                    &|value| herder_driver.nominating_value(value, &self.slot_index),
                     envelope_controller,
                 );
 
@@ -547,8 +553,7 @@ where
             if state.round_leaders.contains(&self.local_node.node_id) && state.votes.is_empty() {
                 state.votes.insert(value.clone().into());
                 updated = true;
-                self.herder_driver
-                    .nominating_value(&value, &self.slot_index);
+                herder_driver.nominating_value(&value, &self.slot_index);
                 debug!(
                     "NominationProtocol::nominate, node {:?} adds value {:?} as leader, updated: {:?}",
                     self.node_idx(),
@@ -585,7 +590,13 @@ where
             self.node_idx()
         );
         if updated {
-            self.emit_nomination(state, ballot_state, envelope_controller, quorum_manager)
+            self.emit_nomination(
+                state,
+                ballot_state,
+                envelope_controller,
+                quorum_manager,
+                herder_driver,
+            )
         } else {
             debug!(
                 "NominationProtocol::nominate (SKIPPED), node {:?}",
@@ -614,6 +625,7 @@ where
         envelope: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
+        herder_driver: &H,
     ) -> EnvelopeState {
         debug!(
             "process_nomination_envelope: Node {:?} process nomination envelope {:?}",
@@ -651,6 +663,7 @@ where
             nomination_state,
             &envelope_controller,
             &quorum_manager,
+            herder_driver,
         );
 
         debug!(
@@ -705,16 +718,14 @@ where
                 ballot_state,
                 envelope_controller,
                 quorum_manager,
+                herder_driver,
             );
         }
 
         if new_candidates {
             // TODO: Is this correct?
 
-            if let Some(value) = self
-                .herder_driver
-                .combine_candidates(&nomination_state.candidates)
-            {
+            if let Some(value) = herder_driver.combine_candidates(&nomination_state.candidates) {
                 debug!("new latest composite candidate: {:?}", value);
                 *nomination_state.latest_composite_candidate.lock().unwrap() = Some(value);
             }

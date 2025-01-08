@@ -16,7 +16,7 @@ use crate::{
         quorum::{nodes_form_quorum, QuorumSet},
         quorum_manager::{self, QuorumManager},
     },
-    herder::herder::HerderDriver,
+    herder::{self, herder::HerderDriver},
     scp::{
         local_node::LocalNodeInfo,
         nomination_protocol::NominationProtocol,
@@ -205,9 +205,10 @@ pub enum SCPPhase {
     PhaseExternalize,
 }
 
-pub trait BallotProtocol<N>
+pub trait BallotProtocol<N, H>
 where
     N: NominationValue,
+    H: HerderDriver<N>,
 {
     fn process_ballot_envelope(
         &self,
@@ -218,6 +219,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &mut H,
     ) -> EnvelopeState;
 
     fn advance_slot(
@@ -228,6 +230,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &mut H,
     );
 
     // `attempt*` methods are called by `advanceSlot` internally call the
@@ -252,7 +255,9 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool;
+
     // prepared: ballot that should be prepared
     fn set_accept_prepared(
         &self,
@@ -262,6 +267,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool;
 
     // step 2+3+8 from the SCP paper
@@ -274,6 +280,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool;
 
     // newC, newH : low/high bounds prepared confirmed
@@ -286,6 +293,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool;
 
     // step (4 and 6)+8 from the SCP paper
@@ -297,6 +305,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool;
     // new values for c and h
     fn set_accept_commit(
@@ -308,6 +317,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool;
 
     // step 7+8 from the SCP paper
@@ -319,6 +329,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool;
 
     fn set_confirm_commit(
@@ -330,6 +341,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool;
 
     // step 9 from the SCP paper
@@ -340,6 +352,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool;
 }
 
@@ -920,7 +933,7 @@ where
 {
     const MAXIMUM_ADVANCE_SLOT_RECURSION: u32 = 50;
 
-    fn validate_values(&self, st: &SCPStatement<N>) -> ValidationLevel {
+    fn validate_values(&self, st: &SCPStatement<N>, herder_driver: &H) -> ValidationLevel {
         // Helper function for validating that the statement contains valid values.
         // First get all nomination values from the statement, then call the herder
         // validation function on each value. Return valid if all values are
@@ -935,7 +948,7 @@ where
         let mut contains_maybe_valid = false;
 
         for value in &values {
-            let res = self.herder_driver.validate_value(value, false);
+            let res = herder_driver.validate_value(value, false);
             if res == ValidationLevel::Invalid {
                 return ValidationLevel::Invalid;
             }
@@ -981,6 +994,7 @@ where
         state: &mut BallotProtocolState<N>,
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
+        herder_driver: &H,
     ) {
         debug!(
             "maybe_send_latest_envelope: node {:?} emits latest envelope",
@@ -1009,7 +1023,7 @@ where
             state.last_envelope_emitted = state.last_envelope.to_owned();
 
             // TODO: currently this does nothing
-            self.herder_driver.emit_envelope(&last_envelope);
+            herder_driver.emit_envelope(&last_envelope);
 
             // TODO: no rewason to use Arc<Mutex> here
             let env_id = env_map.add_envelope(last_envelope.as_ref().clone());
@@ -1024,6 +1038,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &mut H,
     ) {
         debug!(
             "emit_current_state_statement: node {:?} emits current state statement",
@@ -1097,6 +1112,7 @@ where
             env_map,
             envs_to_emit,
             quorum_manager,
+            herder_driver,
         ) == EnvelopeState::Invalid
         {
             panic!("Bad state");
@@ -1108,7 +1124,7 @@ where
             "emit_current_state_statement: node {:?} emits envelope",
             self.local_node.node_id
         );
-        self.maybe_send_latest_envelope(state, env_map, envs_to_emit);
+        self.maybe_send_latest_envelope(state, env_map, envs_to_emit, herder_driver);
     }
 
     fn has_v_blocking_subset_strictly_ahead_of(
@@ -1135,6 +1151,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &mut H,
     ) -> bool {
         match nomination_state
             .latest_composite_candidate
@@ -1153,6 +1170,7 @@ where
                         env_map,
                         envs_to_emit,
                         quorum_manager,
+                        herder_driver,
                     )
                 } else {
                     self.bump_state_with_counter(
@@ -1163,6 +1181,7 @@ where
                         env_map,
                         envs_to_emit,
                         quorum_manager,
+                        herder_driver,
                     )
                 }
             }
@@ -1179,6 +1198,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &mut H,
     ) -> bool {
         debug!("node {:?} bumps state", self.local_node.node_id);
         if !force && state.current_ballot.lock().unwrap().is_none() {
@@ -1201,6 +1221,7 @@ where
                 env_map,
                 envs_to_emit,
                 quorum_manager,
+                herder_driver,
             )
         }
     }
@@ -1214,6 +1235,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &mut H,
     ) -> bool {
         debug!(
             "node {:?} bumps state with counter {:?}",
@@ -1243,8 +1265,9 @@ where
                 env_map,
                 envs_to_emit,
                 quorum_manager,
+                herder_driver,
             );
-            self.check_heard_from_quorum(state, env_map, quorum_manager);
+            self.check_heard_from_quorum(state, env_map, quorum_manager, herder_driver);
         }
 
         updated
@@ -1305,6 +1328,7 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         env_map: &EnvMap<N>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) {
         debug!(
             "node {:?} checks heard from quorum",
@@ -1349,7 +1373,7 @@ where
                     // if we transition from not heard -> heard, we start the
                     // timer
                     if ballot_state.phase != SCPPhase::PhaseExternalize {
-                        self.start_ballot_protocol_timer(&ballot_state)
+                        self.start_ballot_protocol_timer(&ballot_state, herder_driver)
                     }
                 }
                 if ballot_state.phase == SCPPhase::PhaseExternalize {
@@ -1362,8 +1386,12 @@ where
         }
     }
 
-    fn start_ballot_protocol_timer(&self, ballot_state: &BallotProtocolState<N>) {
-        let timeout = self.herder_driver.compute_timeout(
+    fn start_ballot_protocol_timer(
+        &self,
+        ballot_state: &BallotProtocolState<N>,
+        herder_driver: &H,
+    ) {
+        let timeout = herder_driver.compute_timeout(
             ballot_state
                 .current_ballot
                 .lock()
@@ -1395,7 +1423,7 @@ where
     }
 }
 
-impl<N, H> BallotProtocol<N> for SlotDriver<N, H>
+impl<N, H> BallotProtocol<N, H> for SlotDriver<N, H>
 where
     N: NominationValue,
     H: HerderDriver<N> + 'static,
@@ -1409,6 +1437,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &mut H,
     ) -> EnvelopeState {
         let envelope = env_map.0.get(env_id).unwrap();
         assert!(envelope.slot_index == self.slot_index);
@@ -1435,7 +1464,7 @@ where
             .latest_envelopes
             .insert(envelope.node_id.to_owned(), env_id.to_owned());
 
-        let validation_level = self.validate_values(&st);
+        let validation_level = self.validate_values(&st, herder_driver);
 
         if validation_level == ValidationLevel::Invalid {
             debug!("node {:?} statement is invalid", self.local_node.node_id);
@@ -1453,6 +1482,7 @@ where
                 env_map,
                 envs_to_emit,
                 quorum_manager,
+                herder_driver,
             );
             return EnvelopeState::Valid;
         }
@@ -1483,6 +1513,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool {
         debug!(
             "node {:?} attempts to accept prepared",
@@ -1562,6 +1593,7 @@ where
                     env_map,
                     envs_to_emit,
                     quorum_manager,
+                    herder_driver,
                 );
             } else {
                 debug!("federated voting for accept failed, ");
@@ -1578,6 +1610,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &mut H,
     ) -> bool {
         debug!("node {:?} sets accept prepared", self.local_node.node_id);
         let mut did_work = state.set_prepared(ballot);
@@ -1605,6 +1638,7 @@ where
                 env_map,
                 envs_to_emit,
                 quorum_manager,
+                herder_driver,
             );
         }
         did_work
@@ -1618,6 +1652,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool {
         debug!(
             "node {:?} attempts to confirm prepared",
@@ -1704,6 +1739,7 @@ where
                     envs_to_emit,
                     env_map,
                     quorum_manager,
+                    herder_driver,
                 );
             }
             false
@@ -1721,6 +1757,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool {
         *state.value_override.lock().unwrap() = Some(new_high.value.clone());
 
@@ -1759,6 +1796,7 @@ where
                 env_map,
                 envs_to_emit,
                 quorum_manager,
+                herder_driver,
             );
         }
 
@@ -1773,6 +1811,7 @@ where
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         env_map: &mut EnvMap<N>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool {
         if state.phase != SCPPhase::PhasePrepare && state.phase != SCPPhase::PhaseConfirm {
             return false;
@@ -1868,6 +1907,7 @@ where
                     env_map,
                     envs_to_emit,
                     quorum_manager,
+                    herder_driver,
                 )
             } else {
                 false
@@ -1886,6 +1926,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool {
         let mut did_work = false;
 
@@ -1931,6 +1972,7 @@ where
                 env_map,
                 envs_to_emit,
                 quorum_manager,
+                herder_driver,
             );
         }
 
@@ -1945,6 +1987,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool {
         // TODO: to fix
         if ballot_state.phase != SCPPhase::PhaseConfirm {
@@ -2018,6 +2061,7 @@ where
                 env_map,
                 envs_to_emit,
                 quorum_manager,
+                herder_driver,
             )
         } else {
             false
@@ -2033,6 +2077,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool {
         state.commit = Some(accept_commit_low.clone());
         state.high_ballot = Some(accept_commit_high.clone());
@@ -2046,14 +2091,10 @@ where
             env_map,
             envs_to_emit,
             quorum_manager,
+            herder_driver,
         );
 
         self.stop_nomination(nomination_state);
-
-        self.value_externalized(
-            self.slot_index,
-            &state.commit.as_ref().expect("No commit ballot found").value,
-        );
 
         true
     }
@@ -2081,6 +2122,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &H,
     ) -> bool {
         debug!("node {:?} attempts to bump", self.local_node.node_id);
         if state.phase == SCPPhase::PhasePrepare || state.phase == SCPPhase::PhaseConfirm {
@@ -2136,6 +2178,7 @@ where
                         env_map,
                         envs_to_emit,
                         quorum_manager,
+                        herder_driver,
                     );
                 }
             }
@@ -2155,6 +2198,7 @@ where
         env_map: &mut EnvMap<N>,
         envs_to_emit: &mut VecDeque<SCPEnvelopeID>,
         quorum_manager: &QuorumManager,
+        herder_driver: &mut H,
     ) {
         debug!(
             "node {:?} advances slot, statement: {:?}",
@@ -2175,6 +2219,7 @@ where
             envs_to_emit,
             env_map,
             quorum_manager,
+            herder_driver,
         );
         debug!(
             "node {:?} did work during attempt_accept_prepared: {:?}, message level: {:?}",
@@ -2188,6 +2233,7 @@ where
             env_map,
             envs_to_emit,
             quorum_manager,
+            herder_driver,
         );
         debug!(
             "node {:?} did work during attempt_confirm_prepared: {:?}, message level: {:?}",
@@ -2201,6 +2247,7 @@ where
             envs_to_emit,
             env_map,
             quorum_manager,
+            herder_driver,
         );
         debug!(
             "node {:?} did work during attempt_accept_commit: {:?}, message level: {:?}",
@@ -2214,7 +2261,21 @@ where
             env_map,
             envs_to_emit,
             quorum_manager,
+            herder_driver,
         );
+
+        if attempted_accept_commit {
+            self.value_externalized(
+                self.slot_index,
+                &ballot_state
+                    .commit
+                    .as_ref()
+                    .expect("No commit ballot found")
+                    .value,
+                herder_driver,
+            );
+        }
+
         debug!(
             "node {:?} did work during attempt_confirm_commit: {:?}, message level: {:?}",
             self.local_node.node_id, attempted_confirm_commit, ballot_state.message_level
@@ -2237,6 +2298,7 @@ where
                     env_map,
                     envs_to_emit,
                     quorum_manager,
+                    herder_driver,
                 );
 
                 did_work = did_bump || did_work;
@@ -2250,7 +2312,7 @@ where
         ballot_state.message_level -= 1;
 
         if did_work {
-            self.maybe_send_latest_envelope(ballot_state, env_map, envs_to_emit);
+            self.maybe_send_latest_envelope(ballot_state, env_map, envs_to_emit, herder_driver);
         }
     }
 }

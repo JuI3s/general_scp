@@ -38,8 +38,6 @@ use super::{
     statement::{SCPStatement, SCPStatementNominate},
 };
 
-pub type HSCPDriver<N> = Arc<Mutex<dyn SCPDriver<N>>>;
-
 #[derive(PartialEq, Eq)]
 pub enum ValidationLevel {
     Invalid,
@@ -56,7 +54,6 @@ where
     pub slot_index: SlotIndex,
     pub local_node: Arc<LocalNodeInfo<N>>,
     pub scheduler: Rc<RefCell<WorkScheduler>>,
-    pub herder_driver: Arc<H>,
     pub slot_state: RefCell<SlotState>,
     pub task_queue: Rc<RefCell<SlotJobQueue<N, H>>>,
 }
@@ -192,9 +189,10 @@ where
 }
 
 // TODO: I think I don't need this trait
-pub trait SCPDriver<N>
+pub trait SCPDriver<N, H>
 where
     N: NominationValue,
+    H: HerderDriver<N>,
 {
     fn validate_value(slot_index: u64, value: &N, nomination: bool) -> ValidationLevel;
 
@@ -205,7 +203,7 @@ where
     fn nominating_value(&self, value: &N);
     // `value_externalized` is called at most once per slot when the slot
     // externalize its value.
-    fn value_externalized(&self, slot_index: u64, value: &N);
+    fn value_externalized(&self, slot_index: u64, value: &N, herder: &mut H);
     // `accepted_bsallot_prepared` every time a ballot is accepted as prepared
     fn accepted_ballot_prepared(&self, slot_index: &u64, ballot: &SCPBallot<N>);
 
@@ -229,14 +227,12 @@ where
     pub fn new(
         slot_index: SlotIndex,
         local_node: Arc<LocalNodeInfo<N>>,
-        herder_driver: Arc<H>,
         task_queue: Rc<RefCell<SlotJobQueue<N, H>>>,
         scheduler: Rc<RefCell<WorkScheduler>>,
     ) -> Self {
         Self {
             slot_index,
             local_node,
-            herder_driver,
             slot_state: Default::default(),
             task_queue,
             scheduler,
@@ -263,6 +259,7 @@ where
         nomination_state: &mut NominationProtocolState<N>,
         envelope_controller: &SCPEnvelopeController<N>,
         quorum_manager: &QuorumManager,
+        herder: &H,
     ) -> bool {
         // TODO: Need to check if we need to accept the statement.
         debug!(
@@ -291,7 +288,7 @@ where
                 &envelope_controller.envelopes,
                 quorum_manager
             ) {
-                match self.herder_driver.validate_value(vote, true) {
+                match herder.validate_value(vote, true) {
                     ValidationLevel::FullyValidated => {
                         debug!(
                             "state_may_have_changed STATE CHANGE: nodes {:?} fully validates value {:?}",
@@ -305,7 +302,7 @@ where
                         return true;
                     }
                     _ => {
-                        if let Some(value) = self.herder_driver.extract_valid_value(vote) {
+                        if let Some(value) = herder.extract_valid_value(vote) {
                             nomination_state.accepted.insert(Arc::new(value.clone()));
                             nomination_state.votes.insert(Arc::new(value.clone()));
                             return true;
@@ -329,6 +326,7 @@ where
         env_id: &SCPEnvelopeID,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
+        herder_driver: &H,
     ) -> EnvelopeState {
         let is_ballot = {
             let env = envelope_controller.get_envelope(env_id).unwrap();
@@ -364,6 +362,7 @@ where
                 &env_id,
                 envelope_controller,
                 quorum_manager,
+                herder_driver,
             )
         }
     }
@@ -542,7 +541,7 @@ where
     }
 }
 
-impl<N, H> SCPDriver<N> for SlotDriver<N, H>
+impl<N, H> SCPDriver<N, H> for SlotDriver<N, H>
 where
     N: NominationValue,
     H: HerderDriver<N>,
@@ -558,13 +557,13 @@ where
         println!("Emitting an envelope");
     }
 
-    fn value_externalized(&self, slot_index: u64, value: &N) {
+    fn value_externalized(&self, slot_index: u64, value: &N, herder: &mut H) {
         debug!(
             "node {:?} externalized value {:?}",
             self.local_node.node_id, value
         );
 
-        self.herder_driver.externalize_value(value);
+        herder.externalize_value(value);
     }
 
     fn sign_envelope(envelope: &mut SCPEnvelope<N>) {

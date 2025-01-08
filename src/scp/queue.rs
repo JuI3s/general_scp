@@ -52,6 +52,7 @@ where
         ballot_states: &mut BTreeMap<SlotIndex, BallotProtocolState<N>>,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
+        herder_driver: &H,
     ) {
         if let Some(job) = self.jobs.pop_front() {
             if let Some(slot_driver) = slots.get(&job.id) {
@@ -68,6 +69,7 @@ where
                         ballot_state,
                         envelope_controller,
                         quorum_manager,
+                        herder_driver,
                     ),
                     SlotTask::AbandonBallot(arg) => arg.execute(
                         slot_driver,
@@ -120,6 +122,7 @@ where
         ballot_state: &mut BallotProtocolState<N>,
         envelope_controller: &mut SCPEnvelopeController<N>,
         quorum_manager: &mut QuorumManager,
+        herder_driver: &H,
     ) {
         let value = self.value;
         let prev_value = self.previous_value;
@@ -132,6 +135,7 @@ where
             &prev_value,
             envelope_controller,
             quorum_manager,
+            herder_driver,
         );
     }
 }

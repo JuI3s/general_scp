@@ -114,7 +114,6 @@ where
                 let slot_driver = SlotDriver::<N, H>::new(
                     self.slot_index.clone().unwrap(),
                     Arc::new(local_node_info),
-                    self.herder_driver.clone().unwrap(),
                     self.task_queue
                         .clone()
                         .unwrap_or(Rc::new(RefCell::new(SlotJobQueue::new()))),
@@ -147,7 +146,6 @@ where
         Ok(SlotDriver::<N, H>::new(
             self.slot_index.unwrap(),
             self.local_node.unwrap(),
-            self.herder_driver.unwrap(),
             self.task_queue
                 .unwrap_or(Rc::new(RefCell::new(SlotJobQueue::new()))),
             self.timer.unwrap(),
