@@ -153,9 +153,9 @@ impl CAState {
         self.root_listing.0.get(application_identifier).is_some()
     }
 
-    pub fn on_scp_operation(&mut self, scp_operation: SCPCAOperation) {
+    pub fn on_scp_operation(&mut self, scp_operation: &SCPCAOperation) {
         // TODO: consider side effects
-        for operation in scp_operation.0 {
+        for operation in &scp_operation.0 {
             match self.on_ca_operation(operation) {
                 Ok(_) => {}
                 Err(_) => todo!(),
@@ -163,7 +163,7 @@ impl CAState {
         }
     }
 
-    pub fn on_ca_operation(&mut self, ca_operation: CAOperation) -> CAStateOpResult<()> {
+    pub fn on_ca_operation(&mut self, ca_operation: &CAOperation) -> CAStateOpResult<()> {
         match ca_operation {
             CAOperation::Empty => Ok(()),
             CAOperation::Set(set_operation) => {
@@ -180,7 +180,7 @@ impl CAState {
                         Err(CAStateOpError::NoExist)
                     }
                 } else {
-                    let entry = set_root_operation.entry;
+                    let entry = set_root_operation.entry.to_owned();
                     self.root_listing
                         .0
                         .insert(entry.application_identifier.to_owned(), entry);

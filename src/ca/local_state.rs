@@ -54,7 +54,7 @@ mod test {
             _ => panic!("not reached"),
         };
 
-        assert!(local_state.state.on_ca_operation(operation).is_ok());
+        assert!(local_state.state.on_ca_operation(&operation).is_ok());
 
         assert_eq!(local_state.state.root_listing.0.len(), 1);
         let added_entry = local_state.state.root_listing.0.get("namespace1").unwrap();
@@ -73,7 +73,7 @@ mod test {
             _ => panic!("not reached"),
         };
 
-        local_state.state.on_scp_operation(scp_operation);
+        local_state.state.on_scp_operation(&scp_operation);
 
         assert_eq!(local_state.state.root_listing.0.len(), 2);
         let added_entry = local_state.state.root_listing.0.get("namespace2").unwrap();

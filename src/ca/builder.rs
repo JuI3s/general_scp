@@ -8,13 +8,9 @@ use std::sync::Arc;
 use super::local_state::LocalCAState;
 use super::operation::{CAOperation, SCPCAOperation};
 
-pub struct CAStateDriver {}
+pub struct CAStateDriver(pub LocalCAState);
 
 impl HerderDriver<SCPCAOperation> for CAStateDriver {
-    fn new() -> Self {
-        Self {}
-    }
-
     fn combine_candidates(
         &self,
         candidates: &BTreeSet<Arc<SCPCAOperation>>,
@@ -31,6 +27,14 @@ impl HerderDriver<SCPCAOperation> for CAStateDriver {
 
     fn extract_valid_value(&self, value: &SCPCAOperation) -> Option<SCPCAOperation> {
         None
+    }
+
+    fn externalize_value(&mut self, value: &SCPCAOperation) {
+        self.0.state.on_scp_operation(value);
+    }
+
+    fn new() -> Self {
+        panic!()
     }
 }
 
