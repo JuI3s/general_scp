@@ -1,6 +1,5 @@
 use std::{io::Write, marker::PhantomData, net::TcpStream};
 
-
 use crate::{
     application::quorum::QuorumNode,
     overlay::{
@@ -17,8 +16,8 @@ where
 {
     pub node: QuorumNode,
     stream: Option<TcpStream>,
-    phantom: PhantomData<N>,
     state: SCPPeerConnState,
+    phantom: PhantomData<N>,
 }
 
 impl<N: NominationValue> PeerConn<N> for TCPConn<N> {
@@ -77,5 +76,21 @@ where
 {
     fn build(&self, peer: &QuorumNode) -> TCPConn<N> {
         TCPConn::new(peer.clone())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{application::quorum::QuorumNode, mock::state::MockState};
+
+    use super::TCPConn;
+
+    #[test]
+    fn init_tcp_conn() {
+        let node1 = QuorumNode::from_toml(&"node1".to_string()).unwrap();
+        let tcp_conn1: TCPConn<MockState> = TCPConn::<MockState>::new(node1);
+
+        let node2 = QuorumNode::from_toml(&"node2".to_string()).unwrap();
+        let tcp_conn1 = TCPConn::<MockState>::new(node2);
     }
 }

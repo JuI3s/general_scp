@@ -10,3 +10,4 @@ mod ca_type;
 pub mod local_state;
 pub mod scp;
 pub mod builder;
+pub mod arg;
