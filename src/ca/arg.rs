@@ -20,6 +20,15 @@ struct CreateNamespaceArg {
     namespace: String,
 }
 
+impl From<String> for CACli {
+    fn from(s: String) -> Self {
+        let mut cli = vec![""];
+        cli.extend(s.split_whitespace());
+        let arg = CACli::try_parse_from(cli);
+        arg.unwrap()
+    }
+}
+
 impl CACmd {
     pub fn to_scp_operation(self, local_state: &LocalCAState) -> Option<SCPCAOperation> {
         match self {
@@ -76,12 +85,9 @@ mod test {
         }
 
         let cli_str = "create-namespace namespace1";
-        let mut cli = vec![""];
-        cli.extend(cli_str.split_whitespace());
-        let arg = CACli::try_parse_from(cli);
-        assert!(arg.is_ok());
+        let arg = CACli::from(cli_str.to_string());
 
-        match arg.unwrap().command {
+        match arg.command {
             CACmd::CreateNamespace(create_namespace_arg) => {
                 assert_eq!(create_namespace_arg.namespace, "namespace1");
             }
