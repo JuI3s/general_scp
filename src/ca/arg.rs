@@ -74,5 +74,18 @@ mod test {
             }
             _ => panic!("not reached"),
         }
+
+        let cli_str = "create-namespace namespace1";
+        let mut cli = vec![""];
+        cli.extend(cli_str.split_whitespace());
+        let arg = CACli::try_parse_from(cli);
+        assert!(arg.is_ok());
+
+        match arg.unwrap().command {
+            CACmd::CreateNamespace(create_namespace_arg) => {
+                assert_eq!(create_namespace_arg.namespace, "namespace1");
+            }
+            _ => panic!("not reached"),
+        }
     }
 }
